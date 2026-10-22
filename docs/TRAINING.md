@@ -25,7 +25,7 @@ Brush uses WebGPU, so it needs no CUDA toolkit. Use `--max-resolution` / `--max-
 ## 3. Linux (laptop, or WSL2), Nerfstudio
 Outline only, verify versions when running:
 ```bash
-sudo apt install colmap ffmpeg python3-venv build-essential     # colmap 3.x from apt is fine for poses
+sudo apt install colmap ffmpeg python3-venv build-essential     # apt colmap is usually CPU-only: pass --cpu, or use conda-forge's CUDA build
 python3 -m venv ~/ns && source ~/ns/bin/activate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # cu128+ required for RTX 50-series
 pip install nerfstudio opencv-python-headless

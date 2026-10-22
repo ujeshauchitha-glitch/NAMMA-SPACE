@@ -59,6 +59,19 @@ One video per room or one per floor, named `<space>_<room>.mp4`, plus an optiona
 
 *Times are estimates; measured values go in the abstract after the first full run.*
 
+## Pass criteria (enforced by the pipeline)
+Run `python pipeline/run_pipeline.py clip.mp4 --out work/<name> --check` right after capture; it validates before any processing.
+
+| Stage | Blocks the run if | Recorded as a warning if |
+|---|---|---|
+| Input video | short side < 720 px; < 20 s; > 900 s; < 10 GB free disk; unreadable file | < 30 s; < 24 fps |
+| Input photos | < 40 photos; unreadable files | mixed resolutions |
+| Frames | < 80 usable frames after blur removal | |
+| COLMAP | no model; < 60% of frames registered; < 2000 sparse points | 60-90% registered; reprojection error > 1.5 px; more than one disconnected model |
+| Splat file | missing/empty; not a binary PLY; missing 3DGS attributes; truncated; NaN values; < 50,000 splats | |
+
+These checks only prove the output is well-formed. A synthetic file passes them too. Success is declared only by a person: walk the whole room in the viewer, check walls, floor, doorways and furniture, then run `--approve <workdir> --note "what you checked"`. `work/<name>/report.json` holds the state (`failed`, `automated_checks_passed_awaiting_inspection`, `inspected_ok`), measured stage timings and every check result.
+
 ## Scale and orientation
 COLMAP output has arbitrary scale and orientation. `scene.json` carries `rotation` (flips COLMAP's Y-down into Y-up) and `scale`. Set `scale` as `real_distance / model_distance` using one known length (a doorway ≈ 0.9 m, or a tape-measured wall). `spawn` places the first-person camera on the floor. This step is a one-line config edit, not 3D modelling; automatic floor-plane fitting (RANSAC on splat centres) is planned for Round 2 because navigation needs a true floor.
 

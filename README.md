@@ -35,10 +35,16 @@ Any splat can be loaded with `?splat=<url>`.
 ## Reconstruct your own space (Windows, NVIDIA GPU)
 
 ```powershell
-./scripts/setup_tools.ps1                        # downloads COLMAP + Brush into ./tools, installs ffmpeg
-py -3.12 pipeline/run_pipeline.py path\to\capture.mp4 --out work\home --title "My Home"
-cd viewer; npm run dev
+./scripts/setup_tools.ps1                        # downloads COLMAP + Brush into ./tools, installs ffmpeg + OpenCV
+py -3.12 pipeline/run_pipeline.py --doctor       # are all dependencies found?
+py -3.12 pipeline/run_pipeline.py clip.mp4 --out work\home --check   # validate the capture, process nothing
+py -3.12 pipeline/run_pipeline.py clip.mp4 --out work\home --title "My Home"
+cd viewer; npm run dev                           # walk the whole room, then:
+py -3.12 pipeline/run_pipeline.py --approve work\home --note "what you checked"
 ```
+Linux / WSL2: `scripts/setup_tools.sh` (untested). Trainers and machines: [docs/TRAINING.md](docs/TRAINING.md); `--trainer nerfstudio` is the alternative to Brush.
+
+A run ends as `automated_checks_passed_awaiting_inspection` in `work/<name>/report.json`. It becomes `inspected_ok` only when a person approves it after walking the result; until then the reconstruction is **not** considered successful. Pass criteria are in [docs/SOP.md](docs/SOP.md).
 
 Then edit `viewer/public/models/scene.json` (`spawn`, `scale`, `rotation`) to align the model; see *Scale and orientation* in the SOP.
 
