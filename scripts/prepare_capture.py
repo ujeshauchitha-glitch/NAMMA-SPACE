@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import imghdr
 import json
+import mimetypes
 import shutil
 import subprocess
 import sys
@@ -20,6 +20,48 @@ from pathlib import Path
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi"}
+
+# HEIC/HEIF ISO-BMFF brands recognized at the ftyp box (stdlib-only sniffing;
+# `imghdr` was removed from the standard library in Python 3.13).
+HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"heif", b"mif1"}
+
+# Honest remedy copy for HEIC frames (voice guide §9.1 — never blame the user).
+HEIC_REMEDY = "This file is HEIC — export JPG or run the prepare script."
+
+# Raster formats resolved via the mimetypes fallback (signatures outside the
+# magic table, kept for parity with the previous imghdr-based behaviour).
+MIMETYPE_FALLBACKS = {
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/x-ms-bmp": "bmp",
+    "image/tiff": "tiff",
+    "image/x-icon": "ico",
+}
+
+
+def sniff_image_type(path: Path) -> str | None:
+    """Classify a frame by magic bytes, falling back to the declared extension.
+
+    Magic bytes are authoritative: a familiar extension never promotes content
+    the signature check rejected (a .jpg name on non-JPEG bytes stays unknown).
+    The mimetypes fallback only resolves formats whose signatures are not in
+    the magic table.
+    """
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(32)
+    except OSError:
+        return None
+    if header[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if header[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "webp"
+    if header[4:8] == b"ftyp" and header[8:12] in HEIC_BRANDS:
+        return "heic"
+    kind, _ = mimetypes.guess_type(path.name)
+    return MIMETYPE_FALLBACKS.get(kind) if kind else None
 
 
 def sha256_file(path: Path) -> str:
@@ -56,12 +98,19 @@ def copy_images(source: Path, frames_dir: Path, limit: int) -> list[Path]:
 
 def image_diagnostics(frames: list[Path]) -> dict[str, object]:
     invalid = []
+    heic = []
     for frame in frames:
-        if frame.suffix.lower() == ".heic":
-            continue
-        if imghdr.what(frame) is None:
+        kind = sniff_image_type(frame)
+        if kind is None:
             invalid.append(str(frame))
-    return {"invalidFrameCount": len(invalid), "invalidFrames": invalid}
+        elif kind == "heic":
+            heic.append(str(frame))
+    return {
+        "invalidFrameCount": len(invalid),
+        "invalidFrames": invalid,
+        "heicFrameCount": len(heic),
+        "heicFrames": heic,
+    }
 
 
 def main() -> int:
@@ -103,6 +152,8 @@ def main() -> int:
     diagnostics = image_diagnostics(frames)
     if diagnostics["invalidFrameCount"]:
         quality_warnings.append(f"{diagnostics['invalidFrameCount']} frame file(s) could not be identified as readable raster images; verify file contents.")
+    if diagnostics["heicFrameCount"]:
+        quality_warnings.append(HEIC_REMEDY)
     if duplicate_count:
         quality_warnings.append(f"{duplicate_count} duplicate frame file(s) detected by SHA-256.")
     if tiny_frames:
