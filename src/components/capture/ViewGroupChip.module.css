@@ -1,0 +1,8 @@
+/* View-group chip (§5.5) — instant toggle, 24px, mono uppercase. */
+.groupChip {
+  cursor: pointer;
+}
+
+.groupChip:not([aria-pressed]) {
+  cursor: default;
+}
