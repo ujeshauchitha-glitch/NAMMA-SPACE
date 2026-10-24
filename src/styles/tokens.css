@@ -1,0 +1,111 @@
+/*
+ * GROUNDTRUTH · palette MERIDIAN — single source of truth.
+ * Verbatim from docs/design/DESIGN_HANDOFF.md §4.1 (color), §4.2 (type),
+ * §4.3 (spacing / radius / borders / elevation / blur / focus) and the
+ * §7.1 motion mirrors. Imported once from src/main.tsx. Custom properties
+ * only — no rules, no component styles.
+ */
+
+:root {
+  /* ---------- §4.1 color: surfaces ---------- */
+  --surface-0: #F2EFE6;        /* app canvas */
+  --surface-1: #FAF8F2;        /* panels, nav, rails */
+  --surface-2: #FFFFFF;        /* raised: inputs, popovers, modals */
+  --surface-inset: #EBE7DB;    /* recessed readouts, code, empty wells */
+  --surface-skeleton: #E7E2D4; /* skeleton base */
+  --surface-skeleton-hi: #F5F2E9; /* skeleton sweep */
+
+  /* ---------- §4.1 color: HUD (over-scene only) ---------- */
+  --hud-bg: rgba(247, 245, 238, 0.92);
+  --hud-bg-strong: rgba(247, 245, 238, 0.97); /* modals/panels over scene */
+  --hud-blur: blur(10px) saturate(1.1);
+
+  /* ---------- §4.1 color: lines ---------- */
+  --line: #DED8C9;
+  --line-strong: #C7BFA9;
+  --line-ink: rgba(21, 36, 29, 0.18);
+
+  /* ---------- §4.1 color: text ---------- */
+  --text: #15241D;
+  --text-muted: #4B5A50;
+  --text-dim: #636E60;
+  --text-inverse: #F7F5EE;     /* on botanical/cobalt fills */
+
+  /* ---------- §4.1 color: accents ---------- */
+  --accent-botanical: #0E4034;
+  --accent-botanical-hover: #0A342A;
+  --accent-lime: #A9CC16;      /* signal: fills/marks only, never text on light */
+  --accent-lime-wash: rgba(169, 204, 22, 0.18);
+  --accent-cobalt: #2748C7;    /* data: routes, focus, links */
+  --accent-cobalt-wash: rgba(39, 72, 199, 0.10);
+
+  /* ---------- §4.1 color: semantic ---------- */
+  --success: #2F6B4B;  --success-wash: rgba(47, 107, 75, 0.12);
+  --warning: #8F5509;  --warning-wash: rgba(143, 85, 9, 0.12);
+  --error:   #A6331E;  --error-wash:   rgba(166, 51, 30, 0.12);
+  --blocked: #615E56;  --blocked-wash: rgba(97, 94, 86, 0.12);
+
+  /* ---------- §4.1 color: 3D defaults (engine-side, mirrored for the frame) ---------- */
+  --scene-clear: #DCD8CC;
+
+  /* ---------- §4.2 typography ---------- */
+  --font-ui: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* scale — sizes are fixed px; density adjusts via breakpoints, not rem math */
+  --text-display: 650 34px/1.05 var(--font-ui);   /* workspace title */
+  --text-title:   600 20px/1.25 var(--font-ui);   /* panel titles */
+  --text-heading: 600 15px/1.35 var(--font-ui);   /* section headings, list primaries */
+  --text-body:    400 13.5px/1.5 var(--font-ui);  /* body, descriptions */
+  --text-label:   500 12px/1.3 var(--font-ui);    /* buttons, chips, inputs */
+  --text-meta:    450 11px/1.4 var(--font-mono);  /* metadata rows, ids, coords */
+  --text-micro:   500 10px/1.35 var(--font-mono); /* uppercase eyebrows, tab numbers */
+
+  --tracking-eyebrow: 0.08em;   /* uppercase mono micro-labels only */
+  --tracking-tab: 0.06em;
+  --tracking-display: -0.02em;
+  --numeric: tabular-nums;      /* apply to all mono + any digit run: .num */
+
+  /* ---------- §4.3 spacing (4px base) ---------- */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* ---------- §4.3 radius (architectural: tight) ---------- */
+  --radius-1: 2px;   /* chips, buttons, tags */
+  --radius-2: 3px;   /* inputs, panels, thumbnails */
+  --radius-3: 6px;   /* modals, toasts */
+  --radius-dot: 999px; /* ONLY the 6px status/live dot */
+
+  /* ---------- §4.3 borders ---------- */
+  --border: 1px solid var(--line);
+  --border-strong: 1px solid var(--line-strong);
+  --border-active: 2px solid var(--accent-lime);   /* selected row / active tab */
+  --rule-signal: 3px;                              /* left signal rule on cards */
+
+  /* ---------- §4.3 elevation (restrained; shadow only where something floats) ---------- */
+  --shadow-1: 0 1px 2px rgba(21, 36, 29, 0.06);
+  --shadow-2: 0 8px 24px -12px rgba(21, 36, 29, 0.28);   /* popovers, toasts */
+  --shadow-3: 0 24px 64px -24px rgba(21, 36, 29, 0.35);  /* modals */
+  --shadow-hud: 0 1px 0 rgba(21, 36, 29, 0.10), 0 10px 28px -10px rgba(0, 0, 0, 0.45);
+  --inner-plate: inset 0 0 0 1px rgba(21, 36, 29, 0.14); /* 3D viewport frame */
+
+  /* ---------- §4.3 blur ---------- */
+  --blur-hud: blur(10px) saturate(1.1);
+  --blur-sheet: blur(16px) saturate(1.15);
+
+  /* ---------- §4.3 focus (dual-context) ---------- */
+  --focus: var(--accent-cobalt);
+  --focus-halo: rgba(247, 245, 238, 0.9);   /* outer halo for over-scene elements */
+
+  /* ---------- §7.1 motion mirrors (source: src/styles/motion.ts) ---------- */
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-panel: 320ms;
+  --dur-workspace: 420ms;
+  --dur-scene: 900ms;
+  --stagger: 28ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}

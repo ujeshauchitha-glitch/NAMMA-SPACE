@@ -5,7 +5,6 @@ import { loadSceneBundle } from './lib/sceneLoader';
 import { findRoute, searchPois, worldToCell, type GridCell } from './lib/navigation';
 import type { SceneBundle, Vec3 } from './types/scene';
 import type { PlayCanvasViewer } from './engine/PlayCanvasViewer';
-import './styles.css';
 
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
 const SCENE_OPTIONS = [
@@ -180,7 +179,7 @@ export default function App() {
         <div className="workspace-actions">
           <label className="scene-switcher"><span>Scene</span><select value={sceneUrl} onChange={(event) => setSceneUrl(event.target.value)} aria-label="Choose demonstration scene">{SCENE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <StatusPill tone={bundle?.quality.status === 'passed' ? 'good' : 'warn'}>{bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}</StatusPill>
-          <button className="button button--quiet" onClick={() => void loadScene()}>↻ Reload bundle</button>
+          <button className="button button--quiet" onClick={() => void loadScene()}>Reload bundle</button>
         </div>
       </section>
 
@@ -188,7 +187,7 @@ export default function App() {
         <div className="viewer-card panel">
           <div className="viewer-toolbar">
             <div className="viewer-toolbar-title"><span className="live-marker" /> Live spatial view <span className="toolbar-slash">/</span> {viewerStatus}</div>
-           <div className="viewer-toolbar-actions"><span className="coordinate-readout">X {position[0].toFixed(2)} · Z {position[2].toFixed(2)}</span><button className="icon-button" disabled={!isViewerReady} onClick={() => viewerRef.current?.reset()} aria-label="Reset viewpoint">⌂</button></div>
+           <div className="viewer-toolbar-actions"><span className="coordinate-readout">X {position[0].toFixed(2)} · Z {position[2].toFixed(2)}</span><button className="icon-button" disabled={!isViewerReady} onClick={() => viewerRef.current?.reset()} aria-label="Reset viewpoint">Reset</button></div>
           </div>
           <div className="viewer-stage">
             {bundle && <ViewerCanvas manifest={bundle.manifest} manifestUrl={sceneUrl} navigation={bundle.navigation} pois={bundle.pois} onViewerReady={handleViewerReady} onViewerDestroyed={handleViewerDestroyed} onPosition={handlePosition} onStatus={handleViewerStatus} />}
@@ -200,9 +199,9 @@ export default function App() {
         <aside className="side-column">
           <section className="panel destination-panel">
             <div className="panel-heading"><div><p className="eyebrow">Spatial index</p><h2>Find a destination</h2></div><span className="panel-index">01</span></div>
-             <div className="search-wrap"><span className="search-icon" aria-hidden="true">⌕</span><input ref={searchInputRef} value={query} onChange={(event) => handleQueryChange(event.target.value)} placeholder="Search rooms, landmarks…" aria-label="Search points of interest" /><kbd>⌘ K</kbd></div>
+             <div className="search-wrap"><input ref={searchInputRef} value={query} onChange={(event) => handleQueryChange(event.target.value)} placeholder="Search rooms, landmarks…" aria-label="Search points of interest" /><kbd>⌘ K</kbd></div>
             <div className="poi-list" role="listbox" aria-label="Points of interest">
-              {results.map((poi) => <button key={poi.id} role="option" aria-selected={selectedPoiId === poi.id} className={`poi-row ${selectedPoiId === poi.id ? 'poi-row--selected' : ''}`} onClick={() => selectPoi(poi.id)}><span className={`poi-icon poi-icon--${poi.category}`} aria-hidden="true">{poi.category === 'room' ? '□' : poi.category === 'service' ? '✦' : '•'}</span><span className="poi-copy"><strong>{poi.label}</strong><small>{poi.category} · {Math.round(poi.confidence * 100)}% confidence</small></span><span className="poi-arrow" aria-hidden="true">→</span></button>)}
+              {results.map((poi) => <button key={poi.id} role="option" aria-selected={selectedPoiId === poi.id} className={`poi-row ${selectedPoiId === poi.id ? 'poi-row--selected' : ''}`} onClick={() => selectPoi(poi.id)}><span className="poi-copy"><strong>{poi.label}</strong><small>{poi.category} · {Math.round(poi.confidence * 100)}% confidence</small></span><span className="poi-arrow" aria-hidden="true">→</span></button>)}
               {results.length === 0 && <div className="empty-state">No verified destinations match “{query}”.</div>}
             </div>
              <div className="destination-actions"><button className="button button--primary" disabled={!selectedPoi || !isViewerReady || !hasNavigation} onClick={handleRoute}>Plot walking route <span>→</span></button><button className="button button--secondary" disabled={!selectedPoi || !isViewerReady || !hasNavigation} onClick={handleJump}>Jump to view</button></div>
@@ -212,7 +211,7 @@ export default function App() {
           <section className="panel capture-panel">
             <div className="panel-heading"><div><p className="eyebrow">Capture to twin</p><h2>Stage new media</h2></div><span className="panel-index">02</span></div>
             <p className="panel-copy">Bring a slow, overlapping phone walk into the local pipeline. The browser stages media only; reconstruction runs independently through the CLI.</p>
-            <label className="upload-zone"><input type="file" multiple accept="image/*,video/mp4,video/quicktime" onChange={handleCapture} /><span className="upload-plus">＋</span><strong>Choose video or photo set</strong><small>JPG · PNG · HEIC · MP4</small></label>
+            <label className="upload-zone"><input type="file" multiple accept="image/*,video/mp4,video/quicktime" onChange={handleCapture} /><span className="upload-plus" aria-hidden="true">+</span><strong>Choose video or photo set</strong><small>JPG · PNG · HEIC · MP4</small></label>
             {captureMessage && <div className="capture-message">{captureMessage}</div>}
             <div className="pipeline-status"><span className="pipeline-line pipeline-line--active" /><span className="pipeline-line" /><span className="pipeline-line" /><div className="pipeline-labels"><span>Input</span><span>Process</span><span>Publish</span></div></div>
           </section>
