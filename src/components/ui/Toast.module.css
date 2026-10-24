@@ -1,0 +1,86 @@
+/* Toast (§5.9) — bottom-center, tokens only, no gradients. */
+.region {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  display: grid;
+  gap: var(--space-2);
+  width: min(420px, calc(100vw - 32px));
+  z-index: 60;
+  pointer-events: none;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-strong);
+  border-radius: var(--radius-3);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-2);
+  font: 400 13px/1.5 var(--font-ui);
+  color: var(--text);
+  pointer-events: auto;
+  animation: toast-enter var(--dur-base) var(--ease-out);
+}
+
+.error {
+  border-left: var(--rule-signal) solid var(--error);
+}
+
+.glyph {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.detail {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font: 400 11px/1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.action {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: var(--border-strong);
+  border-radius: var(--radius-1);
+  color: var(--accent-botanical);
+  font: 600 12px/1.3 var(--font-ui);
+}
+
+.action:hover {
+  background: var(--surface-inset);
+}
+
+.dismiss {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  padding: 2px;
+}
+
+.dismiss:hover {
+  color: var(--text);
+}
+
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

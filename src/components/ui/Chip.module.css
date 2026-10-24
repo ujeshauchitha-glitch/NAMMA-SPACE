@@ -1,0 +1,49 @@
+/* Chip (§5.5) — tokens only. Toggle is instant (90ms), never a slide. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border: var(--border);
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  transition: background-color var(--dur-instant) var(--ease-out);
+}
+
+button.chip:hover {
+  background: var(--surface-inset);
+}
+
+.selected {
+  border-color: var(--line-strong);
+  background: var(--accent-lime-wash);
+  color: var(--text);
+}
+
+.square {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+}
+
+.squareFilled {
+  background: var(--accent-lime);
+}
+
+.squareHollow {
+  border: 1px solid var(--line-strong);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.count {
+  font-variant-numeric: var(--numeric);
+  color: inherit;
+}

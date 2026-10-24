@@ -1,0 +1,122 @@
+/* Button (§5.1) — tokens only. No transform-on-hover lift; press = active only. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-1);
+  font: 600 12px/1.3 var(--font-ui);
+  transition:
+    background-color var(--dur-instant) var(--ease-out),
+    color var(--dur-instant) var(--ease-out),
+    border-color var(--dur-instant) var(--ease-out),
+    filter var(--dur-instant) var(--ease-out);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+  transition-duration: 90ms;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.iconSlot {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+/* variants */
+.primary {
+  background: var(--accent-botanical);
+  color: var(--text-inverse);
+}
+.primary:hover:not(:disabled) {
+  background: var(--accent-botanical-hover);
+}
+
+.secondary {
+  background: transparent;
+  border: var(--border-strong);
+  color: var(--text);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--surface-inset);
+}
+
+.signal {
+  background: var(--accent-lime);
+  color: var(--text);
+}
+.signal:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.quiet {
+  background: transparent;
+  color: var(--text-muted);
+}
+.quiet:hover:not(:disabled) {
+  background: var(--surface-inset);
+  color: var(--text);
+}
+
+.danger {
+  background: var(--error);
+  color: var(--text-inverse);
+}
+.danger:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.icon {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+.icon:hover:not(:disabled) {
+  background: var(--surface-inset);
+}
+
+/* loading dots: three 3px squares pulsing in sequence, 900ms loop */
+.dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  min-width: 20px;
+  justify-content: center;
+}
+
+.dots span {
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  animation: dots-pulse 900ms var(--ease-in-out) infinite;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.dots span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+@keyframes dots-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots span {
+    animation: none;
+    opacity: 0.8;
+  }
+}

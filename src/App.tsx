@@ -178,7 +178,7 @@ export default function App() {
         </div>
         <div className="workspace-actions">
           <label className="scene-switcher"><span>Scene</span><select value={sceneUrl} onChange={(event) => setSceneUrl(event.target.value)} aria-label="Choose demonstration scene">{SCENE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <StatusPill tone={bundle?.quality.status === 'passed' ? 'good' : 'warn'}>{bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}</StatusPill>
+          <StatusPill state={bundle?.quality.status === 'passed' ? 'validated' : 'needs-review'}>{bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}</StatusPill>
           <button className="button button--quiet" onClick={() => void loadScene()}>Reload bundle</button>
         </div>
       </section>

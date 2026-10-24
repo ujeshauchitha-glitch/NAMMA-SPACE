@@ -1,0 +1,31 @@
+/* Empty state (§5.11) — tokens only. */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  color: var(--line-strong);
+}
+
+.title {
+  margin: 0;
+  font: 600 15px/1.35 var(--font-ui);
+  color: var(--text);
+}
+
+.body {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.action {
+  margin-top: var(--space-2);
+}
