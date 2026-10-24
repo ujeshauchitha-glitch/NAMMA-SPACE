@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "readiness": "navigation_ready",
+  "score": 0.92,
+  "warnings": ["Synthetic fixture: visual geometry is procedural, not reconstructed from a phone capture."],
+  "checks": [
+    { "id": "manifest", "label": "Manifest schema", "status": "passed", "detail": "Schema version 1 accepted." },
+    { "id": "visual", "label": "Visual layer", "status": "passed", "detail": "Procedural fixture renderer available." },
+    { "id": "navigation", "label": "Navigation grid", "status": "passed", "detail": "24 × 18 verified occupancy grid loaded." },
+    { "id": "start", "label": "Start position", "status": "passed", "detail": "Starting cell is walkable." },
+    { "id": "routes", "label": "Route smoke tests", "status": "passed", "detail": "Known POI approach points have verified routes." }
+  ]
+}

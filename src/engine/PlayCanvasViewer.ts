@@ -1,0 +1,345 @@
+import {
+  Application,
+  Asset,
+  Color,
+  Entity,
+  FILLMODE_NONE,
+  RESOLUTION_AUTO,
+  StandardMaterial,
+  Vec3 as PcVec3,
+} from 'playcanvas';
+import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
+import { findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
+import { resolveSceneUri } from '../lib/sceneLoader';
+
+type ViewerCallbacks = {
+  onStatus: (message: string) => void;
+  onPosition: (position: Vec3, cell: GridCell) => void;
+  onPointerLock: (locked: boolean) => void;
+};
+
+type ViewerOptions = {
+  canvas: HTMLCanvasElement;
+  manifestUrl: string;
+  manifest: SceneManifest;
+  navigation: NavigationGrid | null;
+  pois: Poi[];
+  callbacks: ViewerCallbacks;
+};
+
+const PLAYER_HEIGHT = 1.65;
+const WALK_SPEED = 2.2;
+const LOOK_SPEED = 0.12;
+
+export class PlayCanvasViewer {
+  private readonly app: Application;
+  private readonly camera: Entity;
+  private readonly yawPivot: Entity;
+  private readonly pitchPivot: Entity;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly manifest: SceneManifest;
+  private readonly manifestUrl: string;
+  private readonly navigation: NavigationGrid | null;
+  private readonly pois: Poi[];
+  private readonly callbacks: ViewerCallbacks;
+  private readonly pressedKeys = new Set<string>();
+  private readonly routeEntity: Entity;
+  private readonly poiEntities = new Map<string, Entity>();
+  private readonly sceneMaterials: StandardMaterial[] = [];
+  private readonly loadedAssets: Asset[] = [];
+  private routeMaterial: StandardMaterial | null = null;
+  private readonly resizeObserver: ResizeObserver;
+  private readonly onKeyDown = (event: KeyboardEvent) => {
+    if (document.pointerLockElement !== this.canvas && document.activeElement !== this.canvas) return;
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+      this.pressedKeys.add(event.code);
+      event.preventDefault();
+    }
+  };
+  private readonly onKeyUp = (event: KeyboardEvent) => this.pressedKeys.delete(event.code);
+  private readonly onMouseMove = (event: MouseEvent) => {
+    if (document.pointerLockElement !== this.canvas) return;
+    this.yawPivot.rotateLocal(0, -event.movementX * LOOK_SPEED, 0);
+    this.pitchPivot.rotateLocal(-event.movementY * LOOK_SPEED, 0, 0);
+    const pitch = this.pitchPivot.getLocalEulerAngles().x;
+    this.pitchPivot.setLocalEulerAngles(Math.max(-82, Math.min(82, pitch)), 0, 0);
+  };
+  private readonly onPointerLockChange = () => this.callbacks.onPointerLock(document.pointerLockElement === this.canvas);
+
+  public constructor(options: ViewerOptions) {
+    this.canvas = options.canvas;
+    this.manifestUrl = options.manifestUrl;
+    this.manifest = options.manifest;
+    this.navigation = options.navigation;
+    this.pois = options.pois;
+    this.callbacks = options.callbacks;
+
+    this.app = new Application(this.canvas, {
+      graphicsDeviceOptions: { antialias: true, alpha: false },
+    });
+    this.app.setCanvasFillMode(FILLMODE_NONE);
+    this.app.setCanvasResolution(RESOLUTION_AUTO);
+
+    this.yawPivot = new Entity('player-yaw');
+    this.pitchPivot = new Entity('player-pitch');
+    this.camera = new Entity('player-camera');
+    this.camera.addComponent('camera', {
+      clearColor: new Color(0.055, 0.07, 0.065),
+      fov: 68,
+      farClip: 100,
+    });
+    this.pitchPivot.addChild(this.camera);
+    this.yawPivot.addChild(this.pitchPivot);
+    this.app.root.addChild(this.yawPivot);
+    this.camera.setLocalPosition(0, PLAYER_HEIGHT, 0);
+
+    this.routeEntity = new Entity('route');
+    this.app.root.addChild(this.routeEntity);
+    if (this.manifest.visualAssets.some((asset) => asset.kind === 'procedural')) {
+      this.buildFixtureScene();
+    } else {
+      this.buildLighting();
+    }
+    this.buildPoiMarkers();
+    this.loadVisualAssets();
+
+    this.app.on('update', (dt: number) => this.update(dt));
+    this.app.start();
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.canvas.parentElement ?? this.canvas);
+    window.addEventListener('resize', this.resize);
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+    document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('pointerlockchange', this.onPointerLockChange);
+    this.resize();
+    this.reset();
+    this.callbacks.onStatus('Ready to explore');
+  }
+
+  public enterWalkthrough(): void {
+    this.canvas.requestPointerLock();
+    this.callbacks.onStatus('Walkthrough active · WASD to move · Esc to release');
+  }
+
+  public reset(): void {
+    const [x, y, z] = this.manifest.startPosition;
+    this.yawPivot.setPosition(x, y - PLAYER_HEIGHT, z);
+    this.yawPivot.setEulerAngles(0, this.manifest.startYawDegrees, 0);
+    this.pitchPivot.setLocalEulerAngles(0, 0, 0);
+    this.emitPosition();
+  }
+
+  public selectPoi(poiId: string | null): void {
+    this.poiEntities.forEach((marker, id) => {
+      const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
+      if (!material) return;
+      const selected = id === poiId;
+      material.diffuse = selected ? new Color(1, 0.78, 0.3) : new Color(0.96, 0.57, 0.2);
+      material.emissive = selected ? new Color(0.5, 0.18, 0.01) : new Color(0.12, 0.03, 0.005);
+      material.update();
+      marker.setLocalScale(selected ? 0.25 : 0.18, selected ? 0.48 : 0.32, selected ? 0.25 : 0.18);
+    });
+  }
+
+  public jumpTo(poiId: string): void {
+    const poi = this.pois.find((candidate) => candidate.id === poiId);
+    if (!poi) return;
+    if (!this.navigation) {
+      this.callbacks.onStatus('Navigation data is unavailable for this scene');
+      return;
+    }
+    const [x, y, z] = poi.approachPoint;
+    if (!isWalkable(this.navigation, worldToCell(this.navigation, poi.approachPoint))) {
+      this.callbacks.onStatus('This destination has no verified walkable approach point');
+      return;
+    }
+    this.yawPivot.setPosition(x, y - PLAYER_HEIGHT, z);
+    this.lookAt(poi.position);
+    this.emitPosition();
+    this.callbacks.onStatus(`Focused on ${poi.label}`);
+  }
+
+  public routeTo(poiId: string): boolean {
+    const poi = this.pois.find((candidate) => candidate.id === poiId);
+    if (!poi) return false;
+    if (!this.navigation) {
+      this.callbacks.onStatus('Navigation data is unavailable for this scene');
+      return false;
+    }
+    const start = worldToCell(this.navigation, this.currentPosition());
+    const goal = worldToCell(this.navigation, poi.approachPoint);
+    const result = findRoute(this.navigation, start, goal);
+    this.clearRoute();
+    if (!result.ok) {
+      this.callbacks.onStatus(result.detail);
+      return false;
+    }
+    this.routeMaterial?.destroy();
+    const material = new StandardMaterial();
+    material.diffuse = new Color(0.95, 0.55, 0.18);
+    material.emissive = new Color(0.3, 0.08, 0.01);
+    material.update();
+    this.routeMaterial = material;
+    result.world.forEach((point, index) => {
+      if (index === 0) return;
+      const previous = result.world[index - 1];
+      const segment = new Entity(`route-${index}`);
+      segment.addComponent('render', { type: 'box', material });
+      const dx = point[0] - previous[0];
+      const dz = point[2] - previous[2];
+      const length = Math.hypot(dx, dz);
+      segment.setPosition((point[0] + previous[0]) / 2, 0.09, (point[2] + previous[2]) / 2);
+      segment.setEulerAngles(0, Math.atan2(-dz, dx) * 180 / Math.PI, 0);
+      segment.setLocalScale(Math.max(length, 0.12), 0.035, 0.12);
+      this.routeEntity.addChild(segment);
+    });
+    this.callbacks.onStatus(`Route ready · ${result.cells.length} verified cells to ${poi.label}`);
+    return true;
+  }
+
+  public destroy(): void {
+    this.resizeObserver.disconnect();
+    window.removeEventListener('resize', this.resize);
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
+    document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+    document.exitPointerLock();
+    this.loadedAssets.forEach((asset) => {
+      asset.unload();
+      this.app.assets.remove(asset);
+    });
+    this.routeMaterial?.destroy();
+    this.app.destroy();
+  }
+
+  private readonly resize = (): void => {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    this.canvas.width = Math.max(1, Math.floor(rect.width * window.devicePixelRatio));
+    this.canvas.height = Math.max(1, Math.floor(rect.height * window.devicePixelRatio));
+    this.app.resizeCanvas(this.canvas.width, this.canvas.height);
+  };
+
+  private update(dt: number): void {
+    const inputX = (this.pressedKeys.has('KeyD') || this.pressedKeys.has('ArrowRight') ? 1 : 0) - (this.pressedKeys.has('KeyA') || this.pressedKeys.has('ArrowLeft') ? 1 : 0);
+    const inputZ = (this.pressedKeys.has('KeyS') || this.pressedKeys.has('ArrowDown') ? 1 : 0) - (this.pressedKeys.has('KeyW') || this.pressedKeys.has('ArrowUp') ? 1 : 0);
+    if (!inputX && !inputZ) return;
+
+    const length = Math.hypot(inputX, inputZ) || 1;
+    const forward = this.yawPivot.forward;
+    const right = this.yawPivot.right;
+    const distance = WALK_SPEED * dt / length;
+    const current = this.currentPosition();
+    const candidate: Vec3 = [
+      current[0] + (right.x * inputX - forward.x * inputZ) * distance,
+      current[1],
+      current[2] + (right.z * inputX - forward.z * inputZ) * distance,
+    ];
+    const cell = this.navigation ? worldToCell(this.navigation, candidate) : null;
+    if (!this.navigation || (cell && isWalkable(this.navigation, cell))) {
+      this.yawPivot.setPosition(candidate[0], current[1] - PLAYER_HEIGHT, candidate[2]);
+      this.emitPosition();
+    }
+  }
+
+  private currentPosition(): Vec3 {
+    const position = this.yawPivot.getPosition();
+    return [position.x, position.y + PLAYER_HEIGHT, position.z];
+  }
+
+  private emitPosition(): void {
+    this.callbacks.onPosition(this.currentPosition(), this.navigation ? worldToCell(this.navigation, this.currentPosition()) : { x: 0, z: 0 });
+  }
+
+  private lookAt(target: Vec3): void {
+    const position = this.currentPosition();
+    const direction = new PcVec3(target[0] - position[0], target[1] - position[1], target[2] - position[2]);
+    this.yawPivot.setEulerAngles(0, Math.atan2(direction.x, -direction.z) * 180 / Math.PI, 0);
+    const horizontal = Math.hypot(direction.x, direction.z);
+    this.pitchPivot.setLocalEulerAngles(-Math.atan2(direction.y, horizontal) * 180 / Math.PI, 0, 0);
+  }
+
+  private clearRoute(): void {
+    this.routeEntity.children.slice().forEach((child) => child.destroy());
+  }
+
+  private buildFixtureScene(): void {
+    const floor = this.createPrimitive('floor', 'box', [0, -0.08, 0], [12, 0.16, 9], new Color(0.19, 0.2, 0.18));
+    this.app.root.addChild(floor);
+    const wallMaterial = new Color(0.33, 0.3, 0.25);
+    this.addBox('back-wall', [0, 1.5, -4.35], [12, 3, 0.22], wallMaterial);
+    this.addBox('left-wall', [-5.9, 1.5, 0], [0.22, 3, 8.7], wallMaterial);
+    this.addBox('right-wall', [5.9, 1.5, 0], [0.22, 3, 8.7], wallMaterial);
+    this.addBox('front-wall-left', [-4.6, 1.5, 4.35], [2.6, 3, 0.22], wallMaterial);
+    this.addBox('front-wall-right', [4.6, 1.5, 4.35], [2.6, 3, 0.22], wallMaterial);
+    this.addBox('desk', [-1.8, 0.55, -1.1], [2.2, 1.1, 0.8], new Color(0.48, 0.24, 0.11));
+    this.addBox('display-table', [2.4, 0.45, 1.4], [1.8, 0.9, 1.2], new Color(0.24, 0.34, 0.36));
+    this.addBox('information-kiosk', [0, 0.75, 2.65], [0.8, 1.5, 0.8], new Color(0.64, 0.43, 0.16));
+    this.addBox('central-obstacle', [0.6, 0.6, -0.4], [1.5, 1.2, 1.2], new Color(0.26, 0.28, 0.26));
+
+    this.buildLighting();
+  }
+
+  private buildLighting(): void {
+    const light = new Entity('key-light');
+    light.addComponent('light', { type: 'directional', color: new Color(1, 0.82, 0.61), intensity: 1.8, castShadows: true });
+    light.setEulerAngles(55, 25, 0);
+    this.app.root.addChild(light);
+    const fill = new Entity('fill-light');
+    fill.addComponent('light', { type: 'omni', color: new Color(0.32, 0.48, 0.55), intensity: 4, range: 16 });
+    fill.setPosition(0, 3, 1);
+    this.app.root.addChild(fill);
+  }
+
+  private loadVisualAssets(): void {
+    const assets = this.manifest.visualAssets.filter((asset) => asset.kind === 'glb' || asset.kind === 'gltf');
+    if (assets.length === 0) return;
+
+    assets.forEach((assetRef) => {
+      const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
+      const asset = new Asset(assetRef.label ?? assetRef.uri, 'container', { url });
+      asset.once('load', () => {
+        if (!asset.resource) return;
+        const entity = asset.resource.instantiateRenderEntity();
+        entity.name = assetRef.label ?? 'visual-asset';
+        this.app.root.addChild(entity);
+        this.callbacks.onStatus(`Loaded ${assetRef.label ?? 'visual asset'}`);
+      });
+      asset.once('error', (error: unknown) => {
+        this.callbacks.onStatus(`Visual asset unavailable: ${String(error)}`);
+      });
+      this.app.assets.add(asset);
+      this.loadedAssets.push(asset);
+      this.app.assets.load(asset);
+    });
+  }
+
+  private buildPoiMarkers(): void {
+    this.pois.forEach((poi) => {
+      const marker = this.createPrimitive(`poi-${poi.id}`, 'cylinder', [poi.position[0], poi.position[1], poi.position[2]], [0.18, 0.32, 0.18], new Color(0.96, 0.57, 0.2));
+      this.app.root.addChild(marker);
+      this.poiEntities.set(poi.id, marker);
+    });
+  }
+
+  private addBox(name: string, position: [number, number, number], scale: [number, number, number], color: Color): void {
+    this.app.root.addChild(this.createPrimitive(name, 'box', position, scale, color));
+  }
+
+  private createPrimitive(name: string, type: 'box' | 'cylinder', position: [number, number, number], scale: [number, number, number], color: Color): Entity {
+    const entity = new Entity(name);
+    const material = new StandardMaterial();
+    material.diffuse = color;
+    material.metalness = 0.08;
+    material.gloss = 0.35;
+    material.update();
+    this.sceneMaterials.push(material);
+    entity.addComponent('render', { type, material });
+    entity.setPosition(...position);
+    entity.setLocalScale(...scale);
+    return entity;
+  }
+}

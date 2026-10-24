@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "readiness": "visual_ready",
+  "score": 0.98,
+  "warnings": ["Synthetic fixture: this is a generated GLB, not a smartphone reconstruction.", "Collision geometry is not provided; movement uses the verified grid."],
+  "checks": [
+    { "id": "manifest", "label": "Manifest schema", "status": "passed", "detail": "Schema version 1 accepted." },
+    { "id": "visual", "label": "GLB visual layer", "status": "passed", "detail": "Generated GLB asset has 10 meshes and a recorded SHA-256 hash." },
+    { "id": "navigation", "label": "Navigation grid", "status": "passed", "detail": "24 × 18 verified occupancy grid loaded." },
+    { "id": "collision", "label": "Collision mesh", "status": "warning", "detail": "No collision GLB is supplied; grid movement is the source of movement constraints." },
+    { "id": "start", "label": "Start position", "status": "passed", "detail": "Starting cell is walkable." }
+  ]
+}

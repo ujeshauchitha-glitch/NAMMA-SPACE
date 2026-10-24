@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-24T13:20:39.835865+00:00",
+  "dist": "dist",
+  "artifacts": [
+    {
+      "path": "dist/assets/PlayCanvasViewer-Cf5wSAdp.js",
+      "bytes": 2028375,
+      "gzipBytes": 519964
+    },
+    {
+      "path": "dist/assets/index-BXEnVaKb.js",
+      "bytes": 333596,
+      "gzipBytes": 101616
+    },
+    {
+      "path": "dist/assets/index-DftoYLwW.css",
+      "bytes": 11820,
+      "gzipBytes": 3335
+    },
+    {
+      "path": "dist/index.html",
+      "bytes": 462,
+      "gzipBytes": 300
+    },
+    {
+      "path": "dist/scenes/fixture/manifest.json",
+      "bytes": 1133,
+      "gzipBytes": 615
+    },
+    {
+      "path": "dist/scenes/fixture/navigation/nav-data.json",
+      "bytes": 702,
+      "gzipBytes": 430
+    },
+    {
+      "path": "dist/scenes/fixture/quality/report.json",
+      "bytes": 814,
+      "gzipBytes": 386
+    },
+    {
+      "path": "dist/scenes/fixture/semantic/pois.json",
+      "bytes": 1421,
+      "gzipBytes": 492
+    },
+    {
+      "path": "dist/scenes/glb-fixture/manifest.json",
+      "bytes": 1293,
+      "gzipBytes": 710
+    },
+    {
+      "path": "dist/scenes/glb-fixture/navigation/nav-data.json",
+      "bytes": 702,
+      "gzipBytes": 430
+    },
+    {
+      "path": "dist/scenes/glb-fixture/quality/report.json",
+      "bytes": 933,
+      "gzipBytes": 448
+    },
+    {
+      "path": "dist/scenes/glb-fixture/semantic/pois.json",
+      "bytes": 1257,
+      "gzipBytes": 478
+    },
+    {
+      "path": "dist/scenes/glb-fixture/visual/architectural-fixture.glb",
+      "bytes": 13556,
+      "gzipBytes": 1905
+    }
+  ],
+  "scopes": {
+    "initialJavaScript": {
+      "bytes": 333596,
+      "gzipBytes": 101616
+    },
+    "lazyViewerJavaScript": {
+      "bytes": 2028375,
+      "gzipBytes": 519964
+    },
+    "generatedGlbFixture": {
+      "bytes": 13556,
+      "gzipBytes": 1905
+    }
+  },
+  "totalBytes": 2396064,
+  "totalGzipBytes": 631109
+}
