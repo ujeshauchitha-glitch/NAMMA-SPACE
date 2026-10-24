@@ -10,7 +10,7 @@ test.describe('Namma Space browser journey', () => {
     await expect(page.getByText('Ready to explore')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('canvas[aria-label="The Amber Hall 3D viewer"]')).toBeVisible();
 
-    const search = page.getByRole('textbox', { name: 'Search points of interest' });
+    const search = page.getByRole('searchbox', { name: 'Search points of interest' });
     await search.fill('registration');
     await expect(page.getByRole('option', { name: /Registration Desk/ })).toBeVisible();
     await page.getByRole('option', { name: /Registration Desk/ }).click();
@@ -68,7 +68,7 @@ test.describe('Namma Space browser journey', () => {
     await page.goto('/?scene=glb');
     await expect(page.getByRole('heading', { name: 'The Amber Hall · GLB asset' })).toBeVisible();
     await expect(page.getByText(/Visual asset unavailable/)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('textbox', { name: 'Search points of interest' })).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Search points of interest' })).toBeVisible();
 
     await page.unroute('**/scenes/glb-fixture/visual/architectural-fixture.glb');
     await page.route('**/scenes/fixture/manifest.json', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ schemaVersion: 1 }) }));
@@ -88,7 +88,7 @@ test.describe('Namma Space browser journey', () => {
     });
     await page.goto('/');
     await expect(page.getByText('Ready to explore')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('textbox', { name: 'Search points of interest' }).fill('registration');
+    await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('registration');
     await page.getByRole('option', { name: /Registration Desk/ }).click();
     await page.getByRole('button', { name: /Plot walking route/ }).click();
     await expect(page.getByText(/No collision-safe route connects/)).toBeVisible();
@@ -98,9 +98,91 @@ test.describe('Namma Space browser journey', () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page.getByRole('textbox', { name: 'Search points of interest' })).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Search points of interest' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Enter walkthrough/ })).toBeVisible();
     await expect(page.getByText('Choose video or photo set', { exact: true })).toBeVisible();
     await context.close();
+  });
+});
+
+test.describe('workspace shell (T8)', () => {
+  test('renders the tablist pattern and mounts exactly one workspace', async ({ page }) => {
+    await page.goto('/');
+    const tablist = page.getByRole('tablist', { name: 'Workspaces' });
+    await expect(tablist).toBeVisible();
+    const tabs = tablist.getByRole('tab');
+    await expect(tabs).toHaveCount(3);
+
+    // Default workspace is 02 Spatial Viewer with roving tabindex
+    const viewerTab = page.getByTestId('tab-viewer');
+    await expect(viewerTab).toHaveAttribute('aria-selected', 'true');
+    await expect(viewerTab).toHaveAttribute('tabindex', '0');
+    await expect(page.getByTestId('tab-capture')).toHaveAttribute('tabindex', '-1');
+    await expect(page.getByTestId('tab-scan')).toHaveAttribute('tabindex', '-1');
+
+    // aria-controls resolves to the single mounted panel
+    await expect(page.locator('[data-testid^="workspace-"]')).toHaveCount(1);
+    await expect(page.getByTestId('workspace-viewer')).toBeVisible();
+    await expect(page.getByRole('tabpanel', { name: /Spatial Viewer/ })).toBeVisible();
+  });
+
+  test('keyboard: arrows wrap, Home/End jump, and panels swap', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('tab-viewer').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByTestId('tab-scan')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('workspace-scan')).toBeVisible();
+    await expect(page.locator('[data-testid^="workspace-"]')).toHaveCount(1);
+
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('tab-capture')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('tab-capture')).toBeFocused();
+    await expect(page.getByTestId('workspace-capture')).toBeVisible();
+
+    await page.keyboard.press('End');
+    await expect(page.getByTestId('tab-scan')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('tab-scan')).toBeFocused();
+
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.getByTestId('tab-viewer')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('digit shortcuts 1/2/3 and Ctrl/Cmd+1..3 switch workspaces', async ({ page }) => {
+    await page.goto('/');
+    await page.keyboard.press('1');
+    await expect(page.getByTestId('workspace-capture')).toBeVisible();
+    await page.keyboard.press('3');
+    await expect(page.getByTestId('workspace-scan')).toBeVisible();
+    await page.keyboard.press('2');
+    await expect(page.getByTestId('workspace-viewer')).toBeVisible();
+
+    // Ctrl/Cmd variant is global — works from inside a text field too
+    await page.keyboard.press('Control+1');
+    await expect(page.getByTestId('workspace-capture')).toBeVisible();
+    await page.keyboard.press('Control+2');
+    await expect(page.getByTestId('workspace-viewer')).toBeVisible();
+
+    // Plain digits are ignored while typing in a text field
+    await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('2');
+    await expect(page.getByTestId('workspace-viewer')).toBeVisible();
+  });
+
+  test('leaving the viewer destroys the WebGL canvas (no zombie contexts)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('canvas')).toHaveCount(1);
+    await page.keyboard.press('1');
+    await expect(page.getByTestId('workspace-capture')).toBeVisible();
+    await expect(page.locator('canvas')).toHaveCount(0);
+    await page.keyboard.press('2');
+    await expect(page.locator('canvas')).toHaveCount(1);
+  });
+
+  test('session state reports real connectivity, never faked', async ({ page, context }) => {
+    await page.goto('/');
+    await expect(page.getByText('● LOCAL')).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByText('◇ OFFLINE')).toBeVisible();
+    await context.setOffline(false);
+    await expect(page.getByText('● LOCAL')).toBeVisible();
   });
 });

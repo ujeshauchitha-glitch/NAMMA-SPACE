@@ -1,0 +1,517 @@
+/* 02 SPATIAL VIEWER layout (§6.2): viewport-dominant, 336px right rail,
+ * plate frame around the scene, HUD chips over the canvas. Tokens only. */
+.viewer {
+  display: grid;
+  grid-template-columns: 1fr 336px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.stageColumn {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.stageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.title {
+  margin: var(--space-1) 0;
+  font: var(--text-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.lede {
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sceneSwitcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.sceneSwitcher select {
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--text-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* viewport plate: 1px drawn edge + inner shadow (§3.2 trade-off) */
+.viewport {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 420px;
+  height: 100%;
+  border: var(--border-strong);
+  box-shadow: var(--inner-plate);
+  background: var(--surface-1);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-bottom: var(--border);
+}
+
+.toolbarTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveMarker {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-dot);
+  background: var(--accent-lime);
+  animation: live-pulse 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveMarker {
+    animation: none;
+  }
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.coordinates {
+  font: 450 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+  color: var(--text-dim);
+}
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--scene-clear);
+  min-height: 360px;
+}
+
+.stage :global(canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+/* HUD chips: 92% opaque paper over any scene content (§2.1 guarantee) */
+.overlay {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.overlayTop {
+  top: var(--space-3);
+}
+
+.overlayBottom {
+  bottom: var(--space-3);
+  align-items: flex-end;
+}
+
+.hudChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 60%;
+  padding: 6px 8px;
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  background: var(--hud-bg);
+  backdrop-filter: var(--blur-hud);
+  box-shadow: var(--shadow-hud);
+  color: var(--text);
+  font: 450 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+}
+
+.hudMeta {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hudButton {
+  pointer-events: auto;
+}
+
+/* error state replaces the viewport, not the app (§5.13) */
+.errorPanel {
+  display: grid;
+  align-content: center;
+  gap: var(--space-3);
+  min-height: 420px;
+  padding: var(--space-8);
+  border-left: var(--rule-signal) solid var(--error);
+  background: var(--error-wash);
+}
+
+.errorTitle {
+  margin: 0;
+  font: var(--text-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.errorBody {
+  color: var(--text);
+  font: var(--text-body);
+}
+
+.helper {
+  margin: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* right rail: one scrolling column of panels (§6.2) */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-y: auto;
+  max-height: calc(100vh - 56px - var(--space-8));
+}
+
+.panel {
+  padding: var(--space-4);
+  border: var(--border);
+  border-radius: var(--radius-2);
+  background: var(--surface-1);
+}
+
+.panelHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.panelTitle {
+  margin: 2px 0 0;
+  font: var(--text-heading);
+  color: var(--text);
+}
+
+.panelIndex {
+  font: 500 10px/1.35 var(--font-mono);
+  color: var(--text-dim);
+}
+
+.panelCopy {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.poiList {
+  display: grid;
+  margin: var(--space-3) 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border-top: var(--border);
+}
+
+.poiRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border-bottom: var(--border);
+  text-align: left;
+  color: var(--text);
+}
+
+.poiRow:hover {
+  background: var(--surface-inset);
+}
+
+.poiRowSelected {
+  background: var(--accent-lime-wash);
+  border-left: var(--border-active);
+  padding-left: 6px;
+}
+
+.poiCopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.poiCopy strong,
+.poiCopy small {
+  display: block;
+}
+
+.poiCopy strong {
+  font: 600 13px/1.35 var(--font-ui);
+}
+
+.poiCopy small {
+  margin-top: 2px;
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.poiArrow {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+.poiEmpty {
+  padding: var(--space-4) var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.destinationActions {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-2);
+}
+
+.selectionCard {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-left: var(--rule-signal) solid var(--accent-lime);
+  background: var(--accent-lime-wash);
+}
+
+.selectionKicker {
+  display: block;
+  margin-bottom: var(--space-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.selectionTitle {
+  display: block;
+  font: 600 13px/1.35 var(--font-ui);
+}
+
+.selectionBody {
+  margin: var(--space-1) 0 var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.selectionMeta {
+  font: 450 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+  color: var(--text-dim);
+}
+
+.uploadZone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  text-align: center;
+  color: var(--text);
+  font: var(--text-label);
+}
+
+.uploadZone:hover {
+  background: var(--surface-inset);
+}
+
+.uploadZone:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.uploadPlus {
+  font: 400 20px/1 var(--font-ui);
+  color: var(--text-dim);
+}
+
+.uploadZone small {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--text-dim);
+}
+
+.captureMessage {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2);
+  border: 1px solid var(--success-wash);
+  border-radius: var(--radius-1);
+  background: var(--success-wash);
+  color: var(--success);
+  font: 450 11px/1.4 var(--font-mono);
+}
+
+.pipelineStatus {
+  margin-top: var(--space-4);
+}
+
+.pipelineLine {
+  display: inline-block;
+  width: 33.333%;
+  height: 3px;
+  background: var(--line-strong);
+}
+
+.pipelineLineActive {
+  background: var(--accent-lime);
+}
+
+.pipelineLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.provenanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.provenanceGrid span,
+.provenanceGrid strong {
+  display: block;
+}
+
+.provenanceGrid span {
+  margin-bottom: var(--space-1);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.provenanceGrid strong {
+  font: 500 12px/1.4 var(--font-ui);
+  font-variant-numeric: var(--numeric);
+  overflow-wrap: anywhere;
+}
+
+.readinessList {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--border);
+}
+
+.readinessList span {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.readinessList b {
+  display: block;
+  margin-top: var(--space-1);
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* ≤1024: rail stacks under the viewport (§6.3 structural behavior) */
+@media (max-width: 1024px) {
+  .viewer {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 24px;
+  }
+
+  .hudMeta {
+    display: none;
+  }
+}
