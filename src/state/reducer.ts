@@ -33,7 +33,7 @@ export const initialWorkspaceState: WorkspaceState = {
   stagedImages: [],
   sceneSelection: { kind: 'empty' },
   cameraPoses: [],
-  pairing: { state: 'IDLE' },
+  pairing: { state: 'IDLE', updatedAt: 0 },
   toasts: [],
 };
 

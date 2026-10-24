@@ -150,12 +150,12 @@ describe('specialised pairing actions respect the table', () => {
       deviceId: 'dev-9',
       at: 3,
     });
-    const offline = workspaceReducer(live, { type: 'pairing/deviceLost' });
+    const offline = workspaceReducer(live, { type: 'pairing/deviceLost', at: 4 });
     expect(offline.pairing.state).toBe('OFFLINE');
     expect(offline.pairing.deviceId).toBe('dev-9');
 
     const pairing = transition('IDLE', 'PAIRING');
-    expect(isRejected(pairing, workspaceReducer(pairing, { type: 'pairing/deviceLost' }))).toBe(true);
+    expect(isRejected(pairing, workspaceReducer(pairing, { type: 'pairing/deviceLost', at: 4 }))).toBe(true);
   });
 });
 
