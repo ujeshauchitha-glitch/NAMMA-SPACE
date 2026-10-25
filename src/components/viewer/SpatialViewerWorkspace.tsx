@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ViewerCanvas } from '../ViewerCanvas';
 import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
-import { Jump, Reset as ResetIcon } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
 import { findRoute, measureRouteMetres, searchPois, worldToCell, type GridCell } from '../../lib/navigation';
 import type { SceneBundle, Vec3 } from '../../types/scene';
@@ -14,6 +13,8 @@ import { SceneErrorPanel } from './SceneErrorPanel';
 import { PoiSearch } from './PoiSearch';
 import { DestinationDetail } from './DestinationDetail';
 import { SceneDossier } from './SceneDossier';
+import { Hud } from './Hud';
+import { usePointerLock } from './usePointerLock';
 import type { RouteState } from './RouteStatus';
 import styles from './SpatialViewerWorkspace.module.css';
 
@@ -58,7 +59,6 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [position, setPosition] = useState<Vec3>([0, 0, 0]);
   const [cell, setCell] = useState<GridCell>({ x: 0, z: 0 });
   const [viewerStatus, setViewerStatus] = useState('Loading scene bundle…');
-  const [isWalkthroughActive, setIsWalkthroughActive] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
   const [sceneUrl, setSceneUrl] = useState(resolveInitialSceneUrl);
   // T16 · last plot outcome for the route strip (§5.16) — idle until plotted.
@@ -175,14 +175,11 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     viewerRef.current?.setPose({ position, yawDegrees, pitchDegrees });
   }, [hydrated, isViewerReady, sceneUrl, state.cameraPoses]);
 
-  useEffect(() => {
-    const onPointerLock = () => {
-      setIsWalkthroughActive(document.pointerLockElement !== null);
-      persistRef.current(); // look-around changes yaw without moving — capture it on lock/exit
-    };
-    document.addEventListener('pointerlockchange', onPointerLock);
-    return () => document.removeEventListener('pointerlockchange', onPointerLock);
-  }, []);
+  // T17 · hint visibility rides the shared pointer-lock state; pose persist
+  // still fires on every real lock/exit transition (look-around changes yaw).
+  const { locked: isWalkthroughActive, hintVisible } = usePointerLock({
+    onLockChange: () => persistRef.current(),
+  });
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -241,6 +238,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const handleViewerStatus = useCallback((status: string) => {
     setViewerStatus(status);
   }, []);
+  // T17 · compass needle samples the live pose; [] keeps a stable identity.
+  const getYaw = useCallback(() => viewerRef.current?.getPose().yawDegrees ?? null, []);
 
   useEffect(() => {
     if (isViewerReady) viewerRef.current?.selectPoi(selectedPoiId);
@@ -350,16 +349,12 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   <span className={styles.liveMarker} aria-hidden="true" />
                   Live spatial view
                 </div>
-                <div className={styles.toolbarActions}>
-                  {bundle && (
-                    <span className={styles.coordinates}>{`X ${position[0].toFixed(2)} · Z ${position[2].toFixed(2)}`}</span>
-                  )}
-                  <Button variant="icon" disabled={!isViewerReady} onClick={() => viewerRef.current?.reset()} aria-label="Reset viewpoint">
-                    <ResetIcon />
-                  </Button>
-                </div>
               </div>
-              <div className={styles.stage}>
+              <div
+                className={styles.stage}
+                role="application"
+                aria-label={`${bundle?.manifest.displayName ?? 'Spatial scene'} interactive 3D view`}
+              >
                 {bundle && (
                   <ViewerCanvas
                     manifest={bundle.manifest}
@@ -376,31 +371,19 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}
                 {bundle && (
-                  <>
-                    <div className={`${styles.overlay} ${styles.overlayTop} hud`}>
-                      <span className={styles.hudChip}>
-                        {/* Mandatory, non-dismissible synthetic label derived from sceneKind (§5.19). */}
-                        {isSimulated && <StatusPill state="simulated">SIMULATED</StatusPill>}
-                        <span className={styles.hudMeta}>{hasGlbVisual ? 'GLB · textured mesh fixture' : 'Procedural fixture asset'}</span>
-                      </span>
-                      <span className={styles.hudChip}>N ↑</span>
-                    </div>
-                    <div className={`${styles.overlay} ${styles.overlayBottom} hud`}>
-                      <span className={styles.hudChip}>
-                        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
-                        <span className={styles.hudMeta}>move · click scene for mouse look · Esc exits walkthrough</span>
-                      </span>
-                      <Button
-                        variant="signal"
-                        className={styles.hudButton}
-                        disabled={!isViewerReady}
-                        onClick={() => viewerRef.current?.enterWalkthrough()}
-                        trailingIcon={<Jump />}
-                      >
-                        {isWalkthroughActive ? 'Walkthrough active' : 'Enter walkthrough'}
-                      </Button>
-                    </div>
-                  </>
+                  <Hud
+                    sceneLabel={bundle.manifest.displayName}
+                    sceneMeta={hasGlbVisual ? 'GLB · textured mesh fixture' : 'Procedural fixture asset'}
+                    isSimulated={isSimulated}
+                    position={position}
+                    selectedPoiName={selectedPoi?.label ?? null}
+                    isWalkthroughActive={isWalkthroughActive}
+                    hintVisible={hintVisible}
+                    isViewerReady={isViewerReady}
+                    onEnterWalkthrough={() => viewerRef.current?.enterWalkthrough()}
+                    onReset={() => viewerRef.current?.reset()}
+                    getYaw={getYaw}
+                  />
                 )}
               </div>
             </div>

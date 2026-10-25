@@ -1,0 +1,39 @@
+/* T17 · compass rose (§5.19): 32px SVG, needle carries the live yaw. */
+.rose {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--text);
+}
+
+.ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+}
+
+.tick {
+  stroke: currentColor;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+/* transform-box/origin are set inline (view-box units) so the needle pivots
+   on the SVG centre regardless of the rendered CSS pixel size. */
+.needle {
+  transform-box: view-box;
+  transform-origin: 16px 16px;
+}
+
+.north {
+  fill: var(--accent-lime);
+}
+
+.south {
+  fill: currentColor;
+  fill-opacity: 0.45;
+}
+
+.hub {
+  fill: currentColor;
+}

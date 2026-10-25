@@ -127,19 +127,6 @@
   }
 }
 
-.toolbarActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-}
-
-.coordinates {
-  font: 450 11px/1.4 var(--font-mono);
-  font-variant-numeric: var(--numeric);
-  color: var(--text-dim);
-}
-
 .stage {
   position: relative;
   overflow: hidden;
@@ -153,54 +140,6 @@
   height: 100%;
   outline: none;
   touch-action: none;
-}
-
-/* HUD chips: 92% opaque paper over any scene content (§2.1 guarantee) */
-.overlay {
-  position: absolute;
-  left: var(--space-3);
-  right: var(--space-3);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-  pointer-events: none;
-}
-
-.overlayTop {
-  top: var(--space-3);
-}
-
-.overlayBottom {
-  bottom: var(--space-3);
-  align-items: flex-end;
-}
-
-.hudChip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  max-width: 60%;
-  padding: 6px 8px;
-  border: var(--border-strong);
-  border-radius: var(--radius-2);
-  background: var(--hud-bg);
-  backdrop-filter: var(--blur-hud);
-  box-shadow: var(--shadow-hud);
-  color: var(--text);
-  font: 450 11px/1.4 var(--font-mono);
-  font-variant-numeric: var(--numeric);
-}
-
-.hudMeta {
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hudButton {
-  pointer-events: auto;
 }
 
 /* error state replaces the viewport, not the app (§5.13) */
@@ -444,10 +383,6 @@
 @media (max-width: 560px) {
   .title {
     font-size: 24px;
-  }
-
-  .hudMeta {
-    display: none;
   }
 }
 

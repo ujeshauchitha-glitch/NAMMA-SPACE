@@ -1,0 +1,160 @@
+/* T17 · over-canvas HUD (§5.19).
+   Root is pointer-events: none so the canvas keeps every drag/wheel; only the
+   two buttons opt back in. Each corner carries the global `hud` class
+   (base.css halo) and `data-hud-chrome` for the area AC. */
+
+.hudRoot {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Explicit `auto` on descendants is not needed — the buttons themselves
+   resolve to auto — but stating it keeps the intent greppable and survives
+   future chip-level rules that might try to re-enable events wholesale. */
+.hudRoot button {
+  pointer-events: auto;
+}
+
+/* Positioning wrapper: carries the rise animation, the `hud` focus class and
+   the area marker. The chip element lives inside so all four corners share
+   one structure. */
+.corner {
+  position: absolute;
+  display: inline-flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  animation: hudRise 240ms var(--ease-out) backwards;
+}
+
+@keyframes hudRise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.topLeft {
+  top: 0;
+  left: 0;
+  animation-delay: 0ms;
+}
+
+.topRight {
+  top: 0;
+  right: 0;
+  align-items: flex-end;
+  animation-delay: 28ms;
+}
+
+.bottomLeft {
+  bottom: 0;
+  left: 0;
+  animation-delay: 56ms;
+}
+
+.bottomRight {
+  bottom: 0;
+  right: 0;
+  flex-direction: row;
+  align-items: center;
+  animation-delay: 80ms;
+}
+
+/* Chip: 92% opaque paper over any scene content (§2.1 guarantee). */
+.chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  background: var(--hud-bg);
+  -webkit-backdrop-filter: var(--blur-hud);
+  backdrop-filter: var(--blur-hud);
+  box-shadow: var(--shadow-hud);
+  color: var(--text);
+  font: 450 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+}
+
+/* Forces the meta line onto its own row inside the wrap. */
+.sceneMeta {
+  flex-basis: 100%;
+  color: var(--text-muted);
+}
+
+/* Top-right chip stacks compass row above coords. */
+.chipColumn {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.compassRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.coords {
+  color: var(--text-dim);
+}
+
+/* Hint chip: only the opacity hides — `display`/`visibility` toggles would
+   drop the transition (AC 5: reduced motion may hide the hint instantly,
+   but the normal path must fade). */
+.hintChip {
+  transition: opacity 160ms var(--ease-out);
+}
+
+.hintChip[data-hint-visible='false'] {
+  opacity: 0;
+}
+
+.hintMeta {
+  color: var(--text-muted);
+}
+
+.sceneLabel {
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Opaque fallback when backdrop-filter is unavailable (§2.1). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chip {
+    background: var(--hud-bg-strong);
+  }
+}
+
+/* Reduced motion: the entrance rise is decoration and is removed outright;
+   the hint hide-fade is clamped to 1 ms so the chip still flips rather than
+   hanging mid-fade. */
+@media (prefers-reduced-motion: reduce) {
+  .corner {
+    animation-name: none;
+  }
+
+  .hintChip {
+    transition-duration: 1ms;
+  }
+}
+
+/* ≤560px: drop the scene label/meta and hint prose; keep the kbd keys,
+   compass+coords and both buttons (app.spec Enter walkthrough stays visible). */
+@media (max-width: 560px) {
+  .sceneLabel,
+  .sceneMeta,
+  .hintMeta {
+    display: none;
+  }
+}
