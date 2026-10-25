@@ -224,6 +224,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const selectPoi = (poiId: string) => {
     setSelectedPoiId(poiId);
     viewerRef.current?.selectPoi(poiId);
+    viewerRef.current?.pulseSelection(poiId);
   };
 
   const handleQueryChange = (nextQuery: string) => {
@@ -244,12 +245,14 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       setViewerStatus(result.detail);
       return;
     }
-    viewerRef.current?.routeTo(selectedPoi.id);
+    if (viewerRef.current?.routeTo(selectedPoi.id)) {
+      viewerRef.current?.revealRouteTape();
+    }
   };
 
   const handleJump = () => {
     if (!selectedPoi) return;
-    viewerRef.current?.jumpTo(selectedPoi.id);
+    viewerRef.current?.jumpToSmooth(selectedPoi.id);
   };
 
   return (

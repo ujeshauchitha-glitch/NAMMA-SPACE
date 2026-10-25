@@ -11,6 +11,8 @@ import {
 import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveSceneUri } from '../lib/sceneLoader';
+// T15 additive: pure tween/cancel math for the motion API (no control flow).
+import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
 
 type ViewerCallbacks = {
   onStatus: (message: string) => void;
@@ -370,4 +372,211 @@ export class PlayCanvasViewer {
   }
 
   /* ===== end T14 additive block ========================================= */
+
+  /* ===== T15 · MOTION API — purely additive (D-013 preservation) ========
+   * Eased jump (700 ms expo settle, pitch levels, cancellable), progressive
+   * route-tape reveal (600 ms in-out), and a single marker pulse. All motion
+   * rides on ADDITIVE update listeners; every callback carries a
+   * disposed-equivalent guard (unmounted canvas / tape rebuilt mid-draw).
+   * Existing methods, listeners, and control flow are untouched.
+   * ======================================================================= */
+
+  /** Stops for every live motion — emptied as each motion settles. */
+  private readonly motionStops = new Set<() => void>();
+  /** Active camera tween and tape reveal (killed before a new one starts). */
+  private cameraMotionStop: (() => void) | null = null;
+  private tapeRevealStop: (() => void) | null = null;
+  /** In-flight marker pulses keyed by POI id (restore-before-restart). */
+  private readonly pulseStops = new Map<string, { stop: () => void; restore: () => void }>();
+
+  /** Kill every active additive motion — safe at any time, never throws. */
+  public cancelMotion(): void {
+    [...this.motionStops].forEach((stop) => stop());
+  }
+
+  /** Reduced-motion preference (§7.4): motion resolves to instant cuts. */
+  private prefersReducedMotion(): boolean {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /**
+   * Run a frame-driven motion until its tick reports completion. The tick
+   * receives milliseconds; stop() detaches the update listener, any kill
+   * switches, and the registry entry. Disposed guard: a detached canvas
+   * stops the motion on its next frame — destroy() needs no changes.
+   */
+  private startMotion(
+    tick: (deltaMs: number) => boolean,
+    armKill?: (kill: () => void) => () => void,
+  ): () => void {
+    let stopped = false;
+    let disarm: (() => void) | undefined = undefined; // set after stop (cycle: stop → disarm → stop)
+    const stop = (): void => {
+      if (stopped) return;
+      stopped = true;
+      this.app.off('update', onUpdate);
+      this.motionStops.delete(stop);
+      disarm?.();
+    };
+    const onUpdate = (dt: number): void => {
+      if (stopped) return;
+      if (!this.canvas.isConnected) {
+        stop();
+        return;
+      }
+      if (tick(dt * 1000)) stop();
+    };
+    this.motionStops.add(stop);
+    disarm = armKill?.(stop);
+    this.app.on('update', onUpdate);
+    return stop;
+  }
+
+  /** Camera kill-switch: pointer-lock entry or WASD/arrow keydown ends the tween. */
+  private armCameraKill(kill: () => void): () => void {
+    const onKey = (event: KeyboardEvent): void => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+        kill();
+      }
+    };
+    const onLock = (): void => {
+      if (document.pointerLockElement === this.canvas) kill();
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('pointerlockchange', onLock);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerlockchange', onLock);
+    };
+  }
+
+  /**
+   * Eased jump (700 ms expo settle) to a POI approach point with the pitch
+   * leveling to the POI look-at. Cancellable at any moment — the camera
+   * stays wherever the operator's input left it (honest partial state, no
+   * fake completion status). Reduced motion → the existing instant jumpTo.
+   * Invalid/unwalkable targets delegate to jumpTo for its verbatim status.
+   */
+  public jumpToSmooth(poiId: string): boolean {
+    const poi = this.pois.find((candidate) => candidate.id === poiId);
+    if (!poi) return false;
+    if (!this.navigation || !isWalkable(this.navigation, worldToCell(this.navigation, poi.approachPoint))) {
+      this.jumpTo(poiId);
+      return false;
+    }
+    if (this.prefersReducedMotion()) {
+      this.jumpTo(poiId);
+      return true;
+    }
+
+    this.cameraMotionStop?.();
+    const from = this.getPose();
+    const [tx, ty, tz] = poi.approachPoint;
+    const direction = new PcVec3(poi.position[0] - tx, poi.position[1] - ty, poi.position[2] - tz);
+    const targetYaw = (Math.atan2(direction.x, -direction.z) * 180) / Math.PI;
+    const horizontal = Math.hypot(direction.x, direction.z);
+    const targetPitch = (-Math.atan2(direction.y, horizontal) * 180) / Math.PI;
+
+    let tween = createTween(resolveTweenDuration(700, false));
+    this.cameraMotionStop = this.startMotion((deltaMs) => {
+      const stepped = advanceTween(tween, deltaMs);
+      tween = stepped.tween;
+      const eased = easeOutExpo(stepped.progress);
+      this.yawPivot.setPosition(
+        lerp(from.position[0], tx, eased),
+        lerp(from.position[1], ty, eased) - PLAYER_HEIGHT,
+        lerp(from.position[2], tz, eased),
+      );
+      this.yawPivot.setEulerAngles(0, lerpAngleDeg(from.yawDegrees, targetYaw, eased), 0);
+      this.pitchPivot.setLocalEulerAngles(lerpAngleDeg(from.pitchDegrees, targetPitch, eased), 0, 0);
+      this.emitPosition();
+      if (stepped.done) {
+        this.callbacks.onStatus(`Focused on ${poi.label}`);
+        return true;
+      }
+      return false;
+    }, (kill) => this.armCameraKill(kill));
+    return true;
+  }
+
+  /**
+   * Progressive route-tape reveal (600 ms in-out) over the tape routeTo just
+   * built: the lime core is held depth-off (always-on-top layer, §6.4) and
+   * segments draw in by index — the draw-progress of this box tape. If the
+   * tape is cleared/rebuilt mid-reveal the old reveal cancels itself.
+   */
+  public revealRouteTape(durationMs = 600): void {
+    this.tapeRevealStop?.();
+    const segments = this.routeEntity.children.slice() as Entity[]; // tape children are entities at runtime
+    if (segments.length === 0) return;
+
+    const material = this.routeMaterial;
+    if (material) {
+      material.diffuse = new Color(0.7, 0.93, 0.22); // §6.4 lime core
+      material.emissive = new Color(0.16, 0.26, 0.02);
+      material.depthTest = false; // always-on-top tape layer
+      material.update();
+    }
+
+    if (resolveTweenDuration(durationMs, this.prefersReducedMotion()) === 0) return; // instant cut: tape already fully built
+
+    segments.forEach((segment) => {
+      if (segment.render) segment.render.enabled = false;
+    });
+    let tween = createTween(durationMs);
+    this.tapeRevealStop = this.startMotion((deltaMs) => {
+      const stepped = advanceTween(tween, deltaMs);
+      tween = stepped.tween;
+      if (!segments.every((segment) => this.routeEntity.children.includes(segment))) return true; // tape rebuilt mid-draw
+      const visible = revealCount(easeInOutCubic(stepped.progress), segments.length);
+      segments.forEach((segment, index) => {
+        if (segment.render) segment.render.enabled = index < visible;
+      });
+      if (stepped.done) {
+        segments.forEach((segment) => {
+          if (segment.render) segment.render.enabled = true;
+        });
+        this.tapeRevealStop = null;
+        return true;
+      }
+      return false;
+    });
+  }
+
+  /**
+   * Single selection pulse on a POI marker — one out-and-back swell, then an
+   * exact restore of the captured base scale. Re-pulsing the same marker
+   * restores the in-flight pulse first (never a runaway scale).
+   */
+  public pulseSelection(poiId: string): void {
+    if (this.prefersReducedMotion()) return;
+    const marker = this.poiEntities.get(poiId);
+    if (!marker) return;
+    this.pulseStops.get(poiId)?.restore();
+    this.pulseStops.get(poiId)?.stop();
+
+    const scale = marker.getLocalScale();
+    const base: [number, number, number] = [scale.x, scale.y, scale.z];
+    const restore = (): void => marker.setLocalScale(base[0], base[1], base[2]);
+    let tween = createTween(360);
+    const stopMotion = this.startMotion((deltaMs) => {
+      const stepped = advanceTween(tween, deltaMs);
+      tween = stepped.tween;
+      const swell = 1 + 0.55 * Math.sin(Math.PI * stepped.progress);
+      marker.setLocalScale(base[0] * swell, base[1] * swell, base[2] * swell);
+      if (stepped.done) {
+        restore();
+        return true;
+      }
+      return false;
+    });
+    this.pulseStops.set(poiId, {
+      stop: () => stopMotion(),
+      restore,
+    });
+  }
+
+  /* ===== end T15 additive block ========================================= */
 }
