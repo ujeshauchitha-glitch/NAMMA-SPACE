@@ -312,6 +312,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         position: action.position,
         target: action.target,
         yawDegrees: action.yawDegrees,
+        pitchDegrees: action.pitchDegrees,
       };
       const existing = state.cameraPoses.some((p) => p.id === action.id);
       return {

@@ -342,4 +342,32 @@ export class PlayCanvasViewer {
     entity.setLocalScale(...scale);
     return entity;
   }
+
+  /* ===== T14 · CAMERA POSE API — purely additive (D-013 preservation) =====
+   * Reads and restores the walkthrough pose so the workspace can persist a
+   * viewpoint across reloads through the T9 store. Yaw/pitch are PlayCanvas
+   * euler degrees (yaw: pivot world euler, pitch: local, clamped ±82° by
+   * onMouseMove). No existing method, listener, or control flow is touched;
+   * setPose mirrors reset()/jumpTo() bookkeeping via the existing emitPosition.
+   * ======================================================================== */
+
+  /** Read-only snapshot of the current camera pose (metres / degrees). */
+  public getPose(): { position: Vec3; yawDegrees: number; pitchDegrees: number } {
+    return {
+      position: this.currentPosition(),
+      yawDegrees: this.yawPivot.getEulerAngles().y,
+      pitchDegrees: this.pitchPivot.getLocalEulerAngles().x,
+    };
+  }
+
+  /** Restore a previously captured pose and re-emit its position. */
+  public setPose(pose: { position: Vec3; yawDegrees: number; pitchDegrees: number }): void {
+    const [x, y, z] = pose.position;
+    this.yawPivot.setPosition(x, y - PLAYER_HEIGHT, z);
+    this.yawPivot.setEulerAngles(0, pose.yawDegrees, 0);
+    this.pitchPivot.setLocalEulerAngles(pose.pitchDegrees, 0, 0);
+    this.emitPosition();
+  }
+
+  /* ===== end T14 additive block ========================================= */
 }

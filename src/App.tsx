@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { AppShell } from './components/shell/AppShell';
 import { CaptureStudioWorkspace } from './components/workspace/CaptureStudioWorkspace';
 import { LiveScanWorkspace } from './components/workspace/LiveScanWorkspace';
-import { SpatialViewerWorkspace } from './components/workspace/SpatialViewerWorkspace';
+import { SpatialViewerWorkspace } from './components/viewer/SpatialViewerWorkspace';
 import { ToastRegion } from './components/ui/Toast';
 import { DEFAULT_WORKSPACE, isWorkspaceId, type WorkspaceId } from './components/workspace/workspace';
 import { createAppPersistence } from './state/appPersistence';

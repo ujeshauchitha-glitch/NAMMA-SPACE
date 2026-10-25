@@ -132,6 +132,13 @@ kbd {
   font: 500 10px/1 var(--font-mono);
 }
 
+/* ---------- T14 single-context refusal (never a second live WebGL canvas) ---------- */
+.viewer-context-conflict {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font: 500 12px/1.6 var(--font-mono);
+}
+
 /* ---------- visually-hidden utility (a11y text alternatives) ---------- */
 .visually-hidden {
   position: absolute;

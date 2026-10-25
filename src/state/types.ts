@@ -81,6 +81,8 @@ export type CameraPose = {
   target: Metres3;
   /** Yaw captured at save time so re-entry can restore the exact view (T14). */
   yawDegrees?: number;
+  /** Pitch captured at save time for the same exact-view restore (T14). */
+  pitchDegrees?: number;
 };
 
 /** §9.2 canonical pairing machine states — nothing else exists. */
@@ -144,7 +146,7 @@ export type WorkspaceAction =
   | { type: 'scene/select'; selection: SceneSelection }
   | { type: 'scene/clear' }
   | { type: 'camera/setPose'; id: string; label: string; position: Metres3; target: Metres3 }
-  | { type: 'camera/upsertPose'; id: string; label: string; position: Metres3; target: Metres3; yawDegrees: number }
+  | { type: 'camera/upsertPose'; id: string; label: string; position: Metres3; target: Metres3; yawDegrees: number; pitchDegrees?: number }
   | { type: 'camera/removePose'; id: string }
   | { type: 'pairing/transition'; to: PairingState; at: number }
   | { type: 'pairing/progress'; progress: number }

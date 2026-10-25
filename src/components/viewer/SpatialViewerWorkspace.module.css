@@ -441,3 +441,42 @@
     display: none;
   }
 }
+
+/* ---------- T14 · scene-load skeleton (§5.12) ----------
+   Geometry mirrors the stage it replaces: title bars, 4:3 viewport bone,
+   2-col kv, list rows. The sweep + 200 ms show-delay live in ui/Skeleton. */
+.skeletonStage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--scene-clear);
+  overflow: auto;
+}
+
+.skeletonBody {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.skeletonViewport {
+  display: block;
+  min-height: 180px;
+}
+
+.skeletonKv {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.skeletonStatus {
+  margin: 0;
+  font: 500 12px/1.5 var(--font-mono);
+  color: var(--text-dim);
+}
