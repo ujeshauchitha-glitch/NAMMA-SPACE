@@ -118,3 +118,68 @@ export type SceneBundle = {
   pois: Poi[];
   quality: QualityReport;
 };
+
+/* ------------------------------------------------------------------ *
+ * T13 — prepared capture bundle (ADDITIVE extension of the scene
+ * contract). A staged export is *prepared*, never a scene bundle: it
+ * carries rooms, view groups and the staged frames with their digests,
+ * and makes no claim that any reconstruction ran.
+ * ------------------------------------------------------------------ */
+
+export const StagedImageEntrySchema = z.object({
+  id: z.string().min(1),
+  viewGroupId: z.string().nullable(),
+  /** Digest of the actual bytes stored under `file` (verifiable offline). */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  bytes: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  source: z.enum(['operator', 'phone']),
+  stagedAt: z.number().int().nonnegative(),
+  /** Path inside the archive: `images/<sha256>.jpg`. */
+  file: z.string().regex(/^images\/[0-9a-f]{64}\.jpg$/),
+});
+
+export const PreparedRoomSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  dimensionsM: Vec3Schema,
+  originM: Vec3Schema,
+  createdAt: z.number().int().nonnegative(),
+  viewGroupIds: z.array(z.string().min(1)),
+});
+
+export const PreparedViewGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  roomId: z.string().nullable(),
+  createdAt: z.number().int().nonnegative(),
+  imageIds: z.array(z.string().min(1)),
+});
+
+export const PreparedBundleManifestSchema = z.object({
+  schemaVersion: z.literal(1),
+  /** The only honest kind for a staged export — never a scene claim. */
+  bundleKind: z.literal('prepared-capture'),
+  displayName: z.string().min(1),
+  /** ISO-8601, injected by the caller (deterministic builds inject a fixed one). */
+  createdAt: z.string().min(1),
+  provenance: z.object({
+    source: z.literal('operator'),
+    pipeline: z.string().min(1),
+    notes: z.array(z.string()).default([]),
+  }),
+  counts: z.object({
+    images: z.number().int().nonnegative(),
+    rooms: z.number().int().nonnegative(),
+    viewGroups: z.number().int().nonnegative(),
+  }),
+  rooms: z.array(PreparedRoomSchema),
+  viewGroups: z.array(PreparedViewGroupSchema),
+  images: z.array(StagedImageEntrySchema),
+});
+
+export type StagedImageEntry = z.infer<typeof StagedImageEntrySchema>;
+export type PreparedRoom = z.infer<typeof PreparedRoomSchema>;
+export type PreparedViewGroup = z.infer<typeof PreparedViewGroupSchema>;
+export type PreparedBundleManifest = z.infer<typeof PreparedBundleManifestSchema>;

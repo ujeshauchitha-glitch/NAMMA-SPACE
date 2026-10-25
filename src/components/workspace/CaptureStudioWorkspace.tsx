@@ -17,6 +17,7 @@ import { useWorkspaceStore } from '../../state/workspaceContext';
 import { getDefaultStorage, type StorageHandle } from '../../lib/storage';
 import { createObjectUrl, revokeObjectUrl } from '../../lib/objectUrls';
 import { ingestFiles } from '../../lib/capture';
+import { downloadBundle, EXPORT_COPY, type BundleImageInput } from '../../lib/capture/exportBundle';
 import styles from './CaptureStudioWorkspace.module.css';
 
 /**
@@ -48,6 +49,7 @@ export function CaptureStudioWorkspace() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [announcement, setAnnouncement] = useState('');
 
   const storageRef = useRef<Promise<StorageHandle> | null>(null);
@@ -330,10 +332,47 @@ export function CaptureStudioWorkspace() {
   const occupiedGroups = roomGroups.filter((group) => (imagesByGroup.get(group.id) ?? 0) > 0).length;
   const stagedBytes = state.stagedImages.reduce((total, image) => total + image.meta.bytes, 0);
 
-  const handleExport = () => {
-    // Real ZIP build lands with T13 (exportBundle); until then the action is
-    // honest about what it does instead of pretending a download happened.
-    pushToast('info', 'Export bundle', 'Building manifest.json + images/ from the staged store.');
+  const handleExport = async () => {
+    if (state.stagedImages.length === 0) return;
+    const store = await storage();
+    if (!store) return;
+    setExporting(true);
+    try {
+      const images: BundleImageInput[] = [];
+      for (const image of state.stagedImages) {
+        const record = await store.getImage(image.id);
+        if (!record) {
+          throw new Error(
+            `Staged image ${image.seq} has no stored bytes in this browser — remove it, or re-stage the frame, then export again.`,
+          );
+        }
+        images.push({ record, viewGroupId: image.viewGroupId });
+      }
+      const result = await downloadBundle({
+        displayName: state.spaces[0]?.name ?? 'Untitled space',
+        createdAt: new Date().toISOString(),
+        rooms: state.rooms.map((room) => ({
+          id: room.id,
+          name: room.name,
+          dimensionsM: [room.dimensionsM.x, room.dimensionsM.y, room.dimensionsM.z],
+          originM: [room.originM.x, room.originM.y, room.originM.z],
+          createdAt: room.createdAt,
+        })),
+        viewGroups: state.viewGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          roomId: group.roomId,
+          createdAt: group.createdAt,
+          imageIds: [],
+        })),
+        images,
+      });
+      pushToast('success', EXPORT_COPY.successTitle(result.imageCount), result.fileName);
+    } catch (error) {
+      pushToast('error', EXPORT_COPY.failedTitle, error instanceof Error ? error.message : String(error));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const coverageGroups = roomGroups.map((group) => ({
@@ -478,8 +517,9 @@ export function CaptureStudioWorkspace() {
             image={focusedImage}
             groupStats={coverageGroups}
             exportEnabled={hasImages}
+            exporting={exporting}
             onPrepare={() => setPreparing(true)}
-            onExport={handleExport}
+            onExport={() => void handleExport()}
           />
         </section>
       </div>

@@ -3,6 +3,7 @@ import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { Layers } from '../icons/icons';
 import { MetadataKV, type MetadataEntry } from '../ui/MetadataKV';
+import { EXPORT_COPY } from '../../lib/capture/exportBundle';
 import type { ImageMeta } from '../../state/types';
 import styles from './ImageInspector.module.css';
 
@@ -29,6 +30,8 @@ export type ImageInspectorProps = {
   image: InspectorImage | null;
   groupStats: InspectorGroupStat[];
   exportEnabled: boolean;
+  /** Export in flight — button shows the frozen-width loading state (§5.1). */
+  exporting?: boolean;
   onPrepare: () => void;
   onExport: () => void;
 };
@@ -58,7 +61,7 @@ function provenanceEntries(image: InspectorImage): MetadataEntry[] {
   ];
 }
 
-export function ImageInspector({ image, groupStats, exportEnabled, onPrepare, onExport }: ImageInspectorProps) {
+export function ImageInspector({ image, groupStats, exportEnabled, exporting = false, onPrepare, onExport }: ImageInspectorProps) {
   const [tab, setTab] = useState<InspectorTab>('Details');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -122,8 +125,8 @@ export function ImageInspector({ image, groupStats, exportEnabled, onPrepare, on
         <Button variant="signal" disabled={!exportEnabled} onClick={onPrepare}>
           PREPARE CAPTURE
         </Button>
-        <Button variant="secondary" disabled={!exportEnabled} onClick={onExport}>
-          Export bundle
+        <Button variant="secondary" loading={exporting} disabled={!exportEnabled} onClick={onExport}>
+          {EXPORT_COPY.button}
         </Button>
       </footer>
     </section>
