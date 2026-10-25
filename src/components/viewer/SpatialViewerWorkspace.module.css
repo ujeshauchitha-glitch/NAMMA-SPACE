@@ -269,67 +269,7 @@
   color: var(--text-dim);
 }
 
-.poiList {
-  display: grid;
-  margin: var(--space-3) 0;
-  max-height: 280px;
-  overflow-y: auto;
-  border-top: var(--border);
-}
-
-.poiRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2);
-  border-bottom: var(--border);
-  text-align: left;
-  color: var(--text);
-}
-
-.poiRow:hover {
-  background: var(--surface-inset);
-}
-
-.poiRowSelected {
-  background: var(--accent-lime-wash);
-  border-left: var(--border-active);
-  padding-left: 6px;
-}
-
-.poiCopy {
-  min-width: 0;
-  flex: 1;
-}
-
-.poiCopy strong,
-.poiCopy small {
-  display: block;
-}
-
-.poiCopy strong {
-  font: 600 13px/1.35 var(--font-ui);
-}
-
-.poiCopy small {
-  margin-top: 2px;
-  font: 500 10px/1.35 var(--font-mono);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.poiArrow {
-  flex: 0 0 auto;
-  color: var(--text-dim);
-}
-
-.poiEmpty {
-  padding: var(--space-4) var(--space-2);
-  color: var(--text-muted);
-  font: var(--text-body);
-}
+/* T16 · .poi* combobox styles moved to PoiSearch.module.css. */
 
 .destinationActions {
   display: grid;
@@ -358,6 +298,36 @@
   font: 600 13px/1.35 var(--font-ui);
 }
 
+/* T16 · title row: label + category + confidence tags (§5.15). */
+.selectionTitleRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.selectionTitleRow .selectionTitle {
+  min-width: 0;
+}
+
+.categoryTag,
+.confidenceTag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: var(--border);
+  border-radius: var(--radius-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.confidenceTag {
+  font-variant-numeric: var(--numeric);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .selectionBody {
   margin: var(--space-1) 0 var(--space-2);
   color: var(--text-muted);
@@ -370,29 +340,68 @@
   color: var(--text-dim);
 }
 
-.provenanceGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-3);
+/* T16 · route status strip (§5.16): ROUTE · 24 m · 11 cells · A* — slides
+   down over --dur-base (220 ms, §7.3) when the strip mounts (a plot, a
+   replot after clear, or a failure). Reduced motion is gated below. */
+.routeStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: var(--rule-signal) solid var(--accent-lime);
+  background: var(--surface-inset);
+  animation: routeStripSlide var(--dur-base) var(--ease-out);
 }
 
-.provenanceGrid span,
-.provenanceGrid strong {
-  display: block;
+@keyframes routeStripSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.provenanceGrid span {
-  margin-bottom: var(--space-1);
-  font: 500 10px/1.35 var(--font-mono);
+@media (prefers-reduced-motion: reduce) {
+  .routeStrip {
+    animation: none;
+  }
+}
+
+.routeStripText {
+  flex: 1;
+  min-width: 0;
+  font: 500 11px/1.4 var(--font-mono);
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
-  color: var(--text-dim);
+  font-variant-numeric: var(--numeric);
+  color: var(--text);
 }
 
-.provenanceGrid strong {
-  font: 500 12px/1.4 var(--font-ui);
-  font-variant-numeric: var(--numeric);
-  overflow-wrap: anywhere;
+.routeStripActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}
+
+/* T16 · unreachable warning row (§5.15) — distinct from strip detail copy. */
+.routeWarning {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border-left: var(--rule-signal) solid var(--warning);
+  background: var(--warning-wash);
+  color: var(--warning);
+  font: 450 11px/1.45 var(--font-ui);
+}
+
+/* T16 · missing-navigation honest reason (§5.15). */
+.missingNavReason {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
 }
 
 .readinessList {

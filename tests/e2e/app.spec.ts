@@ -16,7 +16,7 @@ test.describe('Namma Space browser journey', () => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'The Amber Hall' })).toBeVisible();
-    await expect(page.getByText('Ready to explore')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('canvas[aria-label="The Amber Hall 3D viewer"]')).toBeVisible();
 
     const search = page.getByRole('searchbox', { name: 'Search points of interest' });
@@ -26,13 +26,13 @@ test.describe('Namma Space browser journey', () => {
     await expect(page.getByText('Selected destination')).toBeVisible();
     await expect(page.getByText('Registration Desk', { exact: true })).toHaveCount(2);
 
-    await page.getByRole('button', { name: /Plot walking route/ }).click();
+    await page.getByRole('button', { name: /Plot route/ }).click();
     await expect(page.getByText(/Route ready/)).toBeVisible();
     await page.getByRole('button', { name: 'Jump to view' }).click();
     await expect(page.getByText('Focused on Registration Desk')).toBeVisible();
 
     await search.fill('does-not-exist');
-    await expect(page.getByText(/No verified destinations match/)).toBeVisible();
+    await expect(page.getByText(/No destinations match .does-not-exist.. Try a room name or alias/)).toBeVisible();
     await expect(page.getByText('Selected destination')).toHaveCount(0);
 
     // Staging migrated to 01 CAPTURE STUDIO at T12 (viewer deviation #3).

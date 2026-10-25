@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRoute, inflateNavigationGrid, searchPois, worldToCell } from '../src/lib/navigation';
+import { findRoute, inflateNavigationGrid, measureRouteMetres, searchPois, worldToCell } from '../src/lib/navigation';
 import type { NavigationGrid, Poi } from '../src/types/scene';
 
 const grid: NavigationGrid = {
@@ -65,5 +65,32 @@ describe('POI search', () => {
     expect(searchPois(pois, 'help')[0]?.id).toBe('desk');
     expect(searchPois(pois, 'hall')[0]?.id).toBe('hall');
     expect(searchPois(pois, '').map((poi) => poi.id)).toEqual(['desk', 'hall']);
+  });
+});
+
+// T16 · route status strip inputs (§5.16) — new cases only.
+describe('route measurement (T16)', () => {
+  it('measures a multi-cell route in world metres', () => {
+    const result = findRoute(grid, { x: 0, z: 0 }, { x: 6, z: 3 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.cells.length).toBeGreaterThan(1);
+    const metres = measureRouteMetres(result.world);
+    expect(metres).toBeGreaterThan(0);
+    // cellSize is 1 m; diagonal steps are √2, so the polyline stays under
+    // one diagonal per cell.
+    expect(metres).toBeLessThanOrEqual(result.cells.length * Math.SQRT2);
+  });
+
+  it('returns zero for a single-point path', () => {
+    expect(measureRouteMetres([[0, 0, 0]])).toBe(0);
+  });
+
+  it('surfaces the unreachable detail verbatim for a blocked destination', () => {
+    const disconnected: NavigationGrid = { ...grid, width: 3, height: 3, blocked: [1, 3, 4, 5, 7] };
+    const result = findRoute(disconnected, { x: 0, z: 0 }, { x: 2, z: 2 });
+    expect(result).toMatchObject({ ok: false, reason: 'unreachable' });
+    if (result.ok) return;
+    expect(result.detail).toBe('No collision-safe route connects the current position to this destination.');
   });
 });

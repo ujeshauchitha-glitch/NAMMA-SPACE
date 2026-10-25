@@ -2,16 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ViewerCanvas } from '../ViewerCanvas';
 import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
-import { SearchField } from '../ui/TextField';
-import { ChevronRight, Jump, Reset as ResetIcon, Route as RouteIcon } from '../icons/icons';
+import { Jump, Reset as ResetIcon } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
-import { findRoute, searchPois, worldToCell, type GridCell } from '../../lib/navigation';
+import { findRoute, measureRouteMetres, searchPois, worldToCell, type GridCell } from '../../lib/navigation';
 import type { SceneBundle, Vec3 } from '../../types/scene';
 import type { PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { useWorkspaceStore } from '../../state/workspaceContext';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
 import { SceneSkeleton } from './SceneSkeleton';
 import { SceneErrorPanel } from './SceneErrorPanel';
+import { PoiSearch } from './PoiSearch';
+import { DestinationDetail } from './DestinationDetail';
+import { SceneDossier } from './SceneDossier';
+import type { RouteState } from './RouteStatus';
 import styles from './SpatialViewerWorkspace.module.css';
 
 /**
@@ -37,10 +40,6 @@ function resolveInitialSceneUrl(): string {
   return DEFAULT_SCENE_URL;
 }
 
-function formatPosition(position: Vec3): string {
-  return `${position[0].toFixed(1)}, ${position[2].toFixed(1)}`;
-}
-
 /** Rounding-stable identity for a pose so identical measurements never re-save. */
 function poseKey(position: Vec3, yawDegrees: number, pitchDegrees: number): string {
   return `${position[0].toFixed(3)},${position[1].toFixed(3)},${position[2].toFixed(3)}|${yawDegrees.toFixed(2)}|${pitchDegrees.toFixed(2)}`;
@@ -62,6 +61,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [isWalkthroughActive, setIsWalkthroughActive] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
   const [sceneUrl, setSceneUrl] = useState(resolveInitialSceneUrl);
+  // T16 · last plot outcome for the route strip (§5.16) — idle until plotted.
+  const [routeState, setRouteState] = useState<RouteState>({ status: 'idle' });
   const viewerRef = useRef<PlayCanvasViewer | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,6 +195,30 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     return () => window.removeEventListener('keydown', onShortcut);
   }, []);
 
+  // T16 · Esc deselects the destination and clears the 3D selection (§5.15).
+  // Skipped while pointer-locked so the engine owns walkthrough exit.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (document.pointerLockElement !== null) return;
+      if (!selectedPoiId) return;
+      setSelectedPoiId(null);
+      viewerRef.current?.selectPoi(null);
+      viewerRef.current?.clearRoute();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedPoiId]);
+
+  // T16 · a new destination (or scene) invalidates the previous plot (§5.16)
+  // and its 3D tape — the strip reset must clear the scene too (review F1).
+  // Optional chaining: on scene change the viewer may already be destroyed
+  // (viewerRef nulled by handleViewerDestroyed before this effect runs).
+  useEffect(() => {
+    setRouteState({ status: 'idle' });
+    viewerRef.current?.clearRoute();
+  }, [selectedPoiId, sceneUrl]);
+
   const selectedPoi = bundle?.pois.find((poi) => poi.id === selectedPoiId) ?? null;
   const results = useMemo(() => searchPois(bundle?.pois ?? [], query), [bundle?.pois, query]);
   const hasGlbVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'glb' || asset.kind === 'gltf') ?? false;
@@ -237,17 +262,54 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   const handleRoute = () => {
     if (!selectedPoi || !bundle || !bundle.navigation) {
-      setViewerStatus('Navigation data is unavailable for this scene');
+      // Defensive: the card already disables the action without navigation.
+      setRouteState({ status: 'error', detail: 'Navigation data is unavailable for this scene.', reason: 'missing-nav' });
       return;
     }
-    const result = findRoute(bundle.navigation, cell, worldToCell(bundle.navigation, selectedPoi.approachPoint));
+    const goal = worldToCell(bundle.navigation, selectedPoi.approachPoint);
+    const result = findRoute(bundle.navigation, cell, goal);
     if (!result.ok) {
-      setViewerStatus(result.detail);
+      // Honest failure: the strip carries the A* detail verbatim; the engine's
+      // status line is left alone so the shell pill never shows route errors.
+      // The engine clears any earlier tape even when a plot fails, so mirror
+      // that here (review F1) — no stale tape behind an error strip.
+      setRouteState({ status: 'error', detail: result.detail, reason: result.reason });
+      viewerRef.current?.clearRoute();
       return;
     }
+    // Claim success only once the engine has actually drawn the tape
+    // (review F4: never optimistic). The engine re-runs the same A* from its
+    // own live pose, so a false here means the plot did not happen.
     if (viewerRef.current?.routeTo(selectedPoi.id)) {
       viewerRef.current?.revealRouteTape();
+      setRouteState({
+        status: 'ok',
+        // Raw metres; RouteStatus rounds once at display time (review F5).
+        metres: measureRouteMetres(result.world),
+        cells: result.cells.length,
+      });
+      return;
     }
+    // routeTo refused: it recomputed from its live pose, so report that
+    // actual outcome instead of the optimistic one.
+    const pose = viewerRef.current?.getPose();
+    const live = findRoute(
+      bundle.navigation,
+      pose ? worldToCell(bundle.navigation, pose.position) : cell,
+      goal,
+    );
+    if (live.ok) {
+      // Unreachable: routeTo just ran this identical query and returned
+      // false. Nothing was drawn, so report no plot rather than a fake one.
+      setRouteState({ status: 'idle' });
+    } else {
+      setRouteState({ status: 'error', detail: live.detail, reason: live.reason });
+    }
+  };
+
+  const handleClearRoute = () => {
+    setRouteState({ status: 'idle' });
+    viewerRef.current?.clearRoute();
   };
 
   const handleJump = () => {
@@ -354,51 +416,24 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               </div>
               <span className={styles.panelIndex}>01</span>
             </div>
-            <SearchField
-              ref={searchInputRef}
-              label="Search points of interest"
-              placeholder="Search rooms, landmarks…"
-              value={query}
-              onChange={(event) => handleQueryChange(event.target.value)}
+            <PoiSearch
+              results={results}
+              query={query}
+              selectedPoiId={selectedPoiId}
+              onQueryChange={handleQueryChange}
+              onSelect={selectPoi}
+              inputRef={searchInputRef}
             />
-            <div className={styles.poiList} role="listbox" aria-label="Points of interest">
-              {results.map((poi) => (
-                <button
-                  key={poi.id}
-                  role="option"
-                  aria-selected={selectedPoiId === poi.id}
-                  className={`${styles.poiRow} ${selectedPoiId === poi.id ? styles.poiRowSelected : ''}`}
-                  onClick={() => selectPoi(poi.id)}
-                >
-                  <span className={styles.poiCopy}>
-                    <strong>{poi.label}</strong>
-                    <small>{`${poi.category} · ${Math.round(poi.confidence * 100)}% confidence`}</small>
-                  </span>
-                  <ChevronRight className={styles.poiArrow} />
-                </button>
-              ))}
-              {results.length === 0 && <p className={styles.poiEmpty}>{`No verified destinations match “${query}”.`}</p>}
-            </div>
-            <div className={styles.destinationActions}>
-              <Button
-                variant="primary"
-                icon={<RouteIcon />}
-                disabled={!selectedPoi || !isViewerReady || !hasNavigation}
-                onClick={handleRoute}
-              >
-                Plot walking route
-              </Button>
-              <Button variant="secondary" disabled={!selectedPoi || !isViewerReady || !hasNavigation} onClick={handleJump}>
-                Jump to view
-              </Button>
-            </div>
             {selectedPoi && (
-              <div className={styles.selectionCard}>
-                <span className={styles.selectionKicker}>Selected destination</span>
-                <strong className={styles.selectionTitle}>{selectedPoi.label}</strong>
-                <p className={styles.selectionBody}>{selectedPoi.description}</p>
-                <span className={styles.selectionMeta}>{`Approach point · ${formatPosition(selectedPoi.approachPoint)}`}</span>
-              </div>
+              <DestinationDetail
+                poi={selectedPoi}
+                routeState={routeState}
+                hasNavigation={hasNavigation}
+                disabled={!isViewerReady}
+                onRoute={handleRoute}
+                onJump={handleJump}
+                onClearRoute={handleClearRoute}
+              />
             )}
           </section>
 
@@ -410,17 +445,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               </div>
               <span className={styles.panelIndex}>02</span>
             </div>
-            <div className={styles.provenanceGrid}>
-              <div><span>Pipeline</span><strong>{bundle?.manifest.provenance.pipeline}</strong></div>
-              <div><span>Coordinate frame</span><strong>Y-up · metre</strong></div>
-              <div><span>Bounds</span><strong>{`${(bundle?.manifest.bounds.max[0] ?? 0) - (bundle?.manifest.bounds.min[0] ?? 0)}m × ${(bundle?.manifest.bounds.max[2] ?? 0) - (bundle?.manifest.bounds.min[2] ?? 0)}m`}</strong></div>
-              <div><span>Navigation</span><strong>{hasNavigation ? `${bundle?.navigation?.width} × ${bundle?.navigation?.height} grid` : 'Unavailable'}</strong></div>
-            </div>
-            <div className={styles.readinessList}>
-              <span>Visual layer <b>Ready</b></span>
-              <span>Collision layer <b>{hasNavigation ? 'Ready' : 'Unavailable'}</b></span>
-              <span>POI index <b>Ready</b></span>
-            </div>
+            <SceneDossier bundle={bundle} />
           </section>
         </aside>
       </div>

@@ -155,6 +155,21 @@ export function findPoi(pois: Poi[], poiId: string): Poi | undefined {
   return pois.find((poi) => poi.id === poiId);
 }
 
+/**
+ * Walk-length of a route in world metres. `findRoute` returns `world` points
+ * already in world coordinates (cell centres × cellSize + origin), so the
+ * polyline is summed directly — no cellSize multiplication here.
+ */
+export function measureRouteMetres(world: Vec3[]): number {
+  let total = 0;
+  for (let index = 1; index < world.length; index += 1) {
+    const [previousX, , previousZ] = world[index - 1];
+    const [nextX, , nextZ] = world[index];
+    total += Math.hypot(nextX - previousX, nextZ - previousZ);
+  }
+  return total;
+}
+
 export function searchPois(pois: Poi[], query: string): Poi[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return pois;

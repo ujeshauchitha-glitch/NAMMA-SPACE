@@ -264,7 +264,13 @@ export class PlayCanvasViewer {
     this.pitchPivot.setLocalEulerAngles(-Math.atan2(direction.y, horizontal) * 180 / Math.PI, 0, 0);
   }
 
-  private clearRoute(): void {
+  /**
+   * Remove the drawn route tape. Public (additive exposure only) so the
+   * workspace can clear a stale tape on Clear route, Esc deselect, a new
+   * destination, or a failed plot — the same triggers that reset the status
+   * strip (review F1). No control flow of any existing method changed.
+   */
+  clearRoute(): void {
     this.routeEntity.children.slice().forEach((child) => child.destroy());
   }
 

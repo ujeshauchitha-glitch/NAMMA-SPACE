@@ -5,6 +5,9 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
+  // Parallel browsers saturate the vite dev server's on-demand transforms and
+  // software-WebGL contexts, starving scene loads past the ready timeouts.
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:5183',
