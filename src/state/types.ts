@@ -79,6 +79,8 @@ export type CameraPose = {
   label: string;
   position: Metres3;
   target: Metres3;
+  /** Yaw captured at save time so re-entry can restore the exact view (T14). */
+  yawDegrees?: number;
 };
 
 /** §9.2 canonical pairing machine states — nothing else exists. */
@@ -138,9 +140,11 @@ export type WorkspaceAction =
   | { type: 'image/assign'; imageId: ImageId; viewGroupId: ViewGroupId }
   | { type: 'image/unassign'; imageId: ImageId }
   | { type: 'image/remove'; imageId: ImageId }
+  | { type: 'image/restoreObjectUrl'; imageId: ImageId; objectUrl: string }
   | { type: 'scene/select'; selection: SceneSelection }
   | { type: 'scene/clear' }
   | { type: 'camera/setPose'; id: string; label: string; position: Metres3; target: Metres3 }
+  | { type: 'camera/upsertPose'; id: string; label: string; position: Metres3; target: Metres3; yawDegrees: number }
   | { type: 'camera/removePose'; id: string }
   | { type: 'pairing/transition'; to: PairingState; at: number }
   | { type: 'pairing/progress'; progress: number }

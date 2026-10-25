@@ -155,10 +155,19 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           `Room delete cancelled: the confirm text "${action.confirmName}" does not match the room name "${room.name}".`,
         );
       }
+      // Images staged into this room's view groups die with it: the confirm
+      // dialog names them and their count (§5.10), so nothing may survive as a
+      // dangling reference to a deleted group.
+      const doomedGroupIds = new Set(
+        state.viewGroups.filter((g) => g.roomId === action.id).map((g) => g.id),
+      );
       return {
         ...state,
         rooms: state.rooms.filter((r) => r.id !== action.id),
         viewGroups: state.viewGroups.filter((g) => g.roomId !== action.id),
+        stagedImages: state.stagedImages.filter(
+          (image) => image.viewGroupId === null || !doomedGroupIds.has(image.viewGroupId),
+        ),
         sceneSelection:
           state.sceneSelection.kind === 'room' && state.sceneSelection.roomId === action.id
             ? { kind: 'space', spaceId: room.spaceId }
@@ -199,9 +208,15 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           `View group delete cancelled: the confirm text "${action.confirmName}" does not match the view group name "${group.name}".`,
         );
       }
+      // Deleting a group is not a destructive claim about the images: they are
+      // detached (unassigned), never silently destroyed — room delete is the
+      // only cascade that removes staged media.
       return {
         ...state,
         viewGroups: state.viewGroups.filter((g) => g.id !== action.id),
+        stagedImages: state.stagedImages.map((image) =>
+          image.viewGroupId === action.id ? { ...image, viewGroupId: null } : image,
+        ),
         sceneSelection:
           state.sceneSelection.kind === 'viewGroup' && state.sceneSelection.viewGroupId === action.id
             ? { kind: 'space', spaceId: group.spaceId }
@@ -263,6 +278,17 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       if (!state.stagedImages.some((i) => i.id === action.imageId)) return reject(state, `Unknown image ${action.imageId}.`);
       return { ...state, stagedImages: state.stagedImages.filter((i) => i.id !== action.imageId) };
     }
+    // Snapshots persist meta only (objectUrl is stripped by toPersistedSnapshot);
+    // after reload the workspace re-mints a URL per image from the stored bytes.
+    case 'image/restoreObjectUrl': {
+      if (!state.stagedImages.some((i) => i.id === action.imageId)) return reject(state, `Unknown image ${action.imageId}.`);
+      return {
+        ...state,
+        stagedImages: state.stagedImages.map((i) =>
+          i.id === action.imageId ? { ...i, objectUrl: action.objectUrl } : i,
+        ),
+      };
+    }
 
     /* ---------------- scene selection ---------------- */
     case 'scene/select':
@@ -275,6 +301,25 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       if (state.cameraPoses.some((p) => p.id === action.id)) return reject(state, `Pose ${action.id} already exists.`);
       const pose: CameraPose = { id: action.id, label: action.label, position: action.position, target: action.target };
       return { ...state, cameraPoses: [...state.cameraPoses, pose] };
+    }
+    // Viewer re-entry restores the last pose of a scene; the engine reports it
+    // repeatedly, so this is a replace-or-insert (never a duplicate, never a
+    // silent drop of the newest measurement).
+    case 'camera/upsertPose': {
+      const pose: CameraPose = {
+        id: action.id,
+        label: action.label,
+        position: action.position,
+        target: action.target,
+        yawDegrees: action.yawDegrees,
+      };
+      const existing = state.cameraPoses.some((p) => p.id === action.id);
+      return {
+        ...state,
+        cameraPoses: existing
+          ? state.cameraPoses.map((p) => (p.id === action.id ? pose : p))
+          : [...state.cameraPoses, pose],
+      };
     }
     case 'camera/removePose':
       return { ...state, cameraPoses: state.cameraPoses.filter((p) => p.id !== action.id) };

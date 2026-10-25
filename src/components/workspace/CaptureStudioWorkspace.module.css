@@ -1,6 +1,139 @@
-.stub {
+/* Capture Studio (§6.2): 264px / 1fr / 328px, gap 12, padding 16. */
+.studio {
   display: grid;
-  place-items: center;
-  min-height: 60vh;
+  grid-template-columns: 264px 1fr 328px;
+  gap: var(--space-3);
   padding: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+
+.left,
+.center,
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Coverage pinned to the bottom of the rail (§6.2). */
+.coverage {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+}
+
+.centerBar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) 0;
+  background: var(--surface-0);
+  border-bottom: var(--border);
+}
+
+.chipBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.customChip {
+  height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.customChip:hover:not(:disabled) {
+  background: var(--surface-inset);
+  color: var(--text);
+}
+
+.customChip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.customForm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stagedCount {
+  margin: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.prepareKv {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.prepareKv > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.prepareKv dt {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.prepareKv dd {
+  margin: 0;
+  font: 500 13px/1.4 var(--font-ui);
+  color: var(--text);
+}
+
+.prepareNote {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--text-muted);
+}
+
+/* Rails collapse structurally at the 1024 breakpoint (§6.3). */
+@media (max-width: 1280px) {
+  .studio {
+    grid-template-columns: 240px 1fr 300px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .studio {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .left,
+  .center,
+  .right {
+    overflow: visible;
+  }
+
+  .coverage {
+    position: static;
+  }
 }

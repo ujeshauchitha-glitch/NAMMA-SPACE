@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
 
+/**
+ * Structurally valid 1×1 RGBA PNG (70 bytes, CRCs verified) — generated
+ * in-test so the real sniff → decode → resize → sha256 → IDB pipeline runs
+ * end to end in Chromium (no binary fixtures committed).
+ */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const TINY_PNG = Buffer.from(TINY_PNG_BASE64, 'base64');
+
 test.describe('Namma Space browser journey', () => {
   test('loads the procedural scene, searches, selects, routes, jumps and stages media', async ({ page }) => {
     const errors: string[] = [];
@@ -26,12 +35,15 @@ test.describe('Namma Space browser journey', () => {
     await expect(page.getByText(/No verified destinations match/)).toBeVisible();
     await expect(page.getByText('Selected destination')).toHaveCount(0);
 
-    await page.getByLabel('Choose video or photo set').setInputFiles({
-      name: 'walk.jpg',
-      mimeType: 'image/jpeg',
-      buffer: Buffer.from('browser-e2e-fixture'),
+    // Staging migrated to 01 CAPTURE STUDIO at T12 (viewer deviation #3).
+    await page.getByTestId('tab-capture').click();
+    await expect(page.getByTestId('workspace-capture')).toBeVisible();
+    await page.getByLabel('Choose capture images').setInputFiles({
+      name: 'walk.png',
+      mimeType: 'image/png',
+      buffer: TINY_PNG,
     });
-    await expect(page.getByText(/1 capture file staged/)).toBeVisible();
+    await expect(page.getByText('1 image staged')).toBeVisible({ timeout: 15_000 });
 
     expect(errors).toEqual([]);
   });
@@ -100,7 +112,10 @@ test.describe('Namma Space browser journey', () => {
     await page.goto('/');
     await expect(page.getByRole('searchbox', { name: 'Search points of interest' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Enter walkthrough/ })).toBeVisible();
-    await expect(page.getByText('Choose video or photo set', { exact: true })).toBeVisible();
+
+    // The staging affordance lives in Capture Studio since T12.
+    await page.goto('/?workspace=capture');
+    await expect(page.getByLabel('Choose capture images')).toBeVisible();
     await context.close();
   });
 });

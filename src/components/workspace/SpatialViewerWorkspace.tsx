@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ViewerCanvas } from '../ViewerCanvas';
 import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
@@ -13,10 +13,10 @@ import styles from './SpatialViewerWorkspace.module.css';
 
 /**
  * 02 SPATIAL VIEWER — the existing single-screen viewer, preserved through
- * the shell refactor (T8). Scene load/search/route/jump/staging behavior is
- * a 1:1 port of the pre-shell App.tsx monolith; the engine gem
+ * the shell refactor (T8). Scene load/search/route/jump behavior is a 1:1
+ * port of the pre-shell App.tsx monolith; the engine gem
  * (PlayCanvasViewer) is consumed through its public API only.
- * Capture staging here is temporary — it migrates to 01 CAPTURE STUDIO at T12.
+ * Capture staging migrated to 01 CAPTURE STUDIO at T12 (deviation #3 closed).
  */
 
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
@@ -49,7 +49,6 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [position, setPosition] = useState<Vec3>([0, 0, 0]);
   const [cell, setCell] = useState<GridCell>({ x: 0, z: 0 });
   const [viewerStatus, setViewerStatus] = useState('Loading scene bundle…');
-  const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [isWalkthroughActive, setIsWalkthroughActive] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
   const [sceneUrl, setSceneUrl] = useState(resolveInitialSceneUrl);
@@ -69,7 +68,6 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       setBundle(nextBundle);
       setIsViewerReady(false);
       setSelectedPoiId(null);
-      setCaptureMessage(null);
       setPosition(nextBundle.manifest.startPosition);
       setCell(nextBundle.navigation ? worldToCell(nextBundle.navigation, nextBundle.manifest.startPosition) : { x: 0, z: 0 });
       setViewerStatus('Scene validated · ready to explore');
@@ -128,7 +126,6 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   const selectPoi = (poiId: string) => {
     setSelectedPoiId(poiId);
-    setCaptureMessage(null);
     viewerRef.current?.selectPoi(poiId);
   };
 
@@ -156,18 +153,6 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const handleJump = () => {
     if (!selectedPoi) return;
     viewerRef.current?.jumpTo(selectedPoi.id);
-  };
-
-  const handleCapture = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) return;
-    const supported = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
-    if (supported.length !== files.length) {
-      setCaptureMessage('Some files were skipped. Choose JPG, PNG, HEIC or MP4 media.');
-      return;
-    }
-    const totalMb = supported.reduce((total, file) => total + file.size, 0) / (1024 * 1024);
-    setCaptureMessage(`${supported.length} capture file${supported.length === 1 ? '' : 's'} staged · ${totalMb.toFixed(1)} MB. Local processing is ready to run from the CLI.`);
   };
 
   return (
@@ -318,32 +303,10 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
           <section className={styles.panel}>
             <div className={styles.panelHeading}>
               <div>
-                <p className={styles.eyebrow}>Capture to twin</p>
-                <h2 className={styles.panelTitle}>Stage new media</h2>
-              </div>
-              <span className={styles.panelIndex}>02</span>
-            </div>
-            <p className={styles.panelCopy}>Bring a slow, overlapping phone walk into the local pipeline. The browser stages media only; reconstruction runs independently through the CLI.</p>
-            <label className={styles.uploadZone}>
-              <input className="visually-hidden" type="file" multiple accept="image/*,video/mp4,video/quicktime" onChange={handleCapture} />
-              <span className={styles.uploadPlus} aria-hidden="true">+</span>
-              <strong>Choose video or photo set</strong>
-              <small>JPG · PNG · HEIC · MP4</small>
-            </label>
-            {captureMessage && <p className={styles.captureMessage}>{captureMessage}</p>}
-            <div className={styles.pipelineStatus}>
-              <span className={`${styles.pipelineLine} ${styles.pipelineLineActive}`} /><span className={styles.pipelineLine} /><span className={styles.pipelineLine} />
-              <div className={styles.pipelineLabels}><span>Input</span><span>Process</span><span>Publish</span></div>
-            </div>
-          </section>
-
-          <section className={styles.panel}>
-            <div className={styles.panelHeading}>
-              <div>
                 <p className={styles.eyebrow}>Scene dossier</p>
                 <h2 className={styles.panelTitle}>Verified provenance</h2>
               </div>
-              <span className={styles.panelIndex}>03</span>
+              <span className={styles.panelIndex}>02</span>
             </div>
             <div className={styles.provenanceGrid}>
               <div><span>Pipeline</span><strong>{bundle?.manifest.provenance.pipeline}</strong></div>

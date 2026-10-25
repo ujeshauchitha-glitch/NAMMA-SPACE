@@ -171,3 +171,40 @@ describe('persistence round-trip', () => {
     expect(await persistence.load()).toBeNull();
   });
 });
+
+describe('cascade integrity (T12)', () => {
+  it('deleting a room removes the images staged into its view groups — no dangling ids', () => {
+    // rm-1 has vg-1; im-1 is staged into vg-1, im-2 sits unassigned.
+    const withTwo = workspaceReducer(stateWithImage(), {
+      type: 'image/stage', id: 'im-2', viewGroupId: null, objectUrl: 'blob:two', meta: META, at: 5,
+    });
+    const after = workspaceReducer(withTwo, { type: 'room/delete', id: 'rm-1', confirmName: 'Lobby' });
+    expect(after.rooms).toHaveLength(0);
+    expect(after.viewGroups).toHaveLength(0);
+    expect(after.stagedImages.map((i) => i.id)).toEqual(['im-2']);
+    // The unassigned survivor never points at a group that no longer exists.
+    expect(after.stagedImages.every((i) => i.viewGroupId === null)).toBe(true);
+  });
+
+  it('deleting a view group detaches its images instead of destroying them', () => {
+    const after = workspaceReducer(stateWithImage(), { type: 'viewGroup/delete', id: 'vg-1', confirmName: 'Wide' });
+    expect(after.viewGroups).toHaveLength(0);
+    expect(after.stagedImages).toHaveLength(1);
+    expect(after.stagedImages[0].viewGroupId).toBeNull();
+  });
+
+  it('camera/upsertPose replaces by id — the newest measurement wins, never a duplicate', () => {
+    const first = workspaceReducer(initialWorkspaceState, {
+      type: 'camera/upsertPose', id: 'scene-a', label: 'Amber Hall',
+      position: { x: -4.5, y: 1.65, z: 3.4 }, target: { x: 0, y: 1.65, z: 0 }, yawDegrees: 0,
+    });
+    expect(first.cameraPoses).toHaveLength(1);
+    const second = workspaceReducer(first, {
+      type: 'camera/upsertPose', id: 'scene-a', label: 'Amber Hall',
+      position: { x: 4.2, y: 1.65, z: -3.3 }, target: { x: 0, y: 1.65, z: 0 }, yawDegrees: 180,
+    });
+    expect(second.cameraPoses).toHaveLength(1);
+    expect(second.cameraPoses[0].position).toEqual({ x: 4.2, y: 1.65, z: -3.3 });
+    expect(second.cameraPoses[0].yawDegrees).toBe(180);
+  });
+});
