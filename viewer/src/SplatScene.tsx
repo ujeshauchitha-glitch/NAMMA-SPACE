@@ -3,13 +3,19 @@ import { useThree } from '@react-three/fiber'
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark'
 import type { SceneConfig } from './config'
 
+export interface LoadInfo {
+  splats: number
+  loadMs: number
+}
+
 interface Props {
   config: SceneConfig
   onProgress: (state: 'loading' | 'ready' | 'error', message?: string) => void
+  onLoaded?: (info: LoadInfo) => void
 }
 
 /** Mounts Spark's renderer and one SplatMesh into the R3F scene. */
-export function SplatScene({ config, onProgress }: Props) {
+export function SplatScene({ config, onProgress, onLoaded }: Props) {
   const { gl, scene } = useThree()
 
   useEffect(() => {
@@ -23,9 +29,17 @@ export function SplatScene({ config, onProgress }: Props) {
     scene.add(mesh)
 
     let cancelled = false
+    const t0 = performance.now()
     onProgress('loading')
     mesh.initialized
-      .then(() => !cancelled && onProgress('ready'))
+      .then(() => {
+        if (cancelled) return
+        onLoaded?.({
+          splats: mesh.packedSplats?.numSplats ?? mesh.extSplats?.numSplats ?? 0,
+          loadMs: performance.now() - t0,
+        })
+        onProgress('ready')
+      })
       .catch((err: unknown) => !cancelled && onProgress('error', String(err)))
 
     return () => {
@@ -34,7 +48,7 @@ export function SplatScene({ config, onProgress }: Props) {
       scene.remove(spark)
       mesh.dispose()
     }
-  }, [gl, scene, config, onProgress])
+  }, [gl, scene, config, onProgress, onLoaded])
 
   return null
 }

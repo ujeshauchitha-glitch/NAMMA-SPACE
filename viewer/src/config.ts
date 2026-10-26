@@ -19,6 +19,9 @@ export interface SceneConfig {
   synthetic?: boolean
 }
 
+/** ?debug shows frame timing, splat count, load time and a screenshot button. */
+export const DEBUG = new URLSearchParams(window.location.search).has('debug')
+
 export const DEFAULT_CONFIG: SceneConfig = {
   title: 'Namma Space',
   splat: 'models/scene.spz',

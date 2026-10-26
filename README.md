@@ -48,6 +48,13 @@ A run ends as `automated_checks_passed_awaiting_inspection` in `work/<name>/repo
 
 Then edit `viewer/public/models/scene.json` (`spawn`, `scale`, `rotation`) to align the model; see *Scale and orientation* in the SOP.
 
+## Tests and performance readout
+```powershell
+py -3.12 -m pip install pytest
+py -3.12 -m pytest tests -q          # 25 tests; COLMAP/ffmpeg-dependent ones skip if the tool is missing
+```
+Add `?debug` to the viewer URL for frame timing, splat count, load time and a screenshot button (e.g. `http://localhost:5173/?debug`). Measure in a normal browser on the target GPU; the in-app preview pane is not representative.
+
 ## Controls
 `W A S D` move · mouse look (click to capture) · `Shift` sprint · `Q`/`E` lower/raise · `Esc` release mouse. Touch: drag to look, two fingers to walk.
 
