@@ -1,0 +1,279 @@
+/**
+ * Pairing peer (T18) — WebRTC handshake over injected connections.
+ *
+ * Everything DOM-shaped is a narrow structural type (`PeerConnectionLike`,
+ * `DataChannelLike`) with an injectable factory, so the protocol suite runs
+ * two peers through a mock hub with **zero real network, zero real phone**.
+ *
+ * Connection strategy (honest about what we can and cannot claim):
+ *   1. First attempt uses **host candidates only** (`iceServers: []`) —
+ *      same-LAN devices connect directly, no third party involved.
+ *   2. On `connectionState === 'failed'` we retry **once** with the public
+ *      Google STUN server and emit `stun-fallback` so the UI can say so.
+ *   3. A second failure is terminal: `ICE_FAILED`. We never loop forever and
+ *      never claim connectivity we did not observe.
+ *
+ * The data channel is labelled `capture`. Inbound frames are `safeParse`d
+ * (`capture-state` / `frame-chunk`); malformed input surfaces as `malformed`
+ * and is never coerced or thrown through the socket handler.
+ */
+import {
+  parsePairingMessage,
+  type CaptureStateMessage,
+  type FrameChunkHeader,
+  type IceCandidateInit,
+  type PairingMessage,
+  type SessionDescriptionInit,
+} from '../../types/pairing';
+import { PairingError } from './errors';
+
+export type PeerRole = 'initiator' | 'responder';
+
+/** Channel label agreed in the spec — the only channel we open. */
+export const CAPTURE_CHANNEL_LABEL = 'capture';
+
+/** Public STUN fallback, used only after the host-only attempt fails. */
+export const STUN_FALLBACK_URL = 'stun:stun.l.google.com:19302';
+
+/* ------------------------------------------------------------------ *
+ * injectable WebRTC surface (structural — the real classes satisfy it)
+ * ------------------------------------------------------------------ */
+
+export type DataChannelLike = {
+  label: string;
+  readyState: string;
+  send(data: string): void;
+  close(): void;
+  onopen: ((event?: unknown) => void) | null;
+  onclose: ((event?: unknown) => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+};
+
+export type PeerConnectionLike = {
+  connectionState: string;
+  createDataChannel(label: string): DataChannelLike;
+  createOffer(): Promise<SessionDescriptionInit>;
+  createAnswer(): Promise<SessionDescriptionInit>;
+  setLocalDescription(description: SessionDescriptionInit): Promise<void>;
+  setRemoteDescription(description: SessionDescriptionInit): Promise<void>;
+  addIceCandidate(candidate: IceCandidateInit): Promise<void>;
+  close(): void;
+  onicecandidate: ((event: { candidate: IceCandidateInit | null }) => void) | null;
+  ondatachannel: ((event: { channel: DataChannelLike }) => void) | null;
+  onconnectionstatechange: (() => void) | null;
+};
+
+export type RTCPeerConnectionFactory = (config: {
+  iceServers: { urls: string }[];
+}) => PeerConnectionLike;
+
+/* ------------------------------------------------------------------ *
+ * events
+ * ------------------------------------------------------------------ */
+
+export type PeerEvent =
+  | { type: 'offer'; description: SessionDescriptionInit }
+  | { type: 'answer'; description: SessionDescriptionInit }
+  | { type: 'ice'; candidate: IceCandidateInit }
+  | { type: 'connected' }
+  /** Host-only ICE failed; retrying once with the public STUN server. */
+  | { type: 'stun-fallback'; attempt: number }
+  | { type: 'error'; error: PairingError }
+  | { type: 'message'; message: PairingMessage }
+  | { type: 'malformed'; raw: string };
+
+export type PeerSignal = { description: SessionDescriptionInit } | { candidate: IceCandidateInit };
+
+export type PairingPeer = {
+  readonly role: PeerRole;
+  readonly connectionState: string;
+  /** Has the STUN retry already been spent? */
+  readonly stunEngaged: boolean;
+  /** Open the connection; the initiator also creates the channel + offer. */
+  start(): Promise<void>;
+  /** Feed one relayed signalling envelope (SDP or trickle ICE). */
+  handleSignal(signal: PeerSignal): Promise<void>;
+  /** Push a `capture-state` message; `false` when the channel is not open. */
+  sendCaptureState(message: CaptureStateMessage): boolean;
+  /** Push a `frame-chunk` header; `false` when the channel is not open. */
+  sendFrameChunk(header: FrameChunkHeader): boolean;
+  /** Tear down the connection; further sends fail closed. */
+  close(): void;
+  /** Subscribe; returns the unsubscribe function. */
+  on(handler: (event: PeerEvent) => void): () => void;
+};
+
+export type PairingPeerOptions = {
+  role: PeerRole;
+  createPeerConnection: RTCPeerConnectionFactory;
+  /** Disable the STUN retry (tests that assert the first-failure path). */
+  stunFallback?: boolean;
+};
+
+export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
+  const { role, createPeerConnection } = options;
+  const stunFallback = options.stunFallback ?? true;
+
+  const handlers = new Set<(event: PeerEvent) => void>();
+  let pc: PeerConnectionLike | null = null;
+  let channel: DataChannelLike | null = null;
+  let stunEngaged = false;
+  let closed = false;
+  /** ICE candidates that arrived before the remote description. */
+  let pendingCandidates: IceCandidateInit[] = [];
+  let remoteDescriptionSet = false;
+
+  const emit = (event: PeerEvent): void => {
+    for (const handler of [...handlers]) handler(event);
+  };
+
+  const wireChannel = (next: DataChannelLike): void => {
+    if (next.label !== CAPTURE_CHANNEL_LABEL) return;
+    channel = next;
+    next.onmessage = (event) => {
+      const raw = typeof event?.data === 'string' ? event.data : '';
+      const message = parsePairingMessage(raw);
+      if (message) emit({ type: 'message', message });
+      else emit({ type: 'malformed', raw });
+    };
+  };
+
+  const flushCandidates = async (): Promise<void> => {
+    if (!pc || !remoteDescriptionSet) return;
+    const queued = pendingCandidates;
+    pendingCandidates = [];
+    for (const candidate of queued) {
+      await pc.addIceCandidate(candidate);
+    }
+  };
+
+  const sendOffer = async (): Promise<void> => {
+    if (!pc) return;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    emit({ type: 'offer', description: offer });
+  };
+
+  const handleConnectionStateChange = (): void => {
+    if (!pc || closed) return;
+    const state = pc.connectionState;
+    if (state === 'connected') {
+      emit({ type: 'connected' });
+      return;
+    }
+    if (state !== 'failed') return; // 'disconnected' is transient — wait
+
+    if (stunFallback && !stunEngaged) {
+      // Attempt 1 (host-only) failed → rebuild once with STUN.
+      stunEngaged = true;
+      emit({ type: 'stun-fallback', attempt: 1 });
+      teardownPc();
+      createPc();
+      if (role === 'initiator') void sendOffer().catch(() => undefined);
+      return;
+    }
+    emit({ type: 'error', error: new PairingError('ICE_FAILED') });
+  };
+
+  const createPc = (): PeerConnectionLike => {
+    const next = createPeerConnection({
+      iceServers: stunEngaged ? [{ urls: STUN_FALLBACK_URL }] : [],
+    });
+    pc = next;
+    remoteDescriptionSet = false;
+    pendingCandidates = [];
+
+    next.onicecandidate = (event) => {
+      if (event?.candidate) emit({ type: 'ice', candidate: event.candidate });
+      // `null` = end-of-candidates; nothing to relay.
+    };
+    next.ondatachannel = (event) => {
+      if (event?.channel) wireChannel(event.channel);
+    };
+    next.onconnectionstatechange = handleConnectionStateChange;
+
+    if (role === 'initiator') {
+      wireChannel(next.createDataChannel(CAPTURE_CHANNEL_LABEL));
+    }
+    return next;
+  };
+
+  const teardownPc = (): void => {
+    if (!pc) return;
+    pc.onicecandidate = null;
+    pc.ondatachannel = null;
+    pc.onconnectionstatechange = null;
+    try {
+      pc.close();
+    } catch {
+      // Already dead — teardown must not throw.
+    }
+    pc = null;
+    channel = null;
+  };
+
+  return {
+    get role() {
+      return role;
+    },
+    get connectionState() {
+      return pc?.connectionState ?? 'closed';
+    },
+    get stunEngaged() {
+      return stunEngaged;
+    },
+
+    async start(): Promise<void> {
+      if (closed) return;
+      if (!pc) createPc();
+      if (role === 'initiator') await sendOffer();
+      // The responder waits for the relayed offer — nothing to send yet.
+    },
+
+    async handleSignal(signal: PeerSignal): Promise<void> {
+      if (closed) return;
+      const conn = pc ?? createPc();
+
+      if ('candidate' in signal) {
+        if (remoteDescriptionSet) await conn.addIceCandidate(signal.candidate);
+        else pendingCandidates.push(signal.candidate);
+        return;
+      }
+
+      await conn.setRemoteDescription(signal.description);
+      remoteDescriptionSet = true;
+      await flushCandidates();
+
+      if (signal.description.type === 'offer') {
+        const answer = await conn.createAnswer();
+        await conn.setLocalDescription(answer);
+        emit({ type: 'answer', description: answer });
+      }
+      // An answer completes the exchange; ICE candidates flow from here.
+    },
+
+    sendCaptureState(message: CaptureStateMessage): boolean {
+      if (!channel || channel.readyState !== 'open') return false;
+      channel.send(JSON.stringify(message));
+      return true;
+    },
+
+    sendFrameChunk(header: FrameChunkHeader): boolean {
+      if (!channel || channel.readyState !== 'open') return false;
+      channel.send(JSON.stringify(header));
+      return true;
+    },
+
+    close(): void {
+      closed = true;
+      teardownPc();
+    },
+
+    on(handler: (event: PeerEvent) => void): () => void {
+      handlers.add(handler);
+      return () => {
+        handlers.delete(handler);
+      };
+    },
+  };
+}
