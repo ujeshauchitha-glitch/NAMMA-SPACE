@@ -13,3 +13,9 @@ __pycache__/
 public/scenes/*/input/
 public/scenes/*/frames/
 public/scenes/*/output/
+
+# Reconstruction toolchain and run outputs (binaries/downloads, per-run work folders)
+tools/
+work/
+# The raw trained PLY is too big for git/Pages. The compressed web copy (scene.sog / scene.spz) IS committed.
+spark-viewer/public/models/scene.ply

@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "app", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173"], "port": 5173 },
+    { "name": "spark-viewer", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "spark-viewer", "run", "dev", "--", "--port", "5174"], "port": 5174 }
+  ]
+}

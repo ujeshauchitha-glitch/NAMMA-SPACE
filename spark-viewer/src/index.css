@@ -1,0 +1,125 @@
+:root {
+  --bg: #0b0d10;
+  --panel: rgba(18, 22, 28, 0.82);
+  --text: #e8ecf1;
+  --muted: #8b95a3;
+  --accent: #4cc2ff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+canvas { display: block; touch-action: none; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.card {
+  pointer-events: auto;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 24px 28px;
+  max-width: 420px;
+  margin: 16px;
+  text-align: center;
+}
+
+.card h1 { margin: 0 0 6px; font-size: 20px; }
+.card p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+
+.card button {
+  margin-top: 14px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--accent);
+  color: #04141f;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+kbd {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.hud {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+}
+
+.progress {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.error { color: #ff8a8a !important; }
+
+.debug {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font: 12px/1.6 ui-monospace, 'Cascadia Code', monospace;
+  color: var(--text);
+  z-index: 5;
+}
+
+.debug button {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #04141f;
+  font-size: 12px;
+  cursor: pointer;
+}

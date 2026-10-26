@@ -5,6 +5,7 @@ export default defineConfig({
   // so tell esbuild to use the automatic JSX runtime for them.
   esbuild: { jsx: 'automatic' },
   test: {
-    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
+    // spark-viewer/ and reconstruction/ are separate projects (their own deps and Python tests).
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**', 'spark-viewer/**', 'reconstruction/**'],
   },
 });
