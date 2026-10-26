@@ -55,6 +55,7 @@ export {
 
 export {
   CaptureStateSchema,
+  FrameAckSchema,
   FrameChunkHeaderSchema,
   IceCandidateSchema,
   PairingMessageSchema,
@@ -63,12 +64,26 @@ export {
   parsePairingMessage,
   parseSignalMessage,
   type CaptureStateMessage,
+  type FrameAckMessage,
   type FrameChunkHeader,
   type IceCandidateInit,
   type PairingMessage,
   type SessionDescriptionInit,
   type SignalMessage,
 } from '../../types/pairing';
+
+export {
+  FRAME_CHUNK_BYTES,
+  createCaptureState,
+  createFrameAck,
+  createFrameAssembler,
+  planFrameChunks,
+  type FrameAssemblyResult,
+  type FrameAssembler,
+  type PlanFrameOptions,
+  type PlannedChunk,
+  type PlannedFrame,
+} from './messages';
 
 export {
   INSECURE_CONTEXT_REMEDY,

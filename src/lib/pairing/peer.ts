@@ -13,13 +13,17 @@
  *   3. A second failure is terminal: `ICE_FAILED`. We never loop forever and
  *      never claim connectivity we did not observe.
  *
- * The data channel is labelled `capture`. Inbound frames are `safeParse`d
- * (`capture-state` / `frame-chunk`); malformed input surfaces as `malformed`
- * and is never coerced or thrown through the socket handler.
+ * The data channel is labelled `capture`. Inbound JSON frames are
+ * `safeParse`d (`capture-state` / `frame-chunk`); malformed input surfaces
+ * as `malformed` and is never coerced or thrown through the socket handler.
+ * Inbound `ArrayBuffer` frames arrive verbatim as `bytes` events (binary
+ * payloads are opaque to the parser), so the receive side can reassemble a
+ * phone frame without any JSON decoding step.
  */
 import {
   parsePairingMessage,
   type CaptureStateMessage,
+  type FrameAckMessage,
   type FrameChunkHeader,
   type IceCandidateInit,
   type PairingMessage,
@@ -42,8 +46,10 @@ export const STUN_FALLBACK_URL = 'stun:stun.l.google.com:19302';
 export type DataChannelLike = {
   label: string;
   readyState: string;
-  send(data: string): void;
+  send(data: string | ArrayBuffer): void;
   close(): void;
+  /** Mirrored frames arrive as `ArrayBuffer` when this is `'arraybuffer'`. */
+  binaryType?: string | null;
   onopen: ((event?: unknown) => void) | null;
   onclose: ((event?: unknown) => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
@@ -80,7 +86,9 @@ export type PeerEvent =
   | { type: 'stun-fallback'; attempt: number }
   | { type: 'error'; error: PairingError }
   | { type: 'message'; message: PairingMessage }
-  | { type: 'malformed'; raw: string };
+  | { type: 'malformed'; raw: string }
+  /** One inbound binary frame chunk — opaque bytes, not JSON. */
+  | { type: 'bytes'; data: ArrayBuffer };
 
 export type PeerSignal = { description: SessionDescriptionInit } | { candidate: IceCandidateInit };
 
@@ -97,6 +105,10 @@ export type PairingPeer = {
   sendCaptureState(message: CaptureStateMessage): boolean;
   /** Push a `frame-chunk` header; `false` when the channel is not open. */
   sendFrameChunk(header: FrameChunkHeader): boolean;
+  /** Push one binary payload chunk; `false` when the channel is not open. */
+  sendFramePayload(payload: ArrayBuffer | Uint8Array): boolean;
+  /** Push a `frame-ack`; `false` when the channel is not open. */
+  sendFrameAck(ack: FrameAckMessage): boolean;
   /** Tear down the connection; further sends fail closed. */
   close(): void;
   /** Subscribe; returns the unsubscribe function. */
@@ -130,11 +142,22 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
   const wireChannel = (next: DataChannelLike): void => {
     if (next.label !== CAPTURE_CHANNEL_LABEL) return;
     channel = next;
+    // Deliver binary payloads as `ArrayBuffer` (not Blob) so the receive
+    // side can reassemble synchronously.
+    next.binaryType = 'arraybuffer';
     next.onmessage = (event) => {
-      const raw = typeof event?.data === 'string' ? event.data : '';
-      const message = parsePairingMessage(raw);
-      if (message) emit({ type: 'message', message });
-      else emit({ type: 'malformed', raw });
+      const raw = event?.data;
+      if (typeof raw === 'string') {
+        const message = parsePairingMessage(raw);
+        if (message) emit({ type: 'message', message });
+        else emit({ type: 'malformed', raw });
+        return;
+      }
+      if (raw instanceof ArrayBuffer) {
+        emit({ type: 'bytes', data: raw });
+        return;
+      }
+      emit({ type: 'malformed', raw: String(raw) });
     };
   };
 
@@ -261,6 +284,20 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
     sendFrameChunk(header: FrameChunkHeader): boolean {
       if (!channel || channel.readyState !== 'open') return false;
       channel.send(JSON.stringify(header));
+      return true;
+    },
+
+    sendFramePayload(payload: ArrayBuffer | Uint8Array): boolean {
+      if (!channel || channel.readyState !== 'open') return false;
+      // slice() yields an ArrayBuffer covering exactly this chunk even when
+      // the input view aliases a larger frame buffer.
+      channel.send(payload instanceof Uint8Array ? payload.slice().buffer : payload);
+      return true;
+    },
+
+    sendFrameAck(ack: FrameAckMessage): boolean {
+      if (!channel || channel.readyState !== 'open') return false;
+      channel.send(JSON.stringify(ack));
       return true;
     },
 

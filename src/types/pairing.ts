@@ -3,9 +3,11 @@
  *
  * Two families share one file because they are one protocol surface:
  *
- *  1. **Datachannel messages** — phone → desktop over the `capture` channel
- *     (`capture-state` + `frame-chunk` header). Chunks carry a header only;
- *     frame bytes travel as binary on the same channel (T22 assembles them).
+ *  1. **Datachannel messages** — `capture-state` + `frame-chunk` headers go
+ *     phone → desktop over the `capture` channel; frame bytes travel as
+ *     binary on the same channel and the desktop assembles them
+ *     (`src/lib/pairing/messages.ts`). The desktop answers with
+ *     `frame-ack` once a frame is assembled and sha-verified.
  *  2. **Signalling envelopes** — relayed verbatim by the T19 `/ws` server.
  *     Rooms hold exactly two peers, so messages need no `from` rewrite.
  *
@@ -71,10 +73,28 @@ export const FrameChunkHeaderSchema = z
   });
 export type FrameChunkHeader = z.infer<typeof FrameChunkHeaderSchema>;
 
+/**
+ * Desktop → phone receipt for one verified frame. Sent only after the
+ * desktop assembled every chunk **and** the frame's sha-256 matched — an
+ * ack is provenance, never a timing signal, so `at` (the desktop clock in
+ * ms) is recorded for audit and never used for ordering.
+ *
+ * `bytes` echoes the verified total byte length; the phone treats the ack
+ * as the frame's completion signal and the source of `ackedBytes`.
+ */
+export const FrameAckSchema = z.object({
+  type: z.literal('frame-ack'),
+  frameId: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  at: z.number().int().nonnegative(),
+});
+export type FrameAckMessage = z.infer<typeof FrameAckSchema>;
+
 /** Discriminated union of everything allowed on the `capture` channel. */
 export const PairingMessageSchema = z.discriminatedUnion('type', [
   CaptureStateSchema,
   FrameChunkHeaderSchema,
+  FrameAckSchema,
 ]);
 export type PairingMessage = z.infer<typeof PairingMessageSchema>;
 
