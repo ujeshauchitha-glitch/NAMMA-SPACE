@@ -69,3 +69,9 @@ export {
   type SessionDescriptionInit,
   type SignalMessage,
 } from '../../types/pairing';
+
+export {
+  INSECURE_CONTEXT_REMEDY,
+  isSecureContextBlocked,
+  readIsSecureContext,
+} from './secure-context';
