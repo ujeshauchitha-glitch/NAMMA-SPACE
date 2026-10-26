@@ -4,6 +4,5 @@ tools/
 work/
 __pycache__/
 *.pyc
-# Large model files: host separately (see README). Demo + small samples are allowed via tests/sample_data.
+# The raw trained PLY is too big for git/Pages. The compressed web copy (scene.sog / scene.spz) IS committed.
 viewer/public/models/scene.ply
-viewer/public/models/scene.spz

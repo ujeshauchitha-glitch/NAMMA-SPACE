@@ -141,16 +141,44 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, log: Path) -> Pat
 
 
 # ---------------------------------------------------------------- publish
-def publish(splat: Path, title: str, report: Report) -> None:
+SPLAT_TRANSFORM = "@playcanvas/splat-transform@3.10.3"  # MIT; runs via npx, tested on the synthetic fixture only
+
+
+def compress_for_web(splat: Path, models: Path, fmt: str, log: Path, report: Report) -> str | None:
+    """Write a lossy web copy next to the PLY. Failure is non-fatal: the viewer falls back to the PLY."""
+    npx = shutil.which("npx")
+    if not npx:
+        print("publish: npx not found, skipping web compression (the PLY will be served instead)")
+        return None
+    target = models / f"scene.{fmt}"
+    try:
+        run([npx, "--yes", SPLAT_TRANSFORM, "-w", str(splat), str(target)], log, "splat compression")
+    except PipelineError as e:
+        print(f"publish: compression failed, serving the PLY instead.\n{e}")
+        return None
+    if not target.exists() or target.stat().st_size == 0:
+        print("publish: compression produced no file, serving the PLY instead")
+        return None
+    report.data["web_copy"] = {"file": target.name, "mb": round(target.stat().st_size / 1e6, 1),
+                               "source_mb": round(splat.stat().st_size / 1e6, 1),
+                               "quality_checked": False}
+    report.save()
+    print(f"publish: {target.name} is {report.data['web_copy']['mb']} MB (PLY {report.data['web_copy']['source_mb']} MB); "
+          "COMPARE IT WITH THE PLY IN THE VIEWER before shipping (lossy).")
+    return f"models/{target.name}"
+
+
+def publish(splat: Path, title: str, report: Report, web_format: str | None, log: Path) -> None:
     models = ROOT / "viewer" / "public" / "models"
     models.mkdir(parents=True, exist_ok=True)
     shutil.copy2(splat, models / "scene.ply")
+    served = (compress_for_web(splat, models, web_format, log, report) if web_format else None) or "models/scene.ply"
     centre = report.data.get("splat", {}).get("centre", [0, 0, 0])
-    cfg = {"title": title, "splat": "models/scene.ply",
+    cfg = {"title": title, "splat": served,
            "spawn": [0, 0, 0], "spawnYaw": 0, "eyeHeight": 1.6, "rotation": [3.141592653589793, 0, 0], "scale": 1,
            "_note": f"AUTO-GENERATED, UNALIGNED. Model centre {centre}. Set spawn/scale/rotation by hand; see docs/SOP.md."}
     (models / "scene.json").write_text(json.dumps(cfg, indent=2))
-    print(f"publish: {splat.name} -> viewer/public/models/scene.ply (scene.json needs manual alignment)")
+    print(f"publish: viewer will load {served} (scene.json needs manual alignment)")
 
 
 # ---------------------------------------------------------------- commands
@@ -182,6 +210,8 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=30000, help="Gaussian-splat training steps")
     ap.add_argument("--trainer", choices=sorted(TRAINERS), default="brush",
                     help="brush: single exe, any WebGPU GPU. nerfstudio: needs CUDA PyTorch (Linux/WSL2)")
+    ap.add_argument("--web-format", choices=["sog", "spz", "none"], default="sog",
+                    help="compressed copy for the web viewer (lossy; 'none' serves the raw PLY)")
     ap.add_argument("--title", default="Namma Space")
     ap.add_argument("--cpu", action="store_true", help="disable COLMAP GPU (use with the no-CUDA build)")
     ap.add_argument("--force", action="store_true", help="delete previous outputs in --out and start over")
@@ -259,7 +289,7 @@ def main() -> int:
         if not checks.check_splat(report, splat):
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
 
-        publish(splat, a.title, report)
+        publish(splat, a.title, report, None if a.web_format == "none" else a.web_format, log)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
         print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks: {splat}\n"
