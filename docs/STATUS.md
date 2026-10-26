@@ -14,6 +14,7 @@ Last updated: 2026-10-22. Update this file after every milestone; never mark som
 | Splat output checks | tested on the synthetic fixture (accepted) and corrupted copies: truncated, empty, missing, not a PLY, missing attribute, NaN (all rejected) | 2026-10-22 |
 | `--approve` gate | refuses unless status is awaiting-inspection and a note is given | 2026-10-22 |
 | COLMAP/Brush CLI flags used by the pipeline | `--help` confirms they exist (not their behaviour on data) | 2026-10-22 |
+| Splat compression (`@playcanvas/splat-transform` 3.10.3) | converted the synthetic fixture to .spz/.sog/.compressed.ply (4-10x smaller); each loads and renders in the viewer. Synthetic data only; quality loss and load time on a real splat unmeasured. See `TECH_STACK.md`. | 2026-10-26 |
 
 All viewer testing so far used the **SYNTHETIC** fixture, not a real reconstruction. **No real capture has been reconstructed yet.**
 

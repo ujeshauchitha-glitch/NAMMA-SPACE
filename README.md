@@ -19,7 +19,7 @@ phone video ──► ffmpeg + blur filter ──► COLMAP (poses) ──► Br
 | Web rendering | Three.js via react-three-fiber + Spark | splats render in a normal three.js scene, so POIs, paths and a collision mesh slot in later |
 | Controls | pointer-lock mouse look + WASD, touch fallback | zero-install, works without any navigation running |
 
-See [docs/SOP.md](docs/SOP.md) for the capture procedure.
+See [docs/SOP.md](docs/SOP.md) for the capture procedure and [docs/TECH_STACK.md](docs/TECH_STACK.md) for what is in the stack, what is deferred, and why.
 
 ## Run the viewer (no reconstruction needed)
 
