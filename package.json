@@ -18,7 +18,12 @@
     "validate:scenes": "python3 scripts/validate_all_scenes.py public/scenes",
     "benchmark:build": "python3 scripts/benchmark_build.py",
     "preflight:reconstruction": "python3 scripts/reconstruct_colmap.py preflight",
-    "reconstruct:colmap": "python3 scripts/reconstruct_colmap.py run"
+    "reconstruct:colmap": "python3 scripts/reconstruct_colmap.py run",
+    "pipeline": "python3 scripts/run_pipeline.py",
+    "pipeline:dry-run": "python3 scripts/run_pipeline.py --dry-run",
+    "ply-to-glb": "python3 scripts/ply_to_glb.py",
+    "make:nav-grid": "python3 scripts/make_nav_grid.py",
+    "make:pois": "python3 scripts/make_pois.py"
   },
   "dependencies": {
     "@gsap/react": "2.1.2",
@@ -49,6 +54,6 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.5"
   }
 }
