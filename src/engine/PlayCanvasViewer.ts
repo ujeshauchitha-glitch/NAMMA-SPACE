@@ -4,6 +4,8 @@ import {
   Color,
   Entity,
   FILLMODE_NONE,
+  Mat4,
+  Quat,
   RESOLUTION_AUTO,
   StandardMaterial,
   Vec3 as PcVec3,
@@ -76,8 +78,11 @@ export class PlayCanvasViewer {
     this.pois = options.pois;
     this.callbacks = options.callbacks;
 
+    // Splats rendered into a multisampled target are several times more expensive (PlayCanvas warns
+    // about this), so MSAA is only used for mesh scenes.
+    const hasSplat = this.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog');
     this.app = new Application(this.canvas, {
-      graphicsDeviceOptions: { antialias: true, alpha: false },
+      graphicsDeviceOptions: { antialias: !hasSplat, alpha: false },
     });
     this.app.setCanvasFillMode(FILLMODE_NONE);
     this.app.setCanvasResolution(RESOLUTION_AUTO);
@@ -220,9 +225,10 @@ export class PlayCanvasViewer {
     const parent = this.canvas.parentElement;
     if (!parent) return;
     const rect = parent.getBoundingClientRect();
-    this.canvas.width = Math.max(1, Math.floor(rect.width * window.devicePixelRatio));
-    this.canvas.height = Math.max(1, Math.floor(rect.height * window.devicePixelRatio));
-    this.app.resizeCanvas(this.canvas.width, this.canvas.height);
+    // resizeCanvas takes CSS pixels and applies the pixel ratio itself (RESOLUTION_AUTO). Passing
+    // width * devicePixelRatio made the canvas grow by that factor on every resize when
+    // devicePixelRatio != 1 (e.g. 175% Windows scaling), because the stage height follows the canvas.
+    this.app.resizeCanvas(Math.max(1, Math.floor(rect.width)), Math.max(1, Math.floor(rect.height)));
   };
 
   private update(dt: number): void {
@@ -240,6 +246,14 @@ export class PlayCanvasViewer {
       current[1],
       current[2] + (right.z * inputX - forward.z * inputZ) * distance,
     ];
+    if (!this.navigation) {
+      // No walkable grid yet (e.g. a fresh reconstruction): stay inside the manifest's bounding box so
+      // the visitor cannot walk out of the model. This is a box, not collision with walls or furniture.
+      const { min, max } = this.manifest.bounds;
+      const margin = 0.3;
+      candidate[0] = Math.max(min[0] + margin, Math.min(max[0] - margin, candidate[0]));
+      candidate[2] = Math.max(min[2] + margin, Math.min(max[2] - margin, candidate[2]));
+    }
     const cell = this.navigation ? worldToCell(this.navigation, candidate) : null;
     if (!this.navigation || (cell && isWalkable(this.navigation, cell))) {
       this.yawPivot.setPosition(candidate[0], current[1] - PLAYER_HEIGHT, candidate[2]);
@@ -302,7 +316,47 @@ export class PlayCanvasViewer {
     this.app.root.addChild(fill);
   }
 
+  /**
+   * Gaussian splats (.ply / .sog) are rendered by PlayCanvas's `gsplat` component. The manifest's
+   * `worldFromReconstruction` (row-major 4x4) places the reconstruction's frame into the viewer's
+   * right-handed Y-up metre frame; for COLMAP output that is a 180 degree rotation about X.
+   */
+  private loadSplatAssets(): void {
+    const refs = this.manifest.visualAssets.filter((asset) => asset.kind === 'ply' || asset.kind === 'sog');
+    if (refs.length === 0) return;
+
+    const m = this.manifest.worldFromReconstruction;
+    // PlayCanvas Mat4.data is column-major, the manifest is row-major.
+    const world = new Mat4().set([
+      m[0][0], m[1][0], m[2][0], m[3][0],
+      m[0][1], m[1][1], m[2][1], m[3][1],
+      m[0][2], m[1][2], m[2][2], m[3][2],
+      m[0][3], m[1][3], m[2][3], m[3][3],
+    ]);
+
+    refs.forEach((assetRef) => {
+      const label = assetRef.label ?? assetRef.uri;
+      const asset = new Asset(label, 'gsplat', { url: resolveSceneUri(this.manifestUrl, assetRef.uri) });
+      asset.once('load', () => {
+        const entity = new Entity(label);
+        entity.addComponent('gsplat', { asset });
+        entity.setLocalPosition(world.getTranslation());
+        entity.setLocalRotation(new Quat().setFromMat4(world));
+        entity.setLocalScale(world.getScale());
+        this.app.root.addChild(entity);
+        this.callbacks.onStatus(`Loaded splat ${label}`);
+      });
+      asset.once('error', (error: unknown) => {
+        this.callbacks.onStatus(`Splat unavailable: ${String(error)}`);
+      });
+      this.app.assets.add(asset);
+      this.loadedAssets.push(asset);
+      this.app.assets.load(asset);
+    });
+  }
+
   private loadVisualAssets(): void {
+    this.loadSplatAssets();
     const assets = this.manifest.visualAssets.filter((asset) => asset.kind === 'glb' || asset.kind === 'gltf');
     if (assets.length === 0) return;
 

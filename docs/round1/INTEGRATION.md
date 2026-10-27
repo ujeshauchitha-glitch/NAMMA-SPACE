@@ -37,7 +37,34 @@ Not run: his Playwright E2E tests (browser download), a real reconstruction, the
 ## Known problems found (not caused by the merge)
 1. `tests/pipeline.test.ts` has 2 tests that fail on Windows: one splits paths on `'/'`; one builds a POSIX shell script as a fake COLMAP and calls `python3`. Written on macOS. They need Windows-safe versions or a skip on `win32`; not changed here, since it is Ashwin's file.
 2. `scripts/reconstruct_colmap.py` passes `--SiftExtraction.use_gpu` and `--SiftMatching.use_gpu`. COLMAP 4.2.1 rejects the first as an unrecognised option (checked on this machine); the supported flags are `--FeatureExtraction.use_gpu` and `--FeatureMatching.use_gpu`. His tests use a fake COLMAP, so this never surfaced.
-3. The PlayCanvas viewer loads only GLB/glTF assets; the manifest schema already allows `sog`, but the loader ignores it. No splat is shown yet.
+3. ~~The PlayCanvas viewer loads only GLB/glTF assets.~~ Fixed in the phase 2 spike below.
+
+## Phase 2 spike: splats in the PlayCanvas viewer (2026-10-27)
+**Result: works.** `.sog` and `.ply` Gaussian splats load and render in Ashwin's viewer (PlayCanvas 2.23.3) through the `gsplat` asset type.
+
+What changed
+- `src/types/scene.ts`: `ply` added to the asset kinds (`sog` already existed).
+- `src/engine/PlayCanvasViewer.ts`: `loadSplatAssets()` loads `ply`/`sog` assets as `gsplat` and applies the manifest's `worldFromReconstruction` (row-major 4x4, converted to PlayCanvas's column-major). MSAA is turned off for splat scenes (PlayCanvas warns MSAA makes splats several times more expensive).
+- `src/engine/PlayCanvasViewer.ts`: when a scene has no navigation grid, movement is clamped to the manifest's `bounds` (0.3 m margin). This is a box, not wall or furniture collision.
+- `public/scenes/splat-fixture/`: a **SYNTHETIC** scene bundle (our procedural room as a 0.69 MB `.sog`, one synthetic POI, no navigation). Open with `/?scene=splat`. It passes `scripts/validate_scene.py`.
+- `tests/scene.test.ts`: two new tests (fixture parses, is disclosed synthetic, SOG hash matches; `ply` kind accepted).
+
+**Bug found in the existing viewer and fixed.** `resize()` multiplied the container size by `devicePixelRatio` and passed it to `resizeCanvas`, which expects CSS pixels. When `devicePixelRatio != 1` (for example 175% Windows display scaling) the canvas grew by that factor on every resize because the stage height follows the canvas: it reached 981 x 57,687 px, WebGL reported "greater than max renderbuffer size", and the canvas was black. His own GLB scene did the same on this machine. Now it stays at the container size (980 x 489 measured). Worth telling Ashwin: it affects every scene on any scaled display.
+
+Measured in the Browser pane (integrated AMD GPU, frames throttled unless the pane is being captured)
+| Check | Result |
+|---|---|
+| SOG renders, orientation matches the Spark viewer | yes |
+| PLY renders (7 MB) | yes, took about 20 s to appear in this pane |
+| Walk forward 3 s | stops at Z = -4.70 (bound -5 + 0.3 margin) |
+| Strafe right 3.5 s | stops at X = 5.70 (bound 6 - 0.3) |
+| Console after the fix | no WebGL errors |
+
+Not measured: frame rate or load time on real hardware (the pane is not representative), mouse-look with pointer lock, how the viewer behaves with a real reconstruction.
+
+Checks after the spike: typecheck pass, build pass, `npm test` 395 passed / 2 failed (the same two Windows-only failures), `validate_all_scenes.py` 3 bundles pass, our pytest 25 pass.
+
+**Gate status (Wed 28 Oct):** the technical blocker for using his viewer is gone. The remaining risk is performance and quality on a real splat, which needs the real capture.
 
 ## Next (phase 2 onward)
 1. Splat loading spike in the PlayCanvas viewer; gate on Wed 28 Oct. If it cannot show our real splat acceptably, submit from `spark-viewer/`.

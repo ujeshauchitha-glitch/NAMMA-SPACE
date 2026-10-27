@@ -1,0 +1,76 @@
+{
+    "schemaVersion":  1,
+    "sceneId":  "fixture-splat-sog",
+    "displayName":  "SYNTHETIC splat fixture",
+    "sceneKind":  "synthetic-demo",
+    "description":  "A procedurally generated box room stored as a Gaussian splat, to test splat loading. NOT a smartphone reconstruction.",
+    "coordinateSystem":  "right-handed-y-up",
+    "units":  "metre",
+    "worldFromReconstruction":  [
+                                    [
+                                        1,
+                                        0,
+                                        0,
+                                        0
+                                    ],
+                                    [
+                                        0,
+                                        -1,
+                                        0,
+                                        0
+                                    ],
+                                    [
+                                        0,
+                                        0,
+                                        -1,
+                                        0
+                                    ],
+                                    [
+                                        0,
+                                        0,
+                                        0,
+                                        1
+                                    ]
+                                ],
+    "bounds":  {
+                   "min":  [
+                               0,
+                               0,
+                               -5
+                           ],
+                   "max":  [
+                               6,
+                               2.7,
+                               0
+                           ]
+               },
+    "startPosition":  [
+                          3,
+                          1.65,
+                          -2.5
+                      ],
+    "startYawDegrees":  0,
+    "visualAssets":  [
+                         {
+                             "kind":  "sog",
+                             "uri":  "visual/synthetic_room.sog",
+                             "label":  "Synthetic splat room",
+                             "sha256":  "2052b778914e31d96d53c31d8eda38b83a56f2b24e679a92ec7728370dc58017"
+                         }
+                     ],
+    "collisionAsset":  null,
+    "navigationUri":  null,
+    "semanticUri":  "semantic/pois.json",
+    "qualityUri":  "quality/report.json",
+    "scaleStatus":  "known",
+    "provenance":  {
+                       "pipeline":  "reconstruction/pipeline/make_demo_splat.py",
+                       "pipelineVersion":  "0.1.0",
+                       "capturedAt":  "2026-10-26T00:00:00Z",
+                       "source":  "Synthetic procedurally generated Gaussian splat (not a capture)",
+                       "notes":  [
+                                     "This is not a smartphone reconstruction.",
+                                     "Rotation matrix converts COLMAP (Y-down) to Y-up."
+                                 ]
+                   }
+}

@@ -32,11 +32,13 @@ const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/man
 const SCENE_OPTIONS = [
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
+  { value: '/scenes/splat-fixture/manifest.json', label: 'SYNTHETIC splat fixture (not a reconstruction)' },
 ];
 
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
   if (requestedScene === 'glb') return SCENE_OPTIONS[1].value;
+  if (requestedScene === 'splat') return SCENE_OPTIONS[2].value;
   if (requestedScene?.startsWith('/scenes/')) return requestedScene;
   return DEFAULT_SCENE_URL;
 }

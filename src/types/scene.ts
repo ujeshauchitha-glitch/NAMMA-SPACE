@@ -4,7 +4,7 @@ const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
 const Matrix4Schema = z.array(z.array(z.number()).length(4)).length(4);
 
 export const AssetRefSchema = z.object({
-  kind: z.enum(['glb', 'gltf', 'sog', 'procedural']),
+  kind: z.enum(['glb', 'gltf', 'sog', 'ply', 'procedural']),
   uri: z.string().min(1),
   label: z.string().optional(),
   sha256: z.string().optional(),
