@@ -13,3 +13,4 @@ __pycache__/
 public/scenes/*/input/
 public/scenes/*/frames/
 public/scenes/*/output/
+context.md/
