@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import compress
 from common import MIN_USABLE_FRAMES, PipelineError, find_tool, list_images, min_duration_s, usable_frames
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
@@ -47,6 +48,15 @@ def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
     else:
         row("ns-train", bool(find_tool("ns-train", False)), "pip install nerfstudio (CUDA PyTorch env; see docs/TRAINING.md)")
         row("ns-export", bool(find_tool("ns-export", False)), "installed with nerfstudio")
+    node = find_tool("node", False)
+    node_major = 0
+    if node:
+        v = subprocess.run([node, "--version"], capture_output=True, text=True).stdout.strip()  # e.g. v22.11.0
+        node_major = int(v.lstrip("v").split(".")[0]) if v.lstrip("v")[:1].isdigit() else 0
+    row(f"node >= 22 ({'v' + str(node_major) if node else 'missing'})", node_major >= 22,
+        "winget install OpenJS.NodeJS.LTS" if win else "install Node.js 22 LTS")
+    row("splat-transform", compress.SPLAT_TRANSFORM_CLI.is_file(),
+        "run scripts/setup_tools.ps1" if win else "run scripts/setup_tools.sh")
     for mod in ("cv2", "numpy"):
         try:
             __import__(mod)

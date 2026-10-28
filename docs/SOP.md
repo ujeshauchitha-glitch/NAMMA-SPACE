@@ -55,7 +55,8 @@ One video per room or one per floor, named `<space>_<room>.mp4`, plus an optiona
 | Frame extraction | ffmpeg + OpenCV | 3 fps, 1600 px, blurriest 15% dropped (Laplacian variance) | seconds |
 | Structure-from-motion | COLMAP | SIFT features, sequential matching, incremental mapping, undistortion | ~5-15 min for ~500 frames |
 | Splat training | Brush (WebGPU) | 30k steps 3D Gaussian Splatting | ~15-30 min |
-| Publish | script | splat + `scene.json` into the viewer | seconds |
+| Compress | splat-transform 3.10.3 | `.ply` → `.sog` (fallback `.spz`) under 50 MB: drops SH bands, then decimates only if still too big | ~1 min |
+| Publish | script | compressed splat + `scene.json` into `work/<name>/web/` and `viewer/dev-assets/models/` for local inspection; the raw `.ply` never goes into the viewer | seconds |
 
 *Times are estimates; measured values go in the abstract after the first full run.*
 

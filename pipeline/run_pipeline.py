@@ -10,7 +10,9 @@ Stages (each is skipped if its output exists; use --force to redo):
   frames    ffmpeg sampling + blurry-frame removal
   sfm       COLMAP features, matching, mapping, undistortion + registration checks
   train     Brush (default) or Nerfstudio splatfacto + splat file checks
-  publish   copy the splat and scene.json into viewer/public/models
+  compress  .ply -> .sog (or .spz) under --max-mb with splat-transform; always re-run
+  publish   compressed splat + scene.json into work/<name>/web/ and viewer/dev-assets/models/ (dev server only).
+            The raw .ply is never copied into the viewer.
 
 report.json status:
   failed                                       a blocking check failed
@@ -30,6 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks  # noqa: E402
+import compress  # noqa: E402
 import preflight  # noqa: E402
 from common import (AWAITING_INSPECTION, BLUR_DROP, FAILED, INSPECTED_OK, MIN_USABLE_FRAMES, ROOT,  # noqa: E402
                     PipelineError, Report, Timer, find_tool, list_images, run)
@@ -196,16 +199,25 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
 
 
 # ---------------------------------------------------------------- publish
-def publish(splat: Path, title: str, report: Report) -> None:
-    models = ROOT / "viewer" / "public" / "models"
-    models.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(splat, models / "scene.ply")
+DEV_MODELS = ROOT / "viewer" / "dev-assets" / "models"  # git-ignored; served by `npm run dev` only
+
+
+def publish(web_splat: Path, title: str, report: Report) -> None:
+    """Write scene.json next to the compressed splat and copy both to the dev server for inspection.
+
+    Production never reads these: viewer/public/models/scene.json points at the uploaded copy on external storage.
+    """
     centre = report.data.get("splat", {}).get("centre", [0, 0, 0])
-    cfg = {"title": title, "splat": "models/scene.ply",
+    cfg = {"title": title, "splat": f"dev-assets/models/{web_splat.name}",
            "spawn": [0, 0, 0], "spawnYaw": 0, "eyeHeight": 1.6, "rotation": [3.141592653589793, 0, 0], "scale": 1,
            "_note": f"AUTO-GENERATED, UNALIGNED. Model centre {centre}. Set spawn/scale/rotation by hand; see docs/SOP.md."}
-    (models / "scene.json").write_text(json.dumps(cfg, indent=2))
-    print(f"publish: {splat.name} -> viewer/public/models/scene.ply (scene.json needs manual alignment)")
+    (web_splat.parent / "scene.json").write_text(json.dumps(cfg, indent=2))
+    shutil.rmtree(DEV_MODELS, ignore_errors=True)
+    DEV_MODELS.mkdir(parents=True)
+    shutil.copy2(web_splat, DEV_MODELS / web_splat.name)
+    shutil.copy2(web_splat.parent / "scene.json", DEV_MODELS / "scene.json")
+    print(f"publish: {web_splat} -> viewer/dev-assets/models/ (scene.json needs manual alignment)\n"
+          f"  inspect: cd viewer; npm run dev  ->  http://localhost:5173/?scene=dev-assets/models/scene.json")
 
 
 # ---------------------------------------------------------------- commands
@@ -242,6 +254,7 @@ def main() -> int:
     ap.add_argument("--trainer", choices=sorted(TRAINERS), default="brush",
                     help="brush: single exe, any WebGPU GPU. nerfstudio: needs CUDA PyTorch (Linux/WSL2)")
     ap.add_argument("--title", default="Namma Space")
+    ap.add_argument("--max-mb", type=float, default=compress.DEFAULT_MAX_MB, help="size budget for the web splat")
     ap.add_argument("--cpu", action="store_true", help="disable COLMAP GPU (use with the no-CUDA build)")
     ap.add_argument("--force", action="store_true", help="delete previous outputs in --out and start over")
     ap.add_argument("--check", action="store_true", help="validate dependencies and input, then stop")
@@ -326,11 +339,18 @@ def main() -> int:
         if not checks.check_splat(report, splat):
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
 
-        publish(splat, a.title, report)
+        print("== compress for the web")
+        with Timer() as t:
+            web_splat = compress.compress(splat, work, report, log, a.max_mb)
+        report.stage("compress", t.seconds, mb=report.data["web_splat"]["mb"])
+
+        publish(web_splat, a.title, report)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
-        print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks: {splat}\n"
-              "Next: align scene.json, run `npm run dev` in viewer/, walk the whole room, then\n"
+        print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
+              f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n"
+              "Next: align viewer/dev-assets/models/scene.json, run `npm run dev` in viewer/, open\n"
+              "  http://localhost:5173/?scene=dev-assets/models/scene.json, walk the whole room, then\n"
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
     except PipelineError as e:
