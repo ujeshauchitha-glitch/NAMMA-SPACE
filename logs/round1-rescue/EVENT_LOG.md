@@ -66,3 +66,8 @@
 - Key measurements: entry chunk 129,838B gzip vs 360KB budget (PASS, 238KB headroom); fflate/qrcode/idb/playcanvas proven in separate lazy chunks. three+gsap = honest EXCEPTION (not yet imported anywhere; laziness vacuous until T22/T23; check auto-enforces later).
 - Lint fix: unused mkdirSync import in prepare-capture-zip.test.ts (owned by C session) - one-line fix routed back to owner session, 14/14 tests intact, lint now 0.
 - In flight: T21 (pairing/scan WIP visible in tree), T26 (docs WIP visible: README/ARCHITECTURE/DECISION_LOG/PIPELINE/PROJECT_STATE modified).
+
+## 2026-10-29 04:28 IST — T26 committed (b469fa8)
+- Docs correction complete: README honest status+requirements, VALIDATION rewritten w/ EX-1..6, ARCHITECTURE matches actual schema + new contract bullets, DECISION_LOG D-014..D-019, PIPELINE staged-export honesty, new docs/PAIRING.md runbook, PROJECT_STATE 6 amendments.
+- Agent-reported contradictions (lead-reviewed, not silently fixed): WINDOWS_SETUP.md still documents removed Sift* flags + Python 3.10+; TRAINING.md stale "no reconstruction"/"nothing committed" lines; CAPTURE_SOP.md vs SOP.md disagreement; spec premise wrong re README claiming 3.10+; python3 now resolves 3.15.2 (Homebrew symlink update 02:45 IST - note: pipeline runs use .venv which is unaffected).
+- Remaining: T21 agent (in-flight: its untracked receive.ts currently breaks tsc - agent will fix before handoff); then T22/T23/T24, then T27 final gate.
