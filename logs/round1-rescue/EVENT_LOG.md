@@ -50,3 +50,7 @@
 - Run #3: 40/70 (57%) + 17-img fragment — identical topology to run #2 -> capture split is deterministic, not mapper luck. BLK-001 recorded in BLOCKERS.md (full evidence, impact, continuation).
 - Mitigation (disclosed, gates unchanged): pipeline run on the 40-image connected component (work/captures/room_subset40 -> room_subset_run) in background. This is a genuine sub-capture input, not a gate bypass.
 - D2+D3 committed d4acf04 (11 files, 526/526 tests, validator 2/2, e2e 28/28 verified by lead).
+
+## 2026-10-29 03:49 IST — Subset run verdict: capture-quality blocker confirmed
+- Subset (40-img component): 29/40 registered (72% PASS), 0.96px PASS, but 886 sparse points < 2000 gate FAIL -> no training. BLK-001 amended with this evidence.
+- Workstream B conclusion for this sprint: pipeline is fixed and honest (3% -> 57% connected / 72% subset); the remaining gap is capture quality (resolution/texture/overlap). Re-shoot per SOP is the continuation path; RTX 5060 host remains the dense/splat path.

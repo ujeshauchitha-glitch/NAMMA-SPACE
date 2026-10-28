@@ -17,3 +17,5 @@ Convention: every meaningful command, cwd (repo root unless noted), result, exit
 | 10 | `colmap mapper` rerun on manual db | work/captures | models 3/26/50 imgs (best 50/70) | 0 | large model reproduces; mapper nondeterministic |
 | 11 | vitest full + typecheck (after flags fix) | apps/studio | 424/424; tsc 0 | 0 | env test now hermetic |
 | 12 | isolation: OPENCV-only fresh db extract+match+mapper | work/captures | RUNNING | - | separates camera_model vs use_gpu |
+| 13 | `colmap model_converter` + copy 40-img component -> room_subset40 | work/captures | 40/40 copied (space-safe name extraction; first attempt with awk $NF failed silently) | 0 | filenames contain spaces |
+| 14 | pipeline on room_subset40 (--matcher exhaustive --cpu) | repo | registration PASS 29/40 (72%); points FAIL 886<2000; exit 1 | 1 | honest gate; capture-quality blocker confirmed |

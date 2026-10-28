@@ -12,7 +12,7 @@
 | ID | Task | Status |
 |----|------|--------|
 | A  | Safe integration baseline (rescue branch) | PASS (rescue @ 70132ba; push policy D-002) |
-| B  | Real-capture feasibility | IN_PROGRESS (59/70 manual proven; pipeline OPENCV camera-model bug isolated; rerun pending fix) |
+| B  | Real-capture feasibility | DONE-WITH-BLOCKER (pipeline fixed+verified 57%\/72%; BLK-001 capture quality: re-shoot per SOP) |
 | C  | ZIP → prepare_capture.py seam | PASS (6a7654a, 14 tests, pushed) |
 | D1 | Navigation octile heuristic | PASS (6df7d8c, 13 tests, pushed) |
 | D2 | Scene transform/collision contract | IN_PROGRESS (subagent, with D3) |
