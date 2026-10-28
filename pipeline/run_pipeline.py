@@ -109,8 +109,13 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
                             "plain walls. Re-shoot slower following docs/SOP.md.")
     stats = [(checks.colmap_model_stats(m, log), m) for m in models]
     best_stats, best = max(stats, key=lambda s: s[0]["registered_images"] or 0)
-    if not checks.check_sfm(report, best_stats, total, len(models) - 1):
+    extra_sizes = [s["registered_images"] or 0 for s, m in stats if m != best]
+    significant, scraps = checks.split_extra_models(extra_sizes, total)
+    if not checks.check_sfm(report, best_stats, total, significant):
         raise PipelineError("SfM checks failed (see report.json). Not training on a bad camera solution.")
+    if scraps:
+        report.data["sfm"]["ignored_fragment_images"] = scraps  # tiny leftover models, not a split of the room
+        report.save()
     run([colmap, "image_undistorter", "--image_path", str(images), "--input_path", str(best),
          "--output_path", str(dataset), "--output_type", "COLMAP"], log, "COLMAP undistortion")
     return dataset

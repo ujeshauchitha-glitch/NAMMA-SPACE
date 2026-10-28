@@ -105,7 +105,7 @@ Walk the whole room, then decide whether it is good enough or needs a re-shoot.
 
 **Good enough** only if all of these hold:
 - `sfm.registration_ratio` in `report.json` is **≥ 0.90** (COLMAP registered ≥ 90 % of frames). Between 0.60 and 0.90 is a warning: look extra carefully. Below 0.60 the run already failed.
-- No `sfm_single_model` warning in `report.json` (the room didn't split into pieces).
+- No `sfm_single_model` warning in `report.json` (the room didn't split into pieces). Tiny leftover fragments of a few images next to a main model that registered nearly everything are ignored and listed as `sfm.ignored_fragment_images`; only extra models with at least 10 images and 10 % of the frames count as a split.
 - **No floating blobs or smeared/doubled walls along the path you walked.** Fog far from the path or behind windows is acceptable.
 - Walls and floor are flat and straight; **doorways and furniture are recognisable** from the spawn point and while walking.
 

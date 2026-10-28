@@ -33,6 +33,14 @@ def colmap_model_stats(model_dir: Path, log: Path) -> dict:
     }
 
 
+def split_extra_models(extra_sizes: list[int], total_frames: int, min_frac: float = 0.10, min_images: int = 10) -> tuple[int, list[int]]:
+    """Separate real splits from scraps. COLMAP often leaves a tiny fragment (a few images) next to a
+    main model that registered every frame; that is not "the room split". `extra_sizes` are the registered
+    image counts of every model except the best one. Returns (number of significant extra models, scrap sizes)."""
+    cutoff = max(min_images, round(min_frac * total_frames))
+    return sum(1 for n in extra_sizes if n >= cutoff), [n for n in extra_sizes if n < cutoff]
+
+
 def check_sfm(report: Report, stats: dict, total_frames: int, extra_models: int) -> bool:
     ok = True
     reg, pts, err = stats["registered_images"], stats["points3d"], stats["mean_reprojection_error_px"]
