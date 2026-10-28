@@ -6,7 +6,7 @@ Round 1 of Techfest 2026-27 (reconstruction and roaming). POIs, search and pathf
 ## Architecture
 
 ```
-phone video ──► ffmpeg + blur filter ──► COLMAP (poses) ──► Brush (3D Gaussian Splatting) ──► scene.ply
+phone video ──► ffmpeg + blur filter ──► COLMAP (poses) ──► Brush (3D Gaussian Splatting) ──► splat-transform ──► scene.sog
                       pipeline/run_pipeline.py                                                   │
                                                                                                   ▼
                               viewer/  React + TypeScript + Vite + react-three-fiber + Spark ──► first-person WASD
@@ -35,13 +35,14 @@ Any splat can be loaded with `?splat=<url>`.
 ## Reconstruct your own space (Windows, NVIDIA GPU)
 
 ```powershell
-./scripts/setup_tools.ps1                        # downloads COLMAP + Brush into ./tools, installs ffmpeg + OpenCV
-py -3.12 pipeline/run_pipeline.py --doctor       # are all dependencies found?
-py -3.12 pipeline/run_pipeline.py clip.mp4 --out work\home --check   # validate the capture, process nothing
-py -3.12 pipeline/run_pipeline.py clip.mp4 --out work\home --title "My Home"
-cd viewer; npm run dev                           # walk the whole room, then:
-py -3.12 pipeline/run_pipeline.py --approve work\home --note "what you checked"
+./scripts/setup_tools.ps1                        # COLMAP, Brush, splat-transform into ./tools; ffmpeg, Node, .venv
+.venv\Scripts\python pipeline/run_pipeline.py --doctor       # are all dependencies found?
+.venv\Scripts\python pipeline/run_pipeline.py clip.mp4 --out work\home --check   # validate the capture, process nothing
+.venv\Scripts\python pipeline/run_pipeline.py clip.mp4 --out work\home --title "My Home"
+cd viewer; npm run dev                           # open /?scene=dev-assets/models/scene.json, walk the room, then:
+.venv\Scripts\python pipeline/run_pipeline.py --approve work\home --note "what you checked"
 ```
+The run ends with a compressed `work\home\web\scene.sog` (≤ 50 MB, `--max-mb`); the raw `.ply` stays in `work\`. Step-by-step for the first real capture: [docs/HANDOFF_UJESHA.md](docs/HANDOFF_UJESHA.md).
 Linux / WSL2: `scripts/setup_tools.sh` (untested). Trainers and machines: [docs/TRAINING.md](docs/TRAINING.md); `--trainer nerfstudio` is the alternative to Brush.
 
 A run ends as `automated_checks_passed_awaiting_inspection` in `work/<name>/report.json`. It becomes `inspected_ok` only when a person approves it after walking the result; until then the reconstruction is **not** considered successful. Pass criteria are in [docs/SOP.md](docs/SOP.md).
@@ -66,7 +67,8 @@ apps/studio Round 2 studio app (from main)
 - [x] Pipeline scripts and SOP
 - [ ] Real capture + first full reconstruction (pipeline stages COLMAP/Brush are untested until footage exists)
 - [ ] Deploy viewer to static hosting, record demo video, write abstract PDF
-- [ ] Compress splat for fast web load (`.spz`)
+- [x] Compress stage in the pipeline (`.sog`/`.spz` ≤ 50 MB); viewer loads external splat URLs with progress
+- [ ] Compression quality checked on a real splat
 
 ## Round 2 groundwork (studio app)
 
@@ -74,5 +76,5 @@ The repository also contains the studio app from the `main` branch: Capture Stud
 [README](apps/studio/README.md) · [Architecture](apps/studio/ARCHITECTURE.md) · [Pipeline](apps/studio/PIPELINE.md) · [Capture SOP](apps/studio/CAPTURE_SOP.md) · [Validation](apps/studio/VALIDATION.md) · [Roadmap](apps/studio/ROADMAP.md) · [Decision log](apps/studio/DECISION_LOG.md) · [Windows setup](apps/studio/WINDOWS_SETUP.md)
 
 ## Credits
-COLMAP (BSD), Brush (Apache-2.0), Spark (MIT), three.js (MIT), react-three-fiber (MIT).
+COLMAP (BSD), Brush (Apache-2.0), splat-transform (MIT), Spark (MIT), three.js (MIT), react-three-fiber (MIT), React (MIT), Vite (MIT), FFmpeg (LGPL/GPL), OpenCV (Apache-2.0), NumPy (BSD). Studio app (`apps/studio`): PlayCanvas (MIT), zod (MIT).
 
