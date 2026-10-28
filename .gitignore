@@ -24,3 +24,8 @@ apps/studio/public/scenes/*/frames/
 apps/studio/public/scenes/*/output/
 # Vercel CLI project link (vercel link / pull)
 .vercel
+
+# Local-only: Python venv, Rust/Brush autotune cache, git worktrees used for audits
+.venv/
+target/
+.worktrees/
