@@ -1,0 +1,14 @@
+/*
+ * DEPRECATED — this file is intentionally empty.
+ *
+ * The legacy identity (graphite canvas + amber accents, retired webfonts,
+ * glyph-character icons, global class styles) was retired by the GROUNDTRUTH
+ * design system. The single stylesheet was split into:
+ *
+ *   src/styles/tokens.css  — palette MERIDIAN + type/spacing/motion tokens
+ *   src/styles/base.css    — reset, self-hosted fonts, focus, scrollbar, kbd
+ *
+ * Both are imported once from src/main.tsx. Component styles live in CSS
+ * Modules under src/components/<Name>/<Name>.module.css (handoff §4.0).
+ * This file is kept (unimported) so no history is lost; nothing loads it.
+ */

@@ -67,6 +67,11 @@ tests/      sample data (see tests/sample_data/README.md)
 - [ ] Deploy viewer to static hosting, record demo video, write abstract PDF
 - [ ] Compress splat for fast web load (`.spz`)
 
+## Round 2 groundwork (studio app)
+
+The repository also contains the studio app from the `main` branch: Capture Studio, a PlayCanvas viewer with POI search and A* routes over an occupancy grid, and Live Scan phone pairing. It is kept for Round 2 and is not part of the Round 1 submission. Its docs:
+[README](STUDIO_README.md) · [Architecture](ARCHITECTURE.md) · [Pipeline](PIPELINE.md) · [Capture SOP](CAPTURE_SOP.md) · [Validation](VALIDATION.md) · [Roadmap](ROADMAP.md) · [Decision log](DECISION_LOG.md) · [Windows setup](WINDOWS_SETUP.md)
+
 ## Credits
 COLMAP (BSD), Brush (Apache-2.0), Spark (MIT), three.js (MIT), react-three-fiber (MIT).
 

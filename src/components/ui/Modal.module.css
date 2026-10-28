@@ -1,0 +1,51 @@
+/* Modal / confirm (§5.10) — tokens only. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--text) 45%, transparent);
+  z-index: 80;
+  animation: backdrop-in var(--dur-fast) var(--ease-out);
+}
+
+.dialog {
+  width: min(480px, 100%);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: var(--space-8);
+  border: var(--border-strong);
+  border-radius: var(--radius-3);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-3);
+  animation: dialog-in var(--dur-base) var(--ease-out);
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font: var(--text-title);
+  color: var(--text);
+}
+
+.body {
+  font: var(--text-body);
+  color: var(--text-muted);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

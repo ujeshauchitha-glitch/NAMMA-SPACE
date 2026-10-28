@@ -1,0 +1,32 @@
+/* Skeleton (§5.12) — the only sanctioned gradient in the system: the sweep. */
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--surface-skeleton) 0%,
+    var(--surface-skeleton-hi) 50%,
+    var(--surface-skeleton) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-2);
+  animation: skeleton-sweep 1.2s linear infinite;
+  animation-delay: 200ms; /* no flash for fast loads */
+}
+
+.rows {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@keyframes skeleton-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* reduced motion: static fill, no sweep (§7.2) */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--surface-skeleton);
+  }
+}

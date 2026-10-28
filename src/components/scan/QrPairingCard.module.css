@@ -1,0 +1,98 @@
+/* QR pairing card (T20 / design §5.18). */
+
+.card {
+  background: var(--surface-2);
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* 176px slot = 160px grid + 2×8px quiet zone; fallback copy beside it
+   never reflows the kv rows. */
+.qrCol {
+  flex: 0 0 auto;
+  max-width: 176px;
+}
+
+/* §5.18 refresh flash — 120 ms lime outline, never a layout shift. */
+.flash {
+  outline: 2px solid var(--accent-lime);
+  outline-offset: -2px;
+}
+
+.qrFrame {
+  padding: 8px;
+  background: #FFFFFF;
+}
+
+.qrSvg {
+  display: block;
+}
+
+.kv {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.key {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.value {
+  margin: 0;
+  font: 500 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Under 60 s remaining — countdown and only the countdown turns amber. */
+.warning {
+  color: var(--warning);
+}
+
+.note {
+  margin: 0;
+  font: 450 12px/1.5 var(--font-mono);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.url {
+  color: var(--text);
+}
+
+.caveat {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 450;
+  color: var(--text-dim);
+}
+
+.relayNote {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 450;
+  color: var(--error);
+}

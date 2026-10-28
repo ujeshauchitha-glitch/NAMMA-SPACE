@@ -1,9 +1,21 @@
 node_modules/
 dist/
+.vite/
+coverage/
+test-results/
+playwright-report/
 tools/
 work/
 __pycache__/
 *.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
 # Large model files: host separately (see README). Demo + small samples are allowed via tests/sample_data.
 viewer/public/models/scene.ply
 viewer/public/models/scene.spz
+# Round 2 studio app (from main): pipeline working folders
+public/scenes/*/input/
+public/scenes/*/frames/
+public/scenes/*/output/

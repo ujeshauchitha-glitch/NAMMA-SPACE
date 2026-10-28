@@ -1,0 +1,68 @@
+/* Coverage indicator (§5.6) — occupancy only. Hatch = "not yet verified" texture. */
+.coverage {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.title {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.count {
+  font: 500 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+  color: var(--text);
+}
+
+.bar {
+  display: flex;
+  gap: 2px;
+}
+
+.segment {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.filled {
+  background: var(--accent-lime);
+}
+
+.hollow {
+  border: 1px solid var(--line-strong);
+}
+
+/* the system's universal unverified texture (§5.5) */
+.hatched {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--line-strong) 0 2px,
+    transparent 2px 4px
+  );
+  outline: 1px solid var(--line-strong);
+  outline-offset: -1px;
+}
+
+.legend {
+  margin: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-muted);
+  font-variant-numeric: var(--numeric);
+}
+
+.caption {
+  margin: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-dim);
+}

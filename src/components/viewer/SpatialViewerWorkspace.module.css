@@ -1,0 +1,426 @@
+/* 02 SPATIAL VIEWER layout (§6.2): viewport-dominant, 336px right rail,
+ * plate frame around the scene, HUD chips over the canvas. Tokens only. */
+.viewer {
+  display: grid;
+  grid-template-columns: 1fr 336px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.stageColumn {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.stageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.title {
+  margin: var(--space-1) 0;
+  font: var(--text-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.lede {
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sceneSwitcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.sceneSwitcher select {
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--text-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* viewport plate: 1px drawn edge + inner shadow (§3.2 trade-off) */
+.viewport {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 420px;
+  height: 100%;
+  border: var(--border-strong);
+  box-shadow: var(--inner-plate);
+  background: var(--surface-1);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-bottom: var(--border);
+}
+
+.toolbarTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveMarker {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-dot);
+  background: var(--accent-lime);
+  animation: live-pulse 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveMarker {
+    animation: none;
+  }
+}
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--scene-clear);
+  min-height: 360px;
+}
+
+.stage :global(canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+/* error state replaces the viewport, not the app (§5.13) */
+.errorPanel {
+  display: grid;
+  align-content: center;
+  gap: var(--space-3);
+  min-height: 420px;
+  padding: var(--space-8);
+  border-left: var(--rule-signal) solid var(--error);
+  background: var(--error-wash);
+}
+
+.errorTitle {
+  margin: 0;
+  font: var(--text-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.errorBody {
+  color: var(--text);
+  font: var(--text-body);
+}
+
+.helper {
+  margin: 0;
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* right rail: one scrolling column of panels (§6.2) */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-y: auto;
+  max-height: calc(100vh - 56px - var(--space-8));
+}
+
+.panel {
+  padding: var(--space-4);
+  border: var(--border);
+  border-radius: var(--radius-2);
+  background: var(--surface-1);
+}
+
+.panelHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.panelTitle {
+  margin: 2px 0 0;
+  font: var(--text-heading);
+  color: var(--text);
+}
+
+.panelIndex {
+  font: 500 10px/1.35 var(--font-mono);
+  color: var(--text-dim);
+}
+
+/* T16 · .poi* combobox styles moved to PoiSearch.module.css. */
+
+.destinationActions {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-2);
+}
+
+.selectionCard {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-left: var(--rule-signal) solid var(--accent-lime);
+  background: var(--accent-lime-wash);
+}
+
+.selectionKicker {
+  display: block;
+  margin-bottom: var(--space-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.selectionTitle {
+  display: block;
+  font: 600 13px/1.35 var(--font-ui);
+}
+
+/* T16 · title row: label + category + confidence tags (§5.15). */
+.selectionTitleRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.selectionTitleRow .selectionTitle {
+  min-width: 0;
+}
+
+.categoryTag,
+.confidenceTag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: var(--border);
+  border-radius: var(--radius-2);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.confidenceTag {
+  font-variant-numeric: var(--numeric);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.selectionBody {
+  margin: var(--space-1) 0 var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.selectionMeta {
+  font: 450 11px/1.4 var(--font-mono);
+  font-variant-numeric: var(--numeric);
+  color: var(--text-dim);
+}
+
+/* T16 · route status strip (§5.16): ROUTE · 24 m · 11 cells · A* — slides
+   down over --dur-base (220 ms, §7.3) when the strip mounts (a plot, a
+   replot after clear, or a failure). Reduced motion is gated below. */
+.routeStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: var(--rule-signal) solid var(--accent-lime);
+  background: var(--surface-inset);
+  animation: routeStripSlide var(--dur-base) var(--ease-out);
+}
+
+@keyframes routeStripSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routeStrip {
+    animation: none;
+  }
+}
+
+.routeStripText {
+  flex: 1;
+  min-width: 0;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  font-variant-numeric: var(--numeric);
+  color: var(--text);
+}
+
+.routeStripActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}
+
+/* T16 · unreachable warning row (§5.15) — distinct from strip detail copy. */
+.routeWarning {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border-left: var(--rule-signal) solid var(--warning);
+  background: var(--warning-wash);
+  color: var(--warning);
+  font: 450 11px/1.45 var(--font-ui);
+}
+
+/* T16 · missing-navigation honest reason (§5.15). */
+.missingNavReason {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
+}
+
+.readinessList {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--border);
+}
+
+.readinessList span {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.readinessList b {
+  display: block;
+  margin-top: var(--space-1);
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* ≤1024: rail stacks under the viewport (§6.3 structural behavior) */
+@media (max-width: 1024px) {
+  .viewer {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 24px;
+  }
+}
+
+/* ---------- T14 · scene-load skeleton (§5.12) ----------
+   Geometry mirrors the stage it replaces: title bars, 4:3 viewport bone,
+   2-col kv, list rows. The sweep + 200 ms show-delay live in ui/Skeleton. */
+.skeletonStage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--scene-clear);
+  overflow: auto;
+}
+
+.skeletonBody {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.skeletonViewport {
+  display: block;
+  min-height: 180px;
+}
+
+.skeletonKv {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.skeletonStatus {
+  margin: 0;
+  font: 500 12px/1.5 var(--font-mono);
+  color: var(--text-dim);
+}

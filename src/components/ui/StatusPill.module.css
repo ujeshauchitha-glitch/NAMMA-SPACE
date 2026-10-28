@@ -1,0 +1,53 @@
+/* Status pill (§5.8) — wash bg + semantic text + leading glyph. Always glyph+text. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-1);
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.glyph {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.validated {
+  background: var(--success-wash);
+  color: var(--success);
+}
+
+.needsreview {
+  background: var(--warning-wash);
+  color: var(--warning);
+}
+
+.failed {
+  background: var(--error-wash);
+  color: var(--error);
+}
+
+.blocked {
+  background: var(--blocked-wash);
+  color: var(--blocked);
+}
+
+.simulated {
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  border: var(--border);
+}
+
+/* the only 999-radius element in the system (§5.8) */
+.live {
+  background: var(--accent-lime-wash);
+  color: var(--text);
+}
+
+.live .glyph {
+  border-radius: var(--radius-dot);
+}

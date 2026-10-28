@@ -1,0 +1,89 @@
+/* Camera capture preview (T21 / design §6): mirrored 16:9 well with
+   instrument corner brackets and an honest status overlay. Tokens only. */
+
+.preview {
+  display: block;
+}
+
+.well {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-inset);
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  overflow: hidden;
+}
+
+/* Mirrored feed only — overlay and brackets stay unmirrored. */
+.video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  background: transparent;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: var(--surface-inset);
+  overflow: auto;
+}
+
+/* EmptyState's section padding is too tall for a 16:9 well — compact it.
+   `.overlay .card` outranks `.empty` regardless of stylesheet order. */
+.overlay .card {
+  padding: var(--space-3) var(--space-4);
+}
+
+.startingNote {
+  margin: 0;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* 12px L-strokes pinned to the well corners; `--text` ink (design handoff). */
+.bracket {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 0 solid var(--text);
+  pointer-events: none;
+}
+
+.bracketTL {
+  top: var(--space-2);
+  left: var(--space-2);
+  border-top-width: 1.5px;
+  border-left-width: 1.5px;
+}
+
+.bracketTR {
+  top: var(--space-2);
+  right: var(--space-2);
+  border-top-width: 1.5px;
+  border-right-width: 1.5px;
+}
+
+.bracketBL {
+  bottom: var(--space-2);
+  left: var(--space-2);
+  border-bottom-width: 1.5px;
+  border-left-width: 1.5px;
+}
+
+.bracketBR {
+  bottom: var(--space-2);
+  right: var(--space-2);
+  border-bottom-width: 1.5px;
+  border-right-width: 1.5px;
+}
