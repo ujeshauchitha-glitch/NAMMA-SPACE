@@ -60,3 +60,9 @@
 - T26 agent: docs correction (README/VALIDATION/ARCHITECTURE/DECISION_LOG/PIPELINE + new PAIRING.md runbook). Fed today's verified facts: Python 3.14.6, D2+D3 new contract (ARCHITECTURE/PROJECT_STATE stale), sog declared-but-unrendered, SIMPLE_RADIAL fix. Mandated: every doc claim verified/sourced/labeled; no private vision content.
 - Queued behind T21 agent (owns pairing/scan/workspace): T22 (coverage visualizer, dep T21+T14), T23 (GSAP choreography), T24 (e2e extensions), then T27 (final release gate over everything).
 - Workstream B closed with BLK-001 + amendment (commits 969543c and earlier). Phase 2 pushed through a0359fe; further pushes at next green boundary.
+
+## 2026-10-29 04:00 IST — T25 committed (1f3ddfa); full quality gate green
+- T25 lead-verified: npm run quality ALL 6 STEPS PASS (scene validation, production build, build benchmark, bundle chunk budgets, reconstruction preflight, browser E2E), vitest 542/542, typecheck 0. Committed 1f3ddfa.
+- Key measurements: entry chunk 129,838B gzip vs 360KB budget (PASS, 238KB headroom); fflate/qrcode/idb/playcanvas proven in separate lazy chunks. three+gsap = honest EXCEPTION (not yet imported anywhere; laziness vacuous until T22/T23; check auto-enforces later).
+- Lint fix: unused mkdirSync import in prepare-capture-zip.test.ts (owned by C session) - one-line fix routed back to owner session, 14/14 tests intact, lint now 0.
+- In flight: T21 (pairing/scan WIP visible in tree), T26 (docs WIP visible: README/ARCHITECTURE/DECISION_LOG/PIPELINE/PROJECT_STATE modified).
