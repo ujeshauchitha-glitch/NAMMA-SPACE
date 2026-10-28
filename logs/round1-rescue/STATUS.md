@@ -12,13 +12,13 @@
 | ID | Task | Status |
 |----|------|--------|
 | A  | Safe integration baseline (rescue branch) | PASS (rescue @ 70132ba; push policy D-002) |
-| B  | Real-capture feasibility | IN_PROGRESS (COLMAP 4.2.1 CPU installed; SfM run on 70 normalized imgs in progress) |
-| C  | ZIP → prepare_capture.py seam | IN_PROGRESS (subagent) |
-| D1 | Navigation octile heuristic | IN_PROGRESS (subagent) |
-| D2 | Scene transform/collision contract | NOT_STARTED |
-| D3 | Scene-loader/validator consistency | NOT_STARTED |
-| D4 | Live Scan / T21 receiver wiring | NOT_STARTED |
-| E  | V1 milestones T21–T27 | NOT_STARTED |
+| B  | Real-capture feasibility | IN_PROGRESS (59/70 manual proven; pipeline OPENCV camera-model bug isolated; rerun pending fix) |
+| C  | ZIP → prepare_capture.py seam | PASS (6a7654a, 14 tests, pushed) |
+| D1 | Navigation octile heuristic | PASS (6df7d8c, 13 tests, pushed) |
+| D2 | Scene transform/collision contract | IN_PROGRESS (subagent, with D3) |
+| D3 | Scene-loader/validator consistency | IN_PROGRESS (subagent, with D2) |
+| D4 | Live Scan / T21 receiver wiring | IN_PROGRESS (subagent) |
+| E  | V1 milestones: T21 via D4 agent; T22-T27 NOT_STARTED |
 | F  | Submission package | NOT_STARTED |
 | G  | Regression + performance verification | NOT_STARTED |
 

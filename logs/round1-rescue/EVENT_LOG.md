@@ -18,3 +18,25 @@
 - User added SUPPLEMENTAL workstream (product intelligence/competitive research) with strict boundary: private output outside repo. Dispatched background researcher → /Users/flamexmystix/Documents/Sidequests/hackathons/nammaspace-planning/PRODUCT_INTELLIGENCE.md. Must not block sprint.
 - Workstream B: normalized all 70 capture JPEGs to uniform 740x1600 in work/captures/room_norm/ (mitigates the documented single_camera mixed-size silent drop). brew install colmap running in background.
 - Note: Python here is 3.14.6 (docs claim 3.9.6) — record in T26 doc correction later.
+
+## 2026-10-29 03:00–03:15 IST — Phase 1 pushed; pipeline first run failed; camera-model investigation
+- Phase 1 PUSHED to origin ashwinwork: 86b7a66..6a7654a (D1 nav fix 6df7d8c + C ZIP seam 6a7654a). Dry-run before push per D-002.
+- Flags/env-test fix committed 7f4f060: Sift*→Feature*.use_gpu (verified vs colmap 4.2.1 help; old flags empirically rejected), hermetic PATH in preflight test. Suite 424/424, typecheck 0 (lead re-ran).
+- B: environment fully prepared: brush_app v0.3.0 aarch64 (sha256 65b26313...8c verified), .venv (opencv 5.0.0, numpy 2.5.4), splat-transform@3.10.3, doctor all-OK except nvidia (use --cpu).
+- B: FULL PIPELINE RUN #1 on room_norm FAILED at SfM gate honestly: 2/70 (3%) registered, 229 points, reprojection 0.37px; exit 1; report.json status failed. Gates: >=60% registration, >=2000 points.
+- ROOT-CAUSE INVESTIGATION: identical inputs (70 imgs, 2415 matched pairs) behave oppositely:
+  - manual db (default SIMPLE_RADIAL): 59/70 first run; rerun 3/26/50 (best 50/70) — nondeterministic but consistently large model
+  - pipeline db (forced --ImageReader.camera_model OPENCV): 2/70, single model — SAME "2 frames, 3%" signature as the team's 29-Oct real-photo failure (2/73)
+  - camera rows confirmed via sqlite: model 2 (SIMPLE_RADIAL) vs model 4 (OPENCV)
+- Isolation test launched: OPENCV without use_gpu flag, fresh db → separates camera_model from the gpu flag (background, log work/captures/opencv_test.log).
+- If OPENCV confirmed: fix = pipeline camera model default (dispatch to developer), rerun with --force.
+- Dispatched: D2+D3 scene-contract agent + T21 Live Scan agent (disjoint ownership; both no-git).
+
+## 2026-10-29 03:12 IST — Isolation result: OPENCV camera model confirmed causal
+- Isolation run (OPENCV, no use_gpu flag, fresh db): models 2/20/19 images — best 20/70 (29%), gate-failing. Combined evidence:
+  - SIMPLE_RADIAL: 59/70 then 50/70 (gate-passing, consistently one large model)
+  - OPENCV: 2/70 (pipeline run), 20/70 (isolation) — fragments, always <60%
+  - use_gpu flag exonerated (isolation omitted it; same bad result)
+  - Matches team's 2/73 real-photo failure signature exactly → their "unusable capture" verdict was at least partly a pipeline bug.
+- Dispatched camera-model fix agent: pipeline/run_pipeline.py (+ root tests/docs references), SIMPLE_RADIAL explicit, gates untouched, no apps/studio edits.
+- Next: after fix commits → rerun pipeline --force (sfm ~5 min + train ~20-40 min on Metal). Known risk: sparse points 1658 < 2000 gate on first manual model — if the rerun still fails the points gate, that is an HONEST capture-quality blocker (no threshold weakening), to be recorded in BLOCKERS.md with exact numbers.

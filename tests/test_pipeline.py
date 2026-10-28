@@ -8,10 +8,12 @@ nothing about reconstruction quality (see docs/STATUS.md).
 import json
 import struct
 import subprocess
+from pathlib import Path
 
 import pytest
 
 import checks
+import common
 import preflight
 import run_pipeline
 from common import AWAITING_INSPECTION, FAILED, INSPECTED_OK, PipelineError, Report
@@ -266,3 +268,62 @@ def test_split_threshold_scales_with_clip_size():
     # 10% of 300 frames = 30: a 25-image extra model is a scrap there, but a real piece in a 139-frame run
     assert checks.split_extra_models([25], total_frames=300) == (0, [25])
     assert checks.split_extra_models([25], total_frames=139) == (1, [])
+
+
+# ------------------------------------------------------------------ COLMAP invocation contracts (faked COLMAP)
+def install_fake_colmap(tmp_path, monkeypatch) -> Path:
+    """A fake `colmap` that records every invocation as JSON lines and fakes the outputs sfm() needs.
+
+    find_tool() searches common.TOOLS first, so pointing it here makes every run_pipeline/checks lookup
+    resolve to the fake; FAKE_COLMAP_CALLS carries the recording path to the subprocesses.
+    """
+    tools = tmp_path / "fake_tools"
+    tools.mkdir(exist_ok=True)
+    calls = tmp_path / "colmap_calls.jsonl"
+    fake = tools / "colmap"
+    fake.write_text("""#!/usr/bin/env python3
+import json, os, pathlib, sys
+args = sys.argv[1:]
+with open(os.environ["FAKE_COLMAP_CALLS"], "a") as fh:
+    fh.write(json.dumps(args) + "\\n")
+def value(flag):
+    return pathlib.Path(args[args.index(flag) + 1])
+stage = args[0]
+if stage == "mapper":
+    (value("--output_path") / "0").mkdir(parents=True, exist_ok=True)
+elif stage == "model_analyzer":
+    print("Registered images: 5")   # all 5 fake frames; the gate wants >= 60% registration
+    print("Points: 5000")           # and >= 2000 sparse points (thresholds untouched)
+    print("Mean reprojection error: 0.800000")
+    print("Mean track length: 4.000000")
+elif stage == "image_undistorter":
+    (value("--output_path") / "sparse").mkdir(parents=True, exist_ok=True)
+sys.exit(0)
+""")
+    fake.chmod(0o755)
+    monkeypatch.setattr(common, "TOOLS", tools)
+    monkeypatch.setenv("FAKE_COLMAP_CALLS", str(calls))
+    return calls
+
+
+def test_sfm_forces_simple_radial_camera_model(tmp_path, monkeypatch):
+    """Regression: OPENCV's 6-parameter single-camera calibration collapsed registration on real photos
+    (best fragment 2-20/70 images, pipeline run 2/70) while COLMAP's default SIMPLE_RADIAL registered
+    50-59/70 on the same 70 images with the same exhaustive matching (verified 2026-10-29)."""
+    work = tmp_path / "work"
+    frames = work / "frames"
+    frames.mkdir(parents=True)
+    for i in range(5):
+        (frames / f"{i:05d}.jpg").write_bytes(b"not-a-real-image")
+    calls = install_fake_colmap(tmp_path, monkeypatch)
+    log = work / "logs" / "pipeline.log"
+    log.parent.mkdir(parents=True)
+
+    dataset = run_pipeline.sfm(work, "exhaustive", gpu=False, report=new_report(tmp_path), log=log)
+    assert dataset.is_dir()  # sfm ran end-to-end against the fake
+
+    invoked = [json.loads(line) for line in calls.read_text().splitlines()]
+    feature_args = next(a for a in invoked if a[0] == "feature_extractor")
+    at = feature_args.index("--ImageReader.camera_model")
+    assert feature_args[at + 1] == "SIMPLE_RADIAL"
+    assert "OPENCV" not in feature_args

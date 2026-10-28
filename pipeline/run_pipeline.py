@@ -93,8 +93,10 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
     use_gpu = "1" if gpu else "0"
     if db.exists():
         db.unlink()  # a half-finished database from a failed run poisons matching
+    # OPENCV's 2-focal + 4-distortion single-camera calibration fails initial-pair/BA on real photos:
+    # 2-20/70 vs 50-59/70 with SIMPLE_RADIAL, verified 2026-10-29. Keep the value explicit.
     run([colmap, "feature_extractor", "--database_path", str(db), "--image_path", str(images),
-         "--ImageReader.single_camera", "1", "--ImageReader.camera_model", "OPENCV",
+         "--ImageReader.single_camera", "1", "--ImageReader.camera_model", "SIMPLE_RADIAL",
          "--FeatureExtraction.use_gpu", use_gpu], log, "COLMAP feature extraction")
     # sequential matching suits walk-through video; exhaustive suits unordered photo sets.
     run([colmap, f"{matcher}_matcher", "--database_path", str(db), "--FeatureMatching.use_gpu", use_gpu],
