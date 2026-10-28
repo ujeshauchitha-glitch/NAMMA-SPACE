@@ -100,6 +100,51 @@
 - **Trade-off:** Self-signed certs show a one-time warning on every phone, and the relay lives only in dev (production needs its own endpoint); `ws` upgrades keep the dev socket list alive, so plugin teardown terminates clients before `wss.close()` to avoid hanging `server.close()`. Security posture: the session token travels in the `/ws?session=TOKEN` URL query and the relay performs no `Origin` validation, so it is trusted-local-network only and must never be exposed in production.
 - **Verification:** `npm run test` 370/370 (17 relay tests incl. real-server rooms, 7 blocked-state tests), `npm run typecheck` exit 0, `npm run lint` 0 errors (5 pre-existing warnings), and live smokes: `dev:lan` over `wss` and plain `dev` over `ws` both served the app and answered `peer-joined`/verbatim `sdp`/`ROOM_FULL` + close 4003.
 
+### D-014 — Palette MERIDIAN is final
+
+- **Status:** Accepted
+- **Decision:** Ship Direction A — **MERIDIAN** (light mineral cartography), presented as the GROUNDTRUTH identity system, as the one palette for the product.
+- **Reason:** The evaluation in `docs/design/DESIGN_HANDOFF.md` §3.1–3.2 is computed, not taste: the 92 %-opacity HUD chip bounds ink contrast to ≥ 12.3:1 against *any* scene luminance (closed form, no per-scene scrims), every shipped text pair is AA-or-better with most at AAA, photographic content wants a neutral-warm paper ground, and the direction is neither the rejected graphite/amber anti-reference nor a SaaS/neon template.
+- **Evidence:** `docs/design/DESIGN_HANDOFF.md` ("Picked direction A", "Ship Direction A — MERIDIAN"); `src/styles/tokens.css` header — "GROUNDTRUTH · palette MERIDIAN — single source of truth"; contrast pairs asserted by `tests/tokens.test.ts`.
+
+### D-015 — Default scene is the procedural fixture
+
+- **Status:** Accepted (as built; **differs from the V1 spec's suggested default**)
+- **Decision:** `DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json'`. The scene `<select>` lists **Procedural fixture** first and **Generated GLB fixture** second; `?scene=glb` selects the GLB bundle and any `/scenes/…` path is honoured (durable URL contract).
+- **Reason:** the procedural fixture needs no binary asset, so a fresh checkout's first frame can never fail on a missing file; `VITE_SCENE_URL` lets a deployment point elsewhere without code changes.
+- **Divergence note:** V1 spec open question 2 defaulted to `glb-fixture` as primary. The shipped default is the procedural fixture (verified in `SpatialViewerWorkspace.tsx` `resolveInitialSceneUrl`, 29 Oct). Both scenes are covered by e2e (`/` and `/?scene=glb`).
+- **Revisit when:** a real reconstruction exists and becomes the honest first frame.
+
+### D-016 — Frame caps: 2048 px ingest, 1600 px phone frames, JPEG q0.9
+
+- **Status:** Accepted (resolves V1 spec open question 4)
+- **Decision:** Staged-image ingest downscales to a **≤ 2048 px long edge** and re-encodes JPEG **q0.9** (OffscreenCanvas with canvas fallback); Live Scan phone frames are capped at a **1600 px long edge** (`MAX_FRAME_LONG_EDGE`) before the JPEG grab and datachannel send, chunked at 64 KiB with a per-frame sha256 ack.
+- **Reason:** an 8 GB demo machine must decode many photos at once, and the capture path assumed a ~256 KB frame budget for simple datachannel transfer.
+- **Evidence:** `src/lib/capture/decode.ts`, `src/lib/scan/capture.ts`; `tests/capture-ingest.test.ts` (exact `computeTargetSize` math) and `tests/scan-capture.test.ts` (asserts `MAX_FRAME_LONG_EDGE === 1600`).
+
+### D-017 — SIMPLE_RADIAL camera model for real captures
+
+- **Status:** Accepted
+- **Decision:** Real captures are calibrated with COLMAP's **SIMPLE_RADIAL** single-camera model; the team's root pipeline passes it explicitly (`pipeline/run_pipeline.py`). The studio adapter (`scripts/reconstruct_colmap.py`) sets no `--ImageReader.camera_model` and therefore uses COLMAP's SIMPLE_RADIAL default (verified against `colmap feature_extractor -h` on 29 Oct).
+- **Reason:** forcing OPENCV (two focal lengths + four distortion coefficients) fails initial-pair selection and bundle adjustment on real photos. On identical inputs: OPENCV → 2/70 then 20/70 registered; SIMPLE_RADIAL → 50–59/70 (isolation run, 29 Oct; the `use_gpu` flag was exonerated). The OPENCV path reproduced the exact "2 frames / 3 %" signature behind the earlier 2/73 "unusable capture" verdict, so that verdict was at least partly a pipeline bug.
+- **Evidence:** commit `a4299f5` (regression test pins the `feature_extractor` argv; `image_undistorter` empirically verified model-agnostic, SIMPLE_RADIAL → PINHOLE, exit 0); `logs/round1-rescue/EVENT_LOG.md` (03:12 and 03:43 IST, 29 Oct).
+
+### D-018 — Identity-only transform, null-only collision asset
+
+- **Status:** Accepted
+- **Decision:** A schemaVersion 1 manifest must carry `worldFromReconstruction` = **identity** and `collisionAsset` = **null**; both the zod schema and `scripts/validate_scene.py` reject anything else with the same actionable message. Viewer movement refuses unknown/blocked cells and refuses to move at all when no navigation grid exists (tested `resolveWalkableStep`).
+- **Reason:** the navigation grid is an x–z raster — a rotation or scale cannot be represented without re-baking the grid, so a non-identity matrix the engine never applies would be a silent lie; the viewer has never loaded a collision mesh, so obstacles belong in `navigation.blocked`/`unknown`; and the raw WASD path previously bypassed the grid check entirely.
+- **Evidence:** commit `d4acf04` (68 new tests, red → green; full suite 526/526 at that commit); shipped bundles already identity/null, so the tightening broke nothing; suites `scene-loader`, `scene-validator`, `scene-integrity`, `movement-contract`, `navigation-unknown`.
+
+### D-019 — One URI/integrity contract for browser and Python validator
+
+- **Status:** Accepted
+- **Decision:** Every declared scene URI is a **bundle-relative POSIX path** (no scheme except `procedural://` on procedural assets; no leading slash, backslash, `..`, query or fragment); manifests are **same-origin** (resolution keeps targets inside the declaring manifest's directory on the app origin); 32 MiB document cap / 256 MiB browser hash-buffer cap; `sha256` must be 64 lowercase hex and is **verified via WebCrypto before the renderer loads** the asset. Error surfaces are distinct: network / not-found / http / too-large / invalid-json / invalid-manifest / invalid-uri / cross-origin / hash-mismatch.
+- **Reason:** before this the browser never checked a digest and the two validators (zod in TS, `validate_scene.py` in Python) could disagree — a bundle could pass one gate and fail the other. One written contract, enforced on both sides, keeps "validated" honest.
+- **Evidence:** commit `d4acf04`; `src/lib/sceneLoader.ts` (`resolveSceneUri`, integrity checks), `src/types/scene.ts`, `scripts/validate_scene.py` (same messages); suites `scene-integrity`, `scene-loader`, `scene-validator`.
+
+> Note: the **mkcert vs `@vitejs/plugin-basic-ssl`** decision and the **`ws@^8` dev-relay dependency** are recorded in **D-013** above (including the mkcert smoke outcome and fallback); they are not repeated here.
+
 ## Assumptions to verify
 
 1. The team can access at least one Linux NVIDIA GPU with enough VRAM for the selected reconstruction profile.

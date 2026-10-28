@@ -93,6 +93,8 @@ GeometryProcessor.build(ReconstructionResult, GeometryConfig)
 
 This output is authoritative for collisions and navigation, not the photorealistic asset.
 
+*As built (2026-10-29): the browser consumes no collision mesh — `collisionAsset` is null-only by contract and the occupancy grid is the collision model (§4, `d4acf04`). This module's mesh output is pipeline-side validation input, not a viewer asset.*
+
 ### E. Semantic extraction
 
 **Responsibility:** associate rooms and POIs with stable world-space anchors.
@@ -123,11 +125,11 @@ The first implementation should use a 2D occupancy grid and A* with a configurab
 
 The viewer consumes only public scene contracts:
 
-- `scene.json`.
-- Visual asset URL(s).
-- Collision geometry or walkable map URL.
-- `pois.json`.
-- Optional `walkable.json`.
+- `manifest.json` (the studio's bundle manifest; the Round 1 pipeline's viewer names the same idea `scene.json`).
+- Visual asset URL(s) — `glb`/`gltf` today; `sog` is accepted by the schema but not yet rendered (§4).
+- Navigation data (`navigationUri` → occupancy grid) — the collision authority; `collisionAsset` is null-only (§4).
+- `pois.json` (`semanticUri`) and the quality report (`qualityUri`).
+- Optional provenance references (`sourceFrameManifest`, `processingReportUri`).
 
 It should not import Python packages, reconstruction internals, or model-specific formats directly.
 
@@ -153,26 +155,49 @@ Every job must have:
 
 ```json
 {
+  "schemaVersion": 1,
   "sceneId": "venue-2026-10-24-001",
-  "sceneVersion": 1,
+  "displayName": "Venue Hall",
+  "sceneKind": "reconstructed-capture",
+  "description": "Main hall, captured handheld.",
   "coordinateSystem": "right-handed-y-up",
-  "unit": "metre",
+  "units": "metre",
   "worldFromReconstruction": [
     [1, 0, 0, 0],
     [0, 1, 0, 0],
     [0, 0, 1, 0],
     [0, 0, 0, 1]
   ],
+  "bounds": {"min": [-12, 0, -8], "max": [14, 3.2, 9]},
+  "startPosition": [0, 1.6, 2],
+  "startYawDegrees": 180,
   "visualAssets": [
     {"kind": "glb", "uri": "visual/scene.glb", "sha256": "..."}
   ],
-  "collisionAsset": {"uri": "geometry/collision.glb", "sha256": "..."},
-  "walkableMap": {"uri": "navigation/walkable.json", "sha256": "..."},
-  "pois": {"uri": "semantics/pois.json", "sha256": "..."},
-  "quality": {"status": "passed", "warnings": []},
-  "pipeline": {"name": "baseline", "version": "0.1.0"}
+  "collisionAsset": null,
+  "navigationUri": "navigation/nav-data.json",
+  "semanticUri": "semantic/pois.json",
+  "qualityUri": "quality/report.json",
+  "scaleStatus": "estimated",
+  "provenance": {
+    "pipeline": "capture-to-scene",
+    "pipelineVersion": "0.1.0",
+    "capturedAt": "2026-10-24T00:00:00Z",
+    "source": "reconstructed-capture",
+    "notes": []
+  }
 }
 ```
+
+(Implemented shape: `SceneManifestSchema` in `src/types/scene.ts`, enforced identically by `scripts/validate_scene.py`. The companion documents are `navigationUri` → occupancy grid, `semanticUri` → `pois.json`, `qualityUri` → quality report; the bundle loader returns `{manifest, navigation, pois, quality}`.)
+
+**Schema contract (schemaVersion 1, tightened 2026-10-29, commit `d4acf04`)** — enforced identically by the zod schema (`src/types/scene.ts`) and the Python validator (`scripts/validate_scene.py`):
+
+- `worldFromReconstruction` **must be the identity matrix**. Non-identity transforms are rejected with an actionable error: the navigation grid is an x–z raster, so a rotation or scale cannot be represented without re-baking the grid. All shipped scenes already use identity. Section 5's alignment work is therefore a pre-publication pipeline step, never a runtime transform.
+- `collisionAsset` **must be `null`**. The viewer never loads a collision mesh; obstacles are declared in `navigation.blocked` / `navigation.unknown`. A non-null value is rejected with the same message in both validators.
+- Every declared `uri` must be a **bundle-relative POSIX path**; manifests must be **same-origin**; `procedural://` is allowed only for procedural assets (32 MiB document cap; 256 MiB browser hash-buffer cap). The browser verifies each `sha256` via WebCrypto **before** the renderer loads the asset (previously unchecked) and surfaces distinct errors: network / not-found / http / too-large / invalid-json / invalid-manifest / invalid-uri / cross-origin / hash-mismatch.
+- Visual asset `kind` accepts `glb | gltf | sog | procedural`, but **`sog` is declared-but-unrendered**: `PlayCanvasViewer.loadVisualAssets()` filters to `glb`/`gltf`, and no other component consumes `kind === 'sog'`, so an SOG scene currently loads no visual asset. The schema keeps the kind so a future splat renderer needs no breaking change (see §8).
+
 
 ### `FrameSet`
 
@@ -196,10 +221,10 @@ Every job must have:
 {
   "id": "poi-registration-desk",
   "label": "Registration desk",
-  "kind": "object",
+  "category": "service",
   "roomId": "room-main-hall",
   "position": [2.4, 0.9, -1.2],
-  "orientation": [0, 0, 0, 1],
+  "approachPoint": [1.8, 1.6, -0.4],
   "aliases": ["help desk"],
   "confidence": 0.98,
   "source": "operator"
@@ -208,22 +233,21 @@ Every job must have:
 
 ## 5. Coordinate alignment and scale
 
-The reconstruction engine owns an arbitrary reconstruction frame. The scene bundle must convert it once into the canonical viewer frame:
+The reconstruction engine owns an arbitrary reconstruction frame; the viewer's canonical frame is right-handed y-up over an x–z navigation raster. Since schemaVersion 1 was tightened (2026-10-29, commit `d4acf04`), `worldFromReconstruction` **must be the identity matrix** — the browser applies no reconstruction→world transform, and non-identity matrices are rejected by both the zod schema and `validate_scene.py` (§4):
 
 ```text
-viewerPoint = worldFromReconstruction × reconstructionPoint
+viewerPoint = reconstructionPoint      # identity-only: alignment is baked before publication, never applied at runtime
 ```
 
-Alignment procedure:
+Because the transform cannot be applied at load time, alignment is a **pre-publication pipeline step**:
 
 1. Choose a floor plane and a forward direction.
-2. Apply a rigid transform to make the floor horizontal and the viewer coordinate system consistent.
-3. Estimate scale from a measured distance, phone metadata, or a known venue dimension.
-4. Record the anchor and residual error in `scene.json`.
-5. Apply the same transform to visual assets, collision geometry, POIs, and walkable-map coordinates.
-6. Run automated checks for floor height, asset bounds, POI containment, and route-to-visual alignment.
+2. Bake a rigid transform into the visual asset, POIs, and navigation data so the floor is horizontal in the canonical frame.
+3. Estimate scale from a measured distance, phone metadata, or a known venue dimension, and bake it in; record `scaleStatus` (`known`/`estimated`/`unknown`) in the manifest.
+4. Record the anchor and residual error in the bundle's provenance/quality data.
+5. Run automated checks for floor height, asset bounds, POI containment, and route-to-visual alignment **against the baked outputs** — they must already agree before the bundle is publishable.
 
-If scale or alignment confidence is below threshold, the scene must be marked `needs-review` and must not be silently published as metrically accurate.
+If scale or alignment confidence is below threshold, the scene must be marked `needs-review` and must not be silently published as metrically accurate. Every shipped bundle today is synthetic and already in the canonical frame (identity `worldFromReconstruction`), which is what makes the identity-only contract hold without a baking step.
 
 ## 6. Quality gates
 
@@ -246,9 +270,9 @@ If scale or alignment confidence is below threshold, the scene must be marked `n
 
 ### Delivery gates
 
-- Visual asset loads in the browser.
-- Collision asset exists and has finite bounds.
-- Start position is walkable.
+- Visual asset loads in the browser (declared `sha256` verified first; a mismatch is an error, never a silent load).
+- `collisionAsset` is `null` and obstacles are declared in `navigation.blocked`/`navigation.unknown`; with no navigation grid the viewer refuses movement instead of walking freely.
+- Start position is walkable (in-bounds, not blocked/unknown — schema-enforced).
 - Route smoke test succeeds for at least one known POI.
 - Bundle hashes match manifest.
 - Previous deployment remains available until the new bundle passes.
@@ -273,7 +297,7 @@ Rules:
 
 The React viewer should be split into:
 
-- `SceneLoader`: fetches and validates `scene.json`.
+- `SceneLoader`: fetches and validates `manifest.json` (identity transform, null `collisionAsset`, bundle-relative URIs) and verifies declared `sha256` digests via WebCrypto before handing anything to the renderer.
 - `AssetRenderer`: PlayCanvas procedural/GLB renderer first; future SOG/gsplat renderer behind the same contract.
 - `FirstPersonController`: WASD, mouse look, pointer-lock lifecycle, touch-safe fallback.
 - `CollisionSystem`: collision geometry or walkable-map movement constraints.
@@ -305,3 +329,25 @@ capture upload → durable job record → GPU worker pool → validation
 ```
 
 Do not build the Round 3 topology before the Round 1 walkthrough is usable.
+
+## 10. As-built studio runtime (shell, state, pairing, storage)
+
+Sections 3–9 describe the target architecture. This section records what is actually implemented in `apps/studio/` as of 2026-10-29, verified by reading the modules named below (test evidence in `VALIDATION.md`).
+
+### Shell (T8, T12)
+
+`src/App.tsx` is a composition root: it resolves the active workspace from `?workspace=`, owns the real connectivity state (`navigator.onLine` → `● LOCAL` / `◇ OFFLINE`, honest and measured), and renders exactly one workspace panel through `AppShell` + `WorkspaceTabs`. Inactive workspaces unmount — there is never more than one live WebGL context (e2e asserts `[data-testid^="workspace-"]` count 1 and canvas count 0 while off the viewer). Tabs implement the full tablist pattern (roving tabindex, ←/→ wrapping, Home/End, `aria-selected`/`aria-controls`) with `1/2/3` and `Ctrl/Cmd+1..3` shortcuts. The three workspaces are `01 Capture Studio`, `02 Spatial Viewer` (default), `03 Live Scan`.
+
+### State (T9, T14)
+
+`src/state/` — a pure `workspaceReducer` wrapped by `WorkspaceStoreProvider` (React context). Hydration from injected persistence is an explicit `hydrated` gate: no first-run seed write can clobber the snapshot a restore is about to load, and every later state change persists a structured-clone-safe snapshot. First-run seeding, camera-pose persistence (rounding-stable pose key, so identical measurements never re-save), and the assertive toast region ride on the same store. Storage failures surface as typed toasts instead of breaking the session.
+
+### Storage (T10, T13)
+
+`src/lib/storage/db.ts` is the **only** module in `src/` that touches `indexedDB` (grep-enforced by its own header comment). Database `namma-space` v1 with stores `staged-images` (Blob + metadata + sha256 — image bytes live only in IndexedDB) and `kv` (rooms, view-groups, poses, scene snapshots). `idb` is dynamically imported at open time (lazy chunk), the `IDBFactory` is injectable for node tests, and every failure becomes a typed `StorageError`. ZIP export (T13) is byte-deterministic and contains exactly `manifest.json` + `images/<sha256>.jpg` — staged capture, never a reconstruction claim (see `PIPELINE.md`).
+
+### Pairing (T18–T20)
+
+`src/lib/pairing/` is DOM-independent by construction — sockets, peer connections, timers and WebCrypto are injected. The state machine runs `IDLE → PAIRING → LIVE → CAPTURING → STAGED → OFFLINE/ERROR` with a 10-minute session TTL (`SESSION_TTL_MS`); once expired, `OFFLINE` is the only reachable transition. Signalling is a single same-origin `ws` endpoint at `/ws?session=TOKEN` served by the dev server itself (Vite plugin `scripts/ws-signalling-plugin.ts`, pure room logic in `scripts/signalling-relay.ts`): rooms of exactly two peers, verbatim `sdp`/`ice` relay, honest `ROOM_FULL` error + close codes. `npm run dev:lan` (`VITE_LAN=1`) binds `0.0.0.0` with self-signed HTTPS because phone `getUserMedia` requires a secure context; on plain HTTP the app renders a UI-derived `BLOCKED` verdict with the exact remedy copy — presentation only, never a canonical machine state. ICE attempts **host candidates only** first (`iceServers: []`), so a same-LAN pairing needs no internet for its first attempt; a public STUN fallback engages only if that fails. The QR card encodes `window.location.hostname` plus a same-LAN caveat. Executable runbook: `docs/PAIRING.md`. Security posture: dev-only, session token in the URL query, no `Origin` validation — the relay must never be exposed in production (D-013).
+
+Verification: `pairing-protocol`, `signalling-relay`, `qr`, `pairing-blocked` unit suites; live `dev:lan` smoke in `VALIDATION.md` (29 Oct); the e2e shell spec's offline test.

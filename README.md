@@ -21,6 +21,11 @@ phone video ──► ffmpeg + blur filter ──► COLMAP (poses) ──► Br
 
 See [docs/SOP.md](docs/SOP.md) for the capture procedure and [docs/TECH_STACK.md](docs/TECH_STACK.md) for what is in the stack, what is deferred, and why.
 
+## Requirements
+- **Python 3.13+ (tested 3.13.7, 3.14.6 and 3.15.2)** for the pipeline scripts and scene validators. Verified 29 Oct 2026 on this machine: each of the three Homebrew interpreters passes `scripts/validate_all_scenes.py` on both scene bundles, and the studio test suite runs the Python tooling through `python3` (3.15.2). Do not use macOS's system Python at `/usr/bin/python3` — it predates 3.13.
+- **Node.js 20+ with npm** (verified with Node 26.3.1 / npm 12.0.1, 29 Oct 2026).
+- **ffmpeg** for video frame extraction (verified at `/opt/homebrew/bin/ffmpeg`); **COLMAP** for reconstruction (`brew install colmap` gives 4.2.1, a CPU-only build on this Mac — no CUDA/dense stages; GPU training still needs an NVIDIA machine).
+
 ## Run the viewer (no reconstruction needed)
 
 ```bash
@@ -65,7 +70,7 @@ apps/studio Round 2 studio app (from main)
 ## Status
 - [x] Viewer: first-person walkthrough, config-driven scene, touch fallback
 - [x] Pipeline scripts and SOP
-- [ ] Real capture + first full reconstruction (pipeline stages COLMAP/Brush are untested until footage exists)
+- [ ] Real capture + first full reconstruction — footage now exists and the stages have been exercised: COLMAP + Brush ran end to end on a synthetic clip (28 Oct 2026), and since the SIMPLE_RADIAL camera-model fix (29 Oct, `a4299f5`) real photos register at 57% instead of 3%, but the 70-photo set still splits into two disconnected rooms (below the 60% registration gate — honest blocker `logs/round1-rescue/BLOCKERS.md` BLK-001). Blocked on a re-shoot per the SOP; no real reconstruction has succeeded yet.
 - [ ] Deploy viewer to static hosting, record demo video, write abstract PDF
 - [x] Compress stage in the pipeline (`.sog`/`.spz` ≤ 50 MB); viewer loads external splat URLs with progress
 - [ ] Compression quality checked on a real splat
@@ -74,6 +79,8 @@ apps/studio Round 2 studio app (from main)
 
 The repository also contains the studio app from the `main` branch: Capture Studio, a PlayCanvas viewer with POI search and A* routes over an occupancy grid, and Live Scan phone pairing. It lives in [`apps/studio/`](apps/studio/) (run `npm ci && npm run dev` there), is kept for Round 2, and is not part of the Round 1 submission. Its docs:
 [README](apps/studio/README.md) · [Architecture](apps/studio/ARCHITECTURE.md) · [Pipeline](apps/studio/PIPELINE.md) · [Capture SOP](apps/studio/CAPTURE_SOP.md) · [Validation](apps/studio/VALIDATION.md) · [Roadmap](apps/studio/ROADMAP.md) · [Decision log](apps/studio/DECISION_LOG.md) · [Windows setup](apps/studio/WINDOWS_SETUP.md)
+
+Phone pairing over the LAN has its own executable runbook: [docs/PAIRING.md](docs/PAIRING.md).
 
 ## Credits
 COLMAP (BSD), Brush (Apache-2.0), splat-transform (MIT), Spark (MIT), three.js (MIT), react-three-fiber (MIT), React (MIT), Vite (MIT), FFmpeg (LGPL/GPL), OpenCV (Apache-2.0), NumPy (BSD). Studio app (`apps/studio`): PlayCanvas (MIT), zod (MIT).
