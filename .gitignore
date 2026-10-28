@@ -13,8 +13,11 @@ __pycache__/
 .env.*
 !.env.example
 # Large model files: host separately (see README). Demo + small samples are allowed via tests/sample_data.
-viewer/public/models/scene.ply
-viewer/public/models/scene.spz
+viewer/public/models/*.ply
+viewer/public/models/*.spz
+viewer/public/models/*.sog
+# Locally published captures for inspection (pipeline publish step); served by the dev server only.
+viewer/dev-assets/models/
 # Round 2 studio app (from main): pipeline working folders
 apps/studio/public/scenes/*/input/
 apps/studio/public/scenes/*/frames/

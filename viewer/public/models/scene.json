@@ -1,0 +1,9 @@
+{
+  "title": "Namma Space",
+  "splat": "https://huggingface.co/datasets/REPLACE_HF_USER/namma-space-splats/resolve/main/scene.sog",
+  "spawn": [0, 0, 0],
+  "spawnYaw": 0,
+  "eyeHeight": 1.6,
+  "rotation": [3.141592653589793, 0, 0],
+  "scale": 1
+}

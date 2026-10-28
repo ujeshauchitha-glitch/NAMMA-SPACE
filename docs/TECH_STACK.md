@@ -12,7 +12,7 @@ Suggestions from the team's stack table (Oct 2026) are marked **[table]**. Claim
 | Poses | COLMAP | baseline; alternatives only if it fails (below) |
 | Splat training | Brush (default), Nerfstudio splatfacto (option) | `--trainer`; Brush needs no CUDA toolkit, Nerfstudio is for Linux/WSL2/A4000 |
 | Pipeline | Python CLI (`pipeline/`), JSON report | no server |
-| Scene description | `viewer/public/models/scene.json` | no database |
+| Scene description | `viewer/public/models/scene.json` (production, external splat URL); `viewer/dev-assets/` for local captures and the fixture | no database |
 | Hosting | static frontend; large splat on separate storage | host must allow files over 100 MB (not checked yet) |
 
 ## Decided for Round 2 (kept small)

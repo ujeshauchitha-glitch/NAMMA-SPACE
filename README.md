@@ -29,7 +29,7 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Until a real capture is processed the viewer shows "no capture installed". To smoke-test the viewer only, open `/?scene=fixtures/SYNTHETIC/synthetic_room.json`: a procedurally generated box room (`pipeline/make_demo_splat.py`) with a permanent on-screen **SYNTHETIC** badge. It is **not** a reconstruction.
+The default scene, `viewer/public/models/scene.json`, points at the compressed splat on external storage (Hugging Face); until that is uploaded the viewer explains that the file is missing. To smoke-test the viewer only, open `/?scene=dev-assets/fixtures/SYNTHETIC/synthetic_room.json`: a procedurally generated box room (`pipeline/make_demo_splat.py`) with a permanent on-screen **SYNTHETIC** badge. It is **not** a reconstruction. `viewer/dev-assets/` is served by `npm run dev` / `npm run preview` only and never ships in the production build.
 Any splat can be loaded with `?splat=<url>`.
 
 ## Reconstruct your own space (Windows, NVIDIA GPU)
@@ -46,7 +46,7 @@ Linux / WSL2: `scripts/setup_tools.sh` (untested). Trainers and machines: [docs/
 
 A run ends as `automated_checks_passed_awaiting_inspection` in `work/<name>/report.json`. It becomes `inspected_ok` only when a person approves it after walking the result; until then the reconstruction is **not** considered successful. Pass criteria are in [docs/SOP.md](docs/SOP.md).
 
-Then edit `viewer/public/models/scene.json` (`spawn`, `scale`, `rotation`) to align the model; see *Scale and orientation* in the SOP.
+Then edit `viewer/dev-assets/models/scene.json` (`spawn`, `scale`, `rotation`) to align the model; see *Scale and orientation* in the SOP. The production `viewer/public/models/scene.json` gets the same values plus the hosted splat URL.
 
 ## Controls
 `W A S D` move · mouse look (click to capture) · `Shift` sprint · `Q`/`E` lower/raise · `Esc` release mouse. Touch: drag to look, two fingers to walk.

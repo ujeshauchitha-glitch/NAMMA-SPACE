@@ -35,6 +35,10 @@ export async function fetchSplat(
     )
   }
   if (res.status === 404) throw new SplatLoadError(`Splat file not found (HTTP 404): ${url}`)
+  // Hugging Face answers 401 for a repo that does not exist or is private.
+  if (res.status === 401 || res.status === 403) {
+    throw new SplatLoadError(`Splat file missing or not public (HTTP ${res.status}): ${url}`)
+  }
   if (!res.ok) throw new SplatLoadError(`The splat host answered HTTP ${res.status} for ${url}`)
   if ((res.headers.get('content-type') ?? '').includes('text/html')) {
     throw new SplatLoadError(`Splat file missing: ${url} returned a web page, not a splat.`)
