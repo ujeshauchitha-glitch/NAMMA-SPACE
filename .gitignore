@@ -22,3 +22,5 @@ viewer/dev-assets/models/
 apps/studio/public/scenes/*/input/
 apps/studio/public/scenes/*/frames/
 apps/studio/public/scenes/*/output/
+# Vercel CLI project link (vercel link / pull)
+.vercel
