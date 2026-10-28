@@ -22,10 +22,16 @@ viewer/dev-assets/models/
 apps/studio/public/scenes/*/input/
 apps/studio/public/scenes/*/frames/
 apps/studio/public/scenes/*/output/
-# Vercel CLI project link (vercel link / pull)
+public/scenes/*/input/
+public/scenes/*/frames/
+public/scenes/*/output/
+# Vercel CLI project link (vercel link -p)
 .vercel
 
 # Local-only: Python venv, Rust/Brush autotune cache, git worktrees used for audits
 .venv/
 target/
 .worktrees/
+
+# raw capture working data (large binaries, never commit)
+# (work/ above covers work/captures/room/)

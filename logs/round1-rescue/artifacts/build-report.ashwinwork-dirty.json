@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-28T20:00:39.523490+00:00",
+  "dist": "dist",
+  "artifacts": [
+    {
+      "path": "dist/assets/PlayCanvasViewer-9jZv35Fn.js",
+      "bytes": 2032329,
+      "gzipBytes": 521227
+    },
+    {
+      "path": "dist/assets/browser-Cgug2DPz.js",
+      "bytes": 8922,
+      "gzipBytes": 4445
+    },
+    {
+      "path": "dist/assets/index-CNLMjAuq.js",
+      "bytes": 412840,
+      "gzipBytes": 127947
+    },
+    {
+      "path": "dist/assets/index-CXriIuxe.css",
+      "bytes": 38882,
+      "gzipBytes": 8220
+    },
+    {
+      "path": "dist/assets/index-V7xXUF1b.js",
+      "bytes": 3520,
+      "gzipBytes": 1422
+    },
+    {
+      "path": "dist/assets/qrcode-5IewWFXk.js",
+      "bytes": 21140,
+      "gzipBytes": 7628
+    },
+    {
+      "path": "dist/favicon.svg",
+      "bytes": 378,
+      "gzipBytes": 287
+    },
+    {
+      "path": "dist/fonts/OFL-Archivo.txt",
+      "bytes": 4388,
+      "gzipBytes": 1960
+    },
+    {
+      "path": "dist/fonts/OFL-IBMPlexMono.txt",
+      "bytes": 4456,
+      "gzipBytes": 1990
+    },
+    {
+      "path": "dist/fonts/OFL-note.md",
+      "bytes": 1311,
+      "gzipBytes": 709
+    },
+    {
+      "path": "dist/fonts/archivo-latin-var-wght400-700.woff2",
+      "bytes": 34940,
+      "gzipBytes": 34973
+    },
+    {
+      "path": "dist/fonts/ibm-plex-mono-latin-400.woff2",
+      "bytes": 10052,
+      "gzipBytes": 10075
+    },
+    {
+      "path": "dist/fonts/ibm-plex-mono-latin-500.woff2",
+      "bytes": 10060,
+      "gzipBytes": 10083
+    },
+    {
+      "path": "dist/index.html",
+      "bytes": 1135,
+      "gzipBytes": 558
+    },
+    {
+      "path": "dist/scenes/fixture/manifest.json",
+      "bytes": 1133,
+      "gzipBytes": 615
+    },
+    {
+      "path": "dist/scenes/fixture/navigation/nav-data.json",
+      "bytes": 702,
+      "gzipBytes": 430
+    },
+    {
+      "path": "dist/scenes/fixture/quality/report.json",
+      "bytes": 814,
+      "gzipBytes": 386
+    },
+    {
+      "path": "dist/scenes/fixture/semantic/pois.json",
+      "bytes": 1421,
+      "gzipBytes": 492
+    },
+    {
+      "path": "dist/scenes/glb-fixture/manifest.json",
+      "bytes": 1293,
+      "gzipBytes": 710
+    },
+    {
+      "path": "dist/scenes/glb-fixture/navigation/nav-data.json",
+      "bytes": 702,
+      "gzipBytes": 430
+    },
+    {
+      "path": "dist/scenes/glb-fixture/quality/report.json",
+      "bytes": 933,
+      "gzipBytes": 448
+    },
+    {
+      "path": "dist/scenes/glb-fixture/semantic/pois.json",
+      "bytes": 1257,
+      "gzipBytes": 478
+    },
+    {
+      "path": "dist/scenes/glb-fixture/visual/architectural-fixture.glb",
+      "bytes": 13556,
+      "gzipBytes": 1905
+    }
+  ],
+  "scopes": {
+    "initialJavaScript": {
+      "bytes": 412840,
+      "gzipBytes": 127947
+    },
+    "lazyViewerJavaScript": {
+      "bytes": 2032329,
+      "gzipBytes": 521227
+    },
+    "generatedGlbFixture": {
+      "bytes": 13556,
+      "gzipBytes": 1905
+    }
+  },
+  "totalBytes": 2606164,
+  "totalGzipBytes": 737418
+}
