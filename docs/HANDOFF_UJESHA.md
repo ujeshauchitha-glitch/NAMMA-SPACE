@@ -92,20 +92,17 @@ Walk the whole room. Then, back in the repo root:
 ```
 
 ## 5. What to send Ojas
-Upload with the **Hugging Face website** (no CLI needed) to the public dataset [Ojas-CoderAI/namma-space-splats](https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats). Do **not** commit any of these to git.
-
-1. Sign in, open the dataset, then **Files and versions → + Contribute → Upload files**.
-2. Put each file under `capture/<room>/` (e.g. `capture/lab_room1/scene.sog`); type the folder into the path field before dropping files.
-3. Click the commit button at the bottom (**Commit changes to main**, or **Open a Pull Request** if you are not the owner) and **wait until the page shows the new commit**. Closing the tab before that loses the upload.
-4. Check that the files appear under **Files and versions**, then send Ojas the link (or the PR link).
+Put everything in the **shared Google Drive folder Ojas sends you**, in a subfolder named after the room (e.g. `lab_room1/`). Ojas uploads the splat to Hugging Face and updates the hosted viewer; you don't need a Hugging Face account. Do **not** commit any of these to git.
 
 | File | Why |
 |---|---|
-| `work\lab_room1\web\scene.sog` (or `scene.spz`) | the splat that goes online |
-| `viewer\dev-assets\models\scene.json` (after aligning) | spawn / scale / rotation for the hosted viewer |
+| `work\lab_room1\web\scene.sog` (or `scene.spz`) | the compressed splat Ojas puts online |
 | `work\lab_room1\report.json` | stage timings and check results, for the abstract |
-| `work\lab_room1\logs\pipeline.log` | only if something failed or looked odd |
-| a 30–60 s clip of the room, ≤ 100 MB (re-export or trim if bigger), as `sample/capture_short.mp4` | becomes `tests/sample_data/capture_short.mp4` |
+| the raw capture video (e.g. `C:\captures\lab_room1.mp4`) | archive, and the source of the short clip in `tests/sample_data/` |
 | 2–3 screenshots of the room in the viewer | for the abstract and video |
+| `viewer\dev-assets\models\scene.json` (after aligning) | spawn / scale / rotation for the hosted viewer |
+| `work\lab_room1\logs\pipeline.log` | only if something failed or looked odd |
+
+Wait until Drive shows every upload as finished (large videos take a while), then message Ojas.
 
 Keep the raw `.ply` (`work\lab_room1\splat_brush\splat.ply`) on your machine. Ojas will ask for it only if the compressed copy looks wrong.
