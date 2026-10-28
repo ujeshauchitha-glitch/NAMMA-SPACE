@@ -1,6 +1,6 @@
 # Handoff: capture → compressed splat (Windows + NVIDIA)
 
-For Ujesha. Goal: one real room, captured on a phone, reconstructed into `scene.sog` (≤ 50 MB) and sent to Ojas for hosting. Deadline: **31 Oct**. Everything below runs in **PowerShell** from the repo root unless a step says otherwise.
+For Ujesha. Goal: one real room, captured on a phone, reconstructed into `scene.sog` (≤ 50 MB) and sent to Ojas for hosting. **Deadline: real-capture outputs in the Drive folder by the evening of 30 Oct** (submission is 31 Oct). Stuck for more than ~20 min on anything? **Message Ojas** with the error text; don't wait. Everything below runs in **PowerShell** from the repo root unless a step says otherwise.
 
 ## 0. What changed since your last run
 - The pipeline now has a **compress** stage. It turns Brush's `.ply` into `.sog` (or `.spz`) under 50 MB. The raw `.ply` stays in `work\`; nothing large goes into `viewer\public` any more.
@@ -18,7 +18,12 @@ git checkout integration/round1
 powershell -ExecutionPolicy Bypass -File scripts\setup_tools.ps1
 .venv\Scripts\python pipeline\run_pipeline.py --doctor
 ```
-Every `--doctor` line must say `OK`. If setup stops with "open a new terminal and re-run", do exactly that; it resumes where it stopped.
+Already have a clone? Run `git fetch origin`, then `git checkout integration/round1`, then `git pull` instead of the first three lines.
+
+Every `--doctor` line must say `OK`. If setup fails:
+- "open a new terminal and re-run": do exactly that; it resumes where it stopped.
+- any other red error: re-run once (it's safe; half-finished downloads are redone).
+- still failing, or a `--doctor` line says `MISSING`: send Ojas the red error text and the `--doctor` output.
 
 ## 1b. Dry run first (~1 h, before the real capture)
 This proves every stage works on your machine before the real capture is at stake.
@@ -31,6 +36,7 @@ This proves every stage works on your machine before the real capture is at stak
    .venv\Scripts\python pipeline\run_pipeline.py C:\captures\dryrun.mp4 --out work\dryrun --title "Dry run" --steps 7000
    ```
    `--steps 7000` keeps Brush short; the real run uses the default 30000.
+   **Success:** the run ends with `DONE, NOT YET VERIFIED`, `work\dryrun\report.json` has `"status": "automated_checks_passed_awaiting_inspection"`, and `work\dryrun\web\scene.sog` (or `.spz`) exists.
 4. Open `http://localhost:5173/?scene=dev-assets/models/scene.json` (section 4) and check that something recognisable renders.
 5. **Report to Ojas before filming the real room**, even if everything passed:
    - setup problems, if any;
@@ -45,7 +51,7 @@ Full procedure: [SOP.md](SOP.md). The parts that decide success:
 | | Rule |
 |---|---|
 | **Length** | **At least 31 s** at the default 3 fps: the pipeline needs 80 usable frames after dropping the blurriest 15 %, and `--check` rejects shorter clips. **Aim for 60–120 s per room.** Maximum 900 s. |
-| Camera | Landscape, 1080p or 4K, 30 fps, **1x lens, no zoom**, stabilisation **off**, long-press to lock focus/exposure. |
+| Camera | Landscape, 1080p or 4K, 30 fps, **1x lens, no zoom**, stabilisation **off**, **HDR off**, long-press to lock focus/exposure (AE/AF lock). **Set everything before you press record and change nothing mid-clip.** |
 | Pace | Slow walk (~0.5 m/s). Pan at most ~20°/s; never spin in place. |
 | Path | Perimeter loop with the camera ~20° toward the wall, back to the start. Then 2 centre passes, a slow pan at each corner, and a half-arc round big furniture. **End where you started.** |
 | Overlap | Every surface should be in 3+ frames from different positions. Cross doorways slowly, both ways. |
@@ -60,7 +66,16 @@ Copy the video to the PC, e.g. `C:\captures\lab_room1.mp4`.
 .venv\Scripts\python pipeline\run_pipeline.py C:\captures\lab_room1.mp4 --out work\lab_room1 --check
 .venv\Scripts\python pipeline\run_pipeline.py C:\captures\lab_room1.mp4 --out work\lab_room1 --title "<Room name>"
 ```
-The first command validates only (seconds). The second runs frames → COLMAP → Brush (30k steps) → compress → publish. Expect roughly 5–15 min for COLMAP and 15–30 min for Brush. It ends with `DONE, NOT YET VERIFIED` and prints where `scene.sog` is.
+The first command validates only (seconds). The second runs frames → COLMAP → Brush (30k steps) → compress → publish. **Expect about 30–50 min in total on an RTX GPU** (estimate for an RTX 5060 8 GB with a 60–120 s clip: COLMAP 5–15 min, Brush 15–30 min, compress ~1 min). Your dry-run timings are the better guide. It ends with `DONE, NOT YET VERIFIED`.
+
+Outputs, all under `work\lab_room1\`:
+- `web\scene.sog` (or `.spz`): the compressed splat for the web
+- `splat_brush\splat.ply`: the raw splat
+- `dataset\` and `sparse\`: COLMAP output
+- `report.json`: status and timings
+- `logs\pipeline.log`: the full log
+
+The viewer copy goes to `viewer\dev-assets\models\`.
 
 If a stage fails, the message says what to do; `work\lab_room1\report.json` and `logs\pipeline.log` have the details. Common cases:
 
@@ -86,7 +101,17 @@ Open `http://localhost:5173/?scene=dev-assets/models/scene.json`. Then edit `vie
 - `spawn`: a point on the floor inside the room. `eyeHeight` stays 1.6.
 - `bounds` (optional): `[minX, maxX, minZ, maxZ]` to stop walking through walls.
 
-Walk the whole room. Then, back in the repo root:
+Walk the whole room, then decide whether it is good enough or needs a re-shoot.
+
+**Good enough** only if all of these hold:
+- `sfm.registration_ratio` in `report.json` is **≥ 0.90** (COLMAP registered ≥ 90 % of frames). Between 0.60 and 0.90 is a warning: look extra carefully. Below 0.60 the run already failed.
+- No `sfm_single_model` warning in `report.json` (the room didn't split into pieces).
+- **No floating blobs or smeared/doubled walls along the path you walked.** Fog far from the path or behind windows is acceptable.
+- Walls and floor are flat and straight; **doorways and furniture are recognisable** from the spawn point and while walking.
+
+**Re-shoot** if any of these fails. Fix the cause using the failure table above and the SOP, then rerun section 3 with a new `--out` folder. If unsure, send Ojas two screenshots and ask.
+
+When it is good enough, go back to the repo root and run:
 ```powershell
 .venv\Scripts\python pipeline\run_pipeline.py --approve work\lab_room1 --note "walked all walls, floor, door; minor floaters near window"
 ```
@@ -105,4 +130,4 @@ Put everything in the **shared Google Drive folder Ojas sends you**, in a subfol
 
 Wait until Drive shows every upload as finished (large videos take a while), then message Ojas.
 
-Keep the raw `.ply` (`work\lab_room1\splat_brush\splat.ply`) on your machine. Ojas will ask for it only if the compressed copy looks wrong.
+**Keep everything in `work\lab_room1\`, and don't delete it or run `--force` on it after a good run.** That includes the raw `.ply` (`splat_brush\splat.ply`) and the COLMAP output (`dataset\`, `sparse\`, `colmap.db`, `frames\`). Ojas may need them to re-compress, re-train, or build Round 2 navigation, and recreating them means another 30–50 min run. Don't upload them unless Ojas asks.
