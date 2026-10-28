@@ -2,14 +2,16 @@ import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark'
 import type { SceneConfig } from './config'
+import { fetchSplat, SplatLoadError, type LoadProgress } from './loadSplat'
 
 interface Props {
   config: SceneConfig
   onProgress: (state: 'loading' | 'ready' | 'error', message?: string) => void
+  onBytes: (p: LoadProgress) => void
 }
 
 /** Mounts Spark's renderer and one SplatMesh into the R3F scene. */
-export function SplatScene({ config, onProgress }: Props) {
+export function SplatScene({ config, onProgress, onBytes }: Props) {
   const { gl, scene } = useThree()
 
   useEffect(() => {
@@ -17,24 +19,36 @@ export function SplatScene({ config, onProgress }: Props) {
     scene.add(spark)
     const base = import.meta.env.BASE_URL
     const url = /^(https?:)?\/\//.test(config.splat) ? config.splat : `${base}${config.splat}`
-    const mesh = new SplatMesh({ url })
-    mesh.rotation.set(...config.rotation)
-    mesh.scale.setScalar(config.scale)
-    scene.add(mesh)
+    const abort = new AbortController()
+    let mesh: SplatMesh | null = null
 
-    let cancelled = false
     onProgress('loading')
-    mesh.initialized
-      .then(() => !cancelled && onProgress('ready'))
-      .catch((err: unknown) => !cancelled && onProgress('error', String(err)))
+    fetchSplat(url, onBytes, abort.signal)
+      .then((fileBytes) => {
+        if (abort.signal.aborted) return
+        mesh = new SplatMesh({ fileBytes, fileName: url.split(/[?#]/, 1)[0] })
+        mesh.rotation.set(...config.rotation)
+        mesh.scale.setScalar(config.scale)
+        scene.add(mesh)
+        return mesh.initialized.then(() => {
+          if (!abort.signal.aborted) onProgress('ready')
+        })
+      })
+      .catch((err: unknown) => {
+        if (abort.signal.aborted) return
+        const message = err instanceof SplatLoadError ? err.message : `Could not decode the splat: ${String(err)}`
+        onProgress('error', message)
+      })
 
     return () => {
-      cancelled = true
-      scene.remove(mesh)
+      abort.abort()
       scene.remove(spark)
-      mesh.dispose()
+      if (mesh) {
+        scene.remove(mesh)
+        mesh.dispose()
+      }
     }
-  }, [gl, scene, config, onProgress])
+  }, [gl, scene, config, onProgress, onBytes])
 
   return null
 }

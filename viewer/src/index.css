@@ -100,3 +100,29 @@ kbd {
 }
 
 .error { color: #ff8a8a !important; }
+
+.card.loading { min-width: 260px; }
+
+.bar {
+  height: 6px;
+  margin: 12px 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.bar .fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+
+.bar .fill.indeterminate {
+  width: 30%;
+  animation: slide 1.2s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
