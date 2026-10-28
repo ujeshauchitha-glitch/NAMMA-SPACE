@@ -71,3 +71,10 @@
 - Docs correction complete: README honest status+requirements, VALIDATION rewritten w/ EX-1..6, ARCHITECTURE matches actual schema + new contract bullets, DECISION_LOG D-014..D-019, PIPELINE staged-export honesty, new docs/PAIRING.md runbook, PROJECT_STATE 6 amendments.
 - Agent-reported contradictions (lead-reviewed, not silently fixed): WINDOWS_SETUP.md still documents removed Sift* flags + Python 3.10+; TRAINING.md stale "no reconstruction"/"nothing committed" lines; CAPTURE_SOP.md vs SOP.md disagreement; spec premise wrong re README claiming 3.10+; python3 now resolves 3.15.2 (Homebrew symlink update 02:45 IST - note: pipeline runs use .venv which is unaffected).
 - Remaining: T21 agent (in-flight: its untracked receive.ts currently breaks tsc - agent will fix before handoff); then T22/T23/T24, then T27 final gate.
+
+## 2026-10-29 04:35 IST — T21 committed (a56eaa1)
+- Live Scan journey wired end-to-end: ?pair= receiver entry, signalling lifecycle, WebRTC chunked transfer w/ SHA-256 acks (nack+retry+timeout honesty), receive->T11 ingest as source:'phone', event-driven stage rail, capture handoff.
+- ORIENTATION BUG FIXED with genuine red evidence: grabFrame mirrored reconstruction-bound frames (col0=10 expected vs 207 observed); saved frames now unmirrored, preview mirror opt-in. Frame cap 1600px unit-enforced.
+- Lead verification: vitest 558/558, typecheck 0, lint 0 errors (6 known-class react-refresh warnings), build ok (QR lazy 21KB). AC grep: zero simulated progress.
+- NOT claimed: device-to-device. T24 scope: mounted-effect e2e, ?pair click-through, real-hardware smoke.
+- Dispatching T22 (coverage visualizer, dep T21 done + T14). T23 (GSAP) queues behind T22 per spec deps.
