@@ -114,9 +114,36 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
 
 
 # ---------------------------------------------------------------- train
+def check_dataset(dataset: Path, report: Report) -> None:
+    """Fail with a clear message if Brush would mis-read the undistorted COLMAP dataset.
+
+    Brush 0.3 (brush-dataset/src/formats/colmap.rs, mod.rs) takes the first cameras.bin/.txt it finds
+    anywhere in the folder, so sparse/ and sparse/0/ both work; it silently skips images it cannot find,
+    and uses any single .ply in the folder as the initial splat.
+    """
+    cams = [p for p in dataset.rglob("cameras.*") if p.suffix in (".bin", ".txt")]
+    if not cams:
+        raise PipelineError(f"No COLMAP model in {dataset} (expected sparse/cameras.bin or sparse/0/cameras.bin). "
+                            f"Re-run with --force so COLMAP undistortion runs again.")
+    if len(cams) > 1:
+        raise PipelineError(f"{len(cams)} COLMAP models in {dataset} ({[str(c.parent) for c in cams]}); Brush would pick "
+                            "one at random. Re-run with --force.")
+    images = list_images(dataset / "images")
+    registered = report.data.get("sfm", {}).get("registered_images")
+    if not images or (registered and len(images) < registered):
+        raise PipelineError(f"{dataset / 'images'} has {len(images)} images but COLMAP registered {registered}; Brush "
+                            "would silently train on fewer views. Re-run with --force.")
+    stray = sorted(dataset.rglob("*.ply"))
+    if stray:
+        raise PipelineError(f"Found {[str(p) for p in stray]} inside the dataset; Brush would start from it instead of "
+                            "the COLMAP points. Delete it (or re-run with --force).")
+
+
 def train_brush(dataset: Path, export: Path, steps: int, log: Path) -> None:
-    run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps),
-         "--export-path", str(export), "--export-every", str(steps)], log, "Brush training")
+    # Flags checked against Brush v0.3.0 source (brush-cli, brush-process/src/config.rs). A positional source
+    # runs headless; export_every == total_steps writes exactly one file, at the last step.
+    run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps), "--export-path", str(export),
+         "--export-every", str(steps), "--export-name", "splat.ply"], log, "Brush training")
 
 
 def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None:
@@ -136,18 +163,36 @@ def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None
 TRAINERS = {"brush": train_brush, "nerfstudio": train_nerfstudio}
 
 
-def train(dataset: Path, work: Path, steps: int, trainer: str, log: Path) -> Path:
+def train_fingerprint(dataset: Path, trainer: str, steps: int) -> dict:
+    """What a trained splat depends on. A splat is reused only if all of this is unchanged."""
+    model = sorted(p for p in dataset.rglob("images.*") if p.suffix in (".bin", ".txt"))
+    stat = model[0].stat() if model else None
+    return {"trainer": trainer, "steps": steps,
+            "model": str(model[0]) if model else None,
+            "model_size": stat.st_size if stat else None, "model_mtime": stat.st_mtime if stat else None}
+
+
+def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path) -> Path:
     export = work / f"splat_{trainer}"
-    plys = sorted(export.glob("*.ply")) if export.exists() else []
-    if plys:
-        print("train: already done")
-        return plys[-1]
-    export.mkdir(parents=True, exist_ok=True)
+    want = train_fingerprint(dataset, trainer, steps)
+    done = report.data.get("train_output", {})
+    if done.get("fingerprint") == want and Path(done.get("ply", "")).is_file() \
+            and Path(done["ply"]).stat().st_size == done.get("bytes"):
+        print(f"train: reusing {done['ply']} (same COLMAP model, trainer and steps)")
+        return Path(done["ply"])
+    # Anything else in the export folder is stale (other steps, trainer run, or an interrupted run): never reuse it.
+    report.data.pop("train_output", None)
+    shutil.rmtree(export, ignore_errors=True)
+    export.mkdir(parents=True)
+    check_dataset(dataset, report)
     TRAINERS[trainer](dataset, export, steps, log)
-    plys = sorted(export.glob("*.ply"), key=lambda p: p.stat().st_mtime)
+    plys = sorted(export.rglob("*.ply"), key=lambda p: p.stat().st_mtime)
     if not plys:
         raise PipelineError(f"{trainer} finished but wrote no .ply into {export}. See {log}")
-    return plys[-1]
+    ply = plys[-1]
+    report.data["train_output"] = {"ply": str(ply), "bytes": ply.stat().st_size, "fingerprint": want}
+    report.save()
+    return ply
 
 
 # ---------------------------------------------------------------- publish
@@ -265,7 +310,7 @@ def main() -> int:
         report.stage("sfm", t.seconds)
 
         with Timer() as t:
-            splat = train(dataset, work, a.steps, a.trainer, log)
+            splat = train(dataset, work, a.steps, a.trainer, report, log)
         report.stage("train", t.seconds, steps=a.steps)
 
         print("== output checks")
