@@ -152,8 +152,8 @@ def run_reconstruction(args: argparse.Namespace) -> int:
     sparse.mkdir(parents=True, exist_ok=True)
     report["status"] = "running"
     commands = [
-        ("feature_extraction", [colmap, "feature_extractor", "--database_path", str(database), "--image_path", str(frames), "--ImageReader.single_camera", "1", "--SiftExtraction.use_gpu", "0"]),
-        ("feature_matching", [colmap, "exhaustive_matcher", "--database_path", str(database), "--SiftMatching.use_gpu", "0"]),
+        ("feature_extraction", [colmap, "feature_extractor", "--database_path", str(database), "--image_path", str(frames), "--ImageReader.single_camera", "1", "--FeatureExtraction.use_gpu", "0"]),
+        ("feature_matching", [colmap, "exhaustive_matcher", "--database_path", str(database), "--FeatureMatching.use_gpu", "0"]),
         ("sparse_mapping", [colmap, "mapper", "--database_path", str(database), "--image_path", str(frames), "--output_path", str(sparse)]),
     ]
     for stage, command in commands[:3]:
