@@ -17,6 +17,17 @@ FAILED = "failed"
 AWAITING_INSPECTION = "automated_checks_passed_awaiting_inspection"
 INSPECTED_OK = "inspected_ok"
 
+# Image types COLMAP reads. Matched case-insensitively (phones write .JPG).
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
+
+
+def list_images(folder: Path) -> list[Path]:
+    """Image files directly inside `folder`, any extension case; everything else is ignored."""
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXT)
+
+
 # Frame budget for video input. Validation and extraction both use usable_frames(), so a clip that
 # passes --check cannot fail the frame-count check after extraction.
 MIN_USABLE_FRAMES = 80

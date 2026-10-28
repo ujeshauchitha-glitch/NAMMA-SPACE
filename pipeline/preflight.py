@@ -8,9 +8,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common import MIN_USABLE_FRAMES, PipelineError, find_tool, min_duration_s, usable_frames
+from common import MIN_USABLE_FRAMES, PipelineError, find_tool, list_images, min_duration_s, usable_frames
 
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
 
 # Limits come from docs/SOP.md. Errors block the run; warnings are recorded.
@@ -120,7 +119,11 @@ def validate_photos(folder: Path, work: Path) -> tuple[dict, list[Issue]]:
     import cv2
 
     issues: list[Issue] = []
-    files = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXT)
+    files = list_images(folder)
+    heic = [p.name for p in folder.iterdir() if p.suffix.lower() in {".heic", ".heif"}]
+    if heic:
+        issues.append(Issue("warn", f"{len(heic)} HEIC/HEIF files ignored (COLMAP cannot read them), e.g. {heic[:3]}. "
+                                    "Export as JPG, or set iPhone Camera > Formats > Most Compatible."))
     if len(files) < MIN_PHOTOS:
         issues.append(Issue("error", f"{len(files)} photos found, need at least {MIN_PHOTOS}."))
     sizes: dict[tuple[int, int], int] = {}

@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import checks  # noqa: E402
 import preflight  # noqa: E402
 from common import (AWAITING_INSPECTION, BLUR_DROP, FAILED, INSPECTED_OK, MIN_USABLE_FRAMES, ROOT,  # noqa: E402
-                    PipelineError, Report, Timer, find_tool, run)
+                    PipelineError, Report, Timer, find_tool, list_images, run)
 
 
 # ---------------------------------------------------------------- frames
@@ -67,11 +67,23 @@ def drop_blurry(frames: Path, drop: float = BLUR_DROP) -> int:
     return kept
 
 
+def copy_photos(src: Path, frames: Path) -> int:
+    """Copy only the image files from `src` (COLMAP would trip over videos, .HEIC, sidecars)."""
+    frames.mkdir(parents=True, exist_ok=True)
+    images = list_images(src)
+    for f in images:
+        if not (frames / f.name).exists():
+            shutil.copy2(f, frames / f.name)
+    skipped = sum(1 for p in src.iterdir() if p.is_file()) - len(images)
+    print(f"frames: copied {len(images)} photos" + (f" (ignored {skipped} non-image files)" if skipped else ""))
+    return len(list_images(frames))
+
+
 # ---------------------------------------------------------------- sfm
 def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
     colmap = find_tool("colmap")
     db, images, sparse, dataset = work / "colmap.db", work / "frames", work / "sparse", work / "dataset"
-    total = len(list(images.glob("*.jpg"))) + len(list(images.glob("*.png")))
+    total = len(list_images(images))
     if (dataset / "sparse").exists():
         print("sfm: already done")
         return dataset
@@ -240,8 +252,7 @@ def main() -> int:
         matcher = a.matcher or ("exhaustive" if is_dir else "sequential")
         with Timer() as t:
             if is_dir:
-                shutil.copytree(a.input, work / "frames", dirs_exist_ok=True)
-                n = len(list((work / "frames").iterdir()))
+                n = copy_photos(a.input, work / "frames")
             else:
                 n = extract_frames(a.input, work, a.fps, a.width, log)
         report.stage("frames", t.seconds, kept=n)
