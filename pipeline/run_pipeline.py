@@ -209,6 +209,10 @@ def publish(splat: Path, title: str, report: Report) -> None:
 
 
 # ---------------------------------------------------------------- commands
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def cmd_doctor(trainer: str, gpu: bool) -> int:
     print(f"Dependency check (trainer={trainer}):")
     return 0 if preflight.print_doctor(preflight.doctor(trainer, gpu)) else 1
@@ -220,7 +224,7 @@ def cmd_approve(work: Path, note: str) -> int:
         print(f"Cannot approve: status is {report.data.get('status')!r}, expected {AWAITING_INSPECTION!r}.")
         return 1
     report.data["status"] = INSPECTED_OK
-    report.data["inspection"] = {"note": note, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    report.data["inspection"] = {"note": note, "at": now()}
     report.save()
     print(f"{work}: marked {INSPECTED_OK}.")
     return 0
@@ -263,9 +267,11 @@ def main() -> int:
     (work / "logs").mkdir(exist_ok=True)
     log = work / "logs" / "pipeline.log"
     report = Report.load(work)
-    report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer,
-                       params={"fps": a.fps, "width": a.width, "steps": a.steps})
-    report.save()
+    # --check only validates: it records its result under last_check and never touches the run's status.
+    if not a.check:
+        report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer,
+                           params={"fps": a.fps, "width": a.width, "steps": a.steps})
+        report.save()
 
     try:
         print("== dependencies")
@@ -283,7 +289,8 @@ def main() -> int:
         report.data["input_info"] = info
         for k in [k for k in report.data.get("checks", {}) if k.startswith("input:")]:
             del report.data["checks"][k]  # drop stale input checks from a previous run
-        report.data.pop("error", None)
+        if not a.check:
+            report.data.pop("error", None)
         if not issues:
             print("  [PASS] input looks usable")
         for n, i in enumerate(issues):
@@ -291,6 +298,8 @@ def main() -> int:
         if any(i.level == "error" for i in issues):
             raise PipelineError("Input failed validation (see above). Fix the capture, not the thresholds.")
         if a.check:
+            report.data["last_check"] = {"ok": True, "input": str(a.input), "at": now()}
+            report.save()
             print("\nOK: dependencies and input look usable. Nothing was processed (--check).")
             return 0
 
@@ -325,8 +334,11 @@ def main() -> int:
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
     except PipelineError as e:
-        report.data["status"] = FAILED
-        report.data["error"] = str(e)
+        if a.check:
+            report.data["last_check"] = {"ok": False, "input": str(a.input), "at": now(), "error": str(e)}
+        else:
+            report.data["status"] = FAILED
+            report.data["error"] = str(e)
         report.save()
         print(f"\nFAILED: {e}\nReport: {report.path}", file=sys.stderr)
         return 1
