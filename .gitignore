@@ -16,6 +16,6 @@ __pycache__/
 viewer/public/models/scene.ply
 viewer/public/models/scene.spz
 # Round 2 studio app (from main): pipeline working folders
-public/scenes/*/input/
-public/scenes/*/frames/
-public/scenes/*/output/
+apps/studio/public/scenes/*/input/
+apps/studio/public/scenes/*/frames/
+apps/studio/public/scenes/*/output/

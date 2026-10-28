@@ -58,6 +58,7 @@ scripts/    setup_tools.ps1
 viewer/     web app
 docs/       SOP.md
 tests/      sample data (see tests/sample_data/README.md)
+apps/studio Round 2 studio app (from main)
 ```
 
 ## Status
@@ -69,8 +70,8 @@ tests/      sample data (see tests/sample_data/README.md)
 
 ## Round 2 groundwork (studio app)
 
-The repository also contains the studio app from the `main` branch: Capture Studio, a PlayCanvas viewer with POI search and A* routes over an occupancy grid, and Live Scan phone pairing. It is kept for Round 2 and is not part of the Round 1 submission. Its docs:
-[README](STUDIO_README.md) · [Architecture](ARCHITECTURE.md) · [Pipeline](PIPELINE.md) · [Capture SOP](CAPTURE_SOP.md) · [Validation](VALIDATION.md) · [Roadmap](ROADMAP.md) · [Decision log](DECISION_LOG.md) · [Windows setup](WINDOWS_SETUP.md)
+The repository also contains the studio app from the `main` branch: Capture Studio, a PlayCanvas viewer with POI search and A* routes over an occupancy grid, and Live Scan phone pairing. It lives in [`apps/studio/`](apps/studio/) (run `npm ci && npm run dev` there), is kept for Round 2, and is not part of the Round 1 submission. Its docs:
+[README](apps/studio/README.md) · [Architecture](apps/studio/ARCHITECTURE.md) · [Pipeline](apps/studio/PIPELINE.md) · [Capture SOP](apps/studio/CAPTURE_SOP.md) · [Validation](apps/studio/VALIDATION.md) · [Roadmap](apps/studio/ROADMAP.md) · [Decision log](apps/studio/DECISION_LOG.md) · [Windows setup](apps/studio/WINDOWS_SETUP.md)
 
 ## Credits
 COLMAP (BSD), Brush (Apache-2.0), Spark (MIT), three.js (MIT), react-three-fiber (MIT).
