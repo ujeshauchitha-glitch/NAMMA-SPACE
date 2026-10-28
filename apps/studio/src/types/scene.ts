@@ -3,11 +3,55 @@ import { z } from 'zod';
 const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
 const Matrix4Schema = z.array(z.array(z.number()).length(4)).length(4);
 
+/* ------------------------------------------------------------------ *
+ * D3 · one URI contract for the browser loader and the Python
+ * validator (scripts/validate_scene.py). A scene URI is a bundle-
+ * relative POSIX path: no scheme (except procedural:// on procedural
+ * assets), no leading slash, no backslash, no query/fragment and no
+ * '..' segment. Resolution additionally keeps the target inside the
+ * declaring manifest's directory on the app origin — see
+ * sceneLoader.resolveSceneUri for the resolution-time enforcement.
+ * ------------------------------------------------------------------ */
+const SCHEME_PATTERN = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+export function isBundleRelativeUri(uri: string): boolean {
+  if (uri.length === 0 || uri !== uri.trim()) return false;
+  if (SCHEME_PATTERN.test(uri)) return false;
+  if (uri.startsWith('/') || uri.includes('\\')) return false;
+  if (uri.includes('?') || uri.includes('#')) return false;
+  return !uri.split('/').includes('..');
+}
+
 export const AssetRefSchema = z.object({
   kind: z.enum(['glb', 'gltf', 'sog', 'procedural']),
   uri: z.string().min(1),
   label: z.string().optional(),
   sha256: z.string().optional(),
+}).superRefine((asset, context) => {
+  if (asset.kind === 'procedural') {
+    // Procedural assets are engine-built and never fetched, so they are the
+    // only entries allowed a scheme — and it must be procedural://.
+    if (!asset.uri.startsWith('procedural://')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['uri'],
+        message: `procedural asset URI must use the procedural:// scheme (engine-built assets are never fetched): ${asset.uri}`,
+      });
+    }
+  } else if (!isBundleRelativeUri(asset.uri)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['uri'],
+      message: `visual asset URI must be bundle-relative (no scheme, no leading slash, no '..', no query/fragment): ${asset.uri}`,
+    });
+  }
+  if (asset.sha256 !== undefined && !/^[0-9a-f]{64}$/.test(asset.sha256)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['sha256'],
+      message: `malformed sha256 digest for ${asset.uri} — expected 64 lowercase hex characters.`,
+    });
+  }
 });
 
 export const QualityReportSchema = z.object({
@@ -104,10 +148,62 @@ export const SceneManifestSchema = z.object({
   if (manifest.sceneKind === 'synthetic-demo' && !manifest.provenance.source.toLowerCase().includes('synthetic')) {
     context.addIssue({ code: 'custom', path: ['provenance', 'source'], message: 'Synthetic scenes must identify their synthetic provenance.' });
   }
+
+  /* D2 · dead-field honesty — the renderer applies neither value below, so
+   * only the shapes it actually honours are accepted:
+   *  - worldFromReconstruction: identity only (schemaVersion 1 semantics;
+   *    non-identity transforms are rejected with an actionable message until
+   *    the engine applies them to geometry, POIs, navigation and the start
+   *    pose end-to-end),
+   *  - collisionAsset: null only (the navigation grid is the collision
+   *    model; a declared collision mesh would never be loaded).
+   * Shipped bundles in public/scenes/* already use identity/null, so this
+   * tightens the contract without breaking them. The Python validator
+   * (scripts/validate_scene.py) enforces the same two rules. */
+  const matrix = manifest.worldFromReconstruction;
+  const isIdentity = matrix.length === 4 && matrix.every((row, rowIndex) =>
+    row.length === 4 && row.every((value, columnIndex) => value === (rowIndex === columnIndex ? 1 : 0)));
+  if (!isIdentity) {
+    context.addIssue({
+      code: 'custom',
+      path: ['worldFromReconstruction'],
+      message: 'worldFromReconstruction must be the identity matrix — the viewer applies no reconstruction→world transform, so non-identity transforms are rejected until the engine applies them end-to-end.',
+    });
+  }
+  if (manifest.collisionAsset !== null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['collisionAsset'],
+      message: 'collisionAsset is not supported: the viewer never loads a collision mesh — declare obstacles in navigation.blocked/unknown instead.',
+    });
+  }
+
+  /* D3 · every document the bundle references must obey the same
+   * bundle-relative URI policy at parse time (resolution-time enforcement
+   * lives in sceneLoader.resolveSceneUri; the Python validator checks the
+   * identical rules). */
+  const bundleReferences: Array<[string, string | null | undefined]> = [
+    ['semanticUri', manifest.semanticUri],
+    ['qualityUri', manifest.qualityUri],
+    ['navigationUri', manifest.navigationUri],
+    ['sourceFrameManifest', manifest.sourceFrameManifest],
+    ['processingReportUri', manifest.processingReportUri],
+  ];
+  for (const [role, uri] of bundleReferences) {
+    if (uri == null) continue;
+    if (!isBundleRelativeUri(uri)) {
+      context.addIssue({
+        code: 'custom',
+        path: [role],
+        message: `${role} must be a bundle-relative scene URI (no scheme, no leading slash, no '..', no query/fragment): ${uri}`,
+      });
+    }
+  }
 });
 
 export type Vec3 = z.infer<typeof Vec3Schema>;
 export type Poi = z.infer<typeof PoiSchema>;
+export type AssetRef = z.infer<typeof AssetRefSchema>;
 export type NavigationGrid = z.infer<typeof NavigationSchema>;
 export type SceneManifest = z.infer<typeof SceneManifestSchema>;
 export type QualityReport = z.infer<typeof QualityReportSchema>;

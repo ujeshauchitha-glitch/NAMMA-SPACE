@@ -8,9 +8,10 @@ import {
   StandardMaterial,
   Vec3 as PcVec3,
 } from 'playcanvas';
-import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
+import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
-import { resolveSceneUri } from '../lib/sceneLoader';
+import { resolveWalkableStep } from '../lib/movement';
+import { assetFailureMessage, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
 
@@ -50,6 +51,8 @@ export class PlayCanvasViewer {
   private readonly sceneMaterials: StandardMaterial[] = [];
   private readonly loadedAssets: Asset[] = [];
   private routeMaterial: StandardMaterial | null = null;
+  /** D3: one status line per held keypress when movement is unverifiable. */
+  private movementNoticePending = false;
   private readonly resizeObserver: ResizeObserver;
   private readonly onKeyDown = (event: KeyboardEvent) => {
     if (document.pointerLockElement !== this.canvas && document.activeElement !== this.canvas) return;
@@ -228,7 +231,19 @@ export class PlayCanvasViewer {
   private update(dt: number): void {
     const inputX = (this.pressedKeys.has('KeyD') || this.pressedKeys.has('ArrowRight') ? 1 : 0) - (this.pressedKeys.has('KeyA') || this.pressedKeys.has('ArrowLeft') ? 1 : 0);
     const inputZ = (this.pressedKeys.has('KeyS') || this.pressedKeys.has('ArrowDown') ? 1 : 0) - (this.pressedKeys.has('KeyW') || this.pressedKeys.has('ArrowUp') ? 1 : 0);
-    if (!inputX && !inputZ) return;
+    if (!inputX && !inputZ) {
+      this.movementNoticePending = false;
+      return;
+    }
+    // D3 · no navigation grid means nothing is verified — refuse free-roam
+    // with an honest status line instead of walking on faith.
+    if (!this.navigation) {
+      if (!this.movementNoticePending) {
+        this.callbacks.onStatus('Navigation data is unavailable — walkthrough movement is disabled for this scene');
+        this.movementNoticePending = true;
+      }
+      return;
+    }
 
     const length = Math.hypot(inputX, inputZ) || 1;
     const forward = this.yawPivot.forward;
@@ -240,8 +255,8 @@ export class PlayCanvasViewer {
       current[1],
       current[2] + (right.z * inputX - forward.z * inputZ) * distance,
     ];
-    const cell = this.navigation ? worldToCell(this.navigation, candidate) : null;
-    if (!this.navigation || (cell && isWalkable(this.navigation, cell))) {
+    // Blocked and unknown cells are both refused (resolveWalkableStep).
+    if (resolveWalkableStep(this.navigation, candidate)) {
       this.yawPivot.setPosition(candidate[0], current[1] - PLAYER_HEIGHT, candidate[2]);
       this.emitPosition();
     }
@@ -306,23 +321,33 @@ export class PlayCanvasViewer {
     const assets = this.manifest.visualAssets.filter((asset) => asset.kind === 'glb' || asset.kind === 'gltf');
     if (assets.length === 0) return;
 
+    // D3 · declared sha256 digests are verified before the renderer touches
+    // the bytes; failures surface as distinct, actionable status lines.
     assets.forEach((assetRef) => {
-      const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
-      const asset = new Asset(assetRef.label ?? assetRef.uri, 'container', { url });
-      asset.once('load', () => {
-        if (!asset.resource) return;
-        const entity = asset.resource.instantiateRenderEntity();
-        entity.name = assetRef.label ?? 'visual-asset';
-        this.app.root.addChild(entity);
-        this.callbacks.onStatus(`Loaded ${assetRef.label ?? 'visual asset'}`);
-      });
-      asset.once('error', (error: unknown) => {
-        this.callbacks.onStatus(`Visual asset unavailable: ${String(error)}`);
-      });
-      this.app.assets.add(asset);
-      this.loadedAssets.push(asset);
-      this.app.assets.load(asset);
+      void verifyAssetIntegrity(this.manifestUrl, assetRef)
+        .then(() => this.attachVisualAsset(assetRef))
+        .catch((error: unknown) => {
+          this.callbacks.onStatus(assetFailureMessage(assetRef, error));
+        });
     });
+  }
+
+  private attachVisualAsset(assetRef: AssetRef): void {
+    const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
+    const asset = new Asset(assetRef.label ?? assetRef.uri, 'container', { url });
+    asset.once('load', () => {
+      if (!asset.resource) return;
+      const entity = asset.resource.instantiateRenderEntity();
+      entity.name = assetRef.label ?? 'visual-asset';
+      this.app.root.addChild(entity);
+      this.callbacks.onStatus(`Loaded ${assetRef.label ?? 'visual asset'}`);
+    });
+    asset.once('error', (error: unknown) => {
+      this.callbacks.onStatus(`Visual asset unavailable: ${String(error)}`);
+    });
+    this.app.assets.add(asset);
+    this.loadedAssets.push(asset);
+    this.app.assets.load(asset);
   }
 
   private buildPoiMarkers(): void {

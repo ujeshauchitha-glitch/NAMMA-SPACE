@@ -40,3 +40,8 @@
   - Matches team's 2/73 real-photo failure signature exactly → their "unusable capture" verdict was at least partly a pipeline bug.
 - Dispatched camera-model fix agent: pipeline/run_pipeline.py (+ root tests/docs references), SIMPLE_RADIAL explicit, gates untouched, no apps/studio edits.
 - Next: after fix commits → rerun pipeline --force (sfm ~5 min + train ~20-40 min on Metal). Known risk: sparse points 1658 < 2000 gate on first manual model — if the rerun still fails the points gate, that is an HONEST capture-quality blocker (no threshold weakening), to be recorded in BLOCKERS.md with exact numbers.
+
+## 2026-10-29 03:43 IST — Pipeline run #2 (SIMPLE_RADIAL): near-miss 57%, camera-model fix validated
+- Run #2 with a4299f5 fix: registration 2/70 (3%) -> 40/70 (57%) in model 0 + disconnected 17-img model 1 (WARN: room split). Points 229 -> 2857 (PASS >=2000), reprojection 0.92px (PASS <=1.5). Gate fail = registration 57% < 60% (needs 42 imgs). Exit 1, no training. report.json honest fail.
+- Camera-model fix PROVEN as the dominant defect: 3% -> 57% on identical capture. Remaining gap (57 vs 60) + split = capture overlap weakness + mapper nondeterminism (same db class gave 59/70 and 50/70 in two earlier manual runs; pipeline attempt landed 40).
+- Decision: ONE documented full rerun (nondeterministic mapper; no threshold changes, no manual stage bypass to keep report.json/reproducibility intact). If <60% again -> B record as BLOCKED with split-room evidence + re-shoot ask per pipeline's own WARN text. Both attempts logged regardless of outcome.
