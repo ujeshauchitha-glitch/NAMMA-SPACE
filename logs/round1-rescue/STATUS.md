@@ -12,7 +12,7 @@
 | ID | Task | Status |
 |----|------|--------|
 | A  | Safe integration baseline (rescue branch) | PASS (rescue @ 70132ba; push policy D-002) |
-| B  | Real-capture feasibility | IN_PROGRESS (70 photos delivered; colmap install pending) |
+| B  | Real-capture feasibility | IN_PROGRESS (COLMAP 4.2.1 CPU installed; SfM run on 70 normalized imgs in progress) |
 | C  | ZIP → prepare_capture.py seam | IN_PROGRESS (subagent) |
 | D1 | Navigation octile heuristic | IN_PROGRESS (subagent) |
 | D2 | Scene transform/collision contract | NOT_STARTED |

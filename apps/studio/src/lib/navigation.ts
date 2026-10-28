@@ -69,8 +69,32 @@ export function cellToWorld(grid: NavigationGrid, cell: GridCell, y = 0.05): Vec
   ];
 }
 
+/**
+ * Step costs of the 8-connected grid model used by `findRoute`'s relaxation
+ * step (formerly inline literals at the neighbour loop). Named so the
+ * heuristic below provably matches the same cost model.
+ */
+const ORTHOGONAL_STEP_COST = 1;
+const DIAGONAL_STEP_COST = 1.4142;
+
+/**
+ * Octile distance: the exact cost of the cheapest 8-connected path between two
+ * cells on an obstacle-free grid under ORTHOGONAL/DIAGONAL step costs. Every
+ * diagonal step covers one unit on each axis, so an optimal path uses
+ * min(dx, dz) diagonals plus max(dx, dz) − min(dx, dz) straight steps.
+ *
+ * Admissible: obstacles and corner-cutting rules can only make real routes
+ * more expensive, never cheaper, so h never overestimates the true cost.
+ * Consistent: h(a) ≤ c(a, b) + h(b) holds for every orthogonal step
+ * (Δh ≤ 1 = c) and every diagonal step (Δh ≤ 1.4142 = c), which is the
+ * triangle inequality of the octile metric.
+ */
 function heuristic(a: GridCell, b: GridCell): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+  const dx = Math.abs(a.x - b.x);
+  const dz = Math.abs(a.z - b.z);
+  const diagonals = Math.min(dx, dz);
+  const straight = Math.max(dx, dz) - diagonals;
+  return diagonals * DIAGONAL_STEP_COST + straight * ORTHOGONAL_STEP_COST;
 }
 
 function neighbors(grid: NavigationGrid, cell: GridCell): GridCell[] {
@@ -138,7 +162,7 @@ export function findRoute(grid: NavigationGrid, start: GridCell, goal: GridCell)
     open.delete(currentKey);
     for (const next of neighbors(grid, current)) {
       const nextKey = key(next);
-      const stepCost = next.x !== current.x && next.z !== current.z ? 1.4142 : 1;
+      const stepCost = next.x !== current.x && next.z !== current.z ? DIAGONAL_STEP_COST : ORTHOGONAL_STEP_COST;
       const newCost = (cost.get(currentKey) ?? Infinity) + stepCost;
       if (newCost < (cost.get(nextKey) ?? Infinity)) {
         cameFrom.set(nextKey, currentKey);
