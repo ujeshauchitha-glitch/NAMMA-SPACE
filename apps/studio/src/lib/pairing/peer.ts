@@ -25,6 +25,7 @@ import {
   type CaptureStateMessage,
   type FrameAckMessage,
   type FrameChunkHeader,
+  type FrameNackMessage,
   type IceCandidateInit,
   type PairingMessage,
   type SessionDescriptionInit,
@@ -88,7 +89,9 @@ export type PeerEvent =
   | { type: 'message'; message: PairingMessage }
   | { type: 'malformed'; raw: string }
   /** One inbound binary frame chunk — opaque bytes, not JSON. */
-  | { type: 'bytes'; data: ArrayBuffer };
+  | { type: 'bytes'; data: ArrayBuffer }
+  /** The capture channel closed (local or remote) — sends now fail closed. */
+  | { type: 'channel-closed' };
 
 export type PeerSignal = { description: SessionDescriptionInit } | { candidate: IceCandidateInit };
 
@@ -109,6 +112,8 @@ export type PairingPeer = {
   sendFramePayload(payload: ArrayBuffer | Uint8Array): boolean;
   /** Push a `frame-ack`; `false` when the channel is not open. */
   sendFrameAck(ack: FrameAckMessage): boolean;
+  /** Push a `frame-nack` (verification failed); `false` when not open. */
+  sendFrameNack(nack: FrameNackMessage): boolean;
   /** Tear down the connection; further sends fail closed. */
   close(): void;
   /** Subscribe; returns the unsubscribe function. */
@@ -145,6 +150,13 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
     // Deliver binary payloads as `ArrayBuffer` (not Blob) so the receive
     // side can reassemble synchronously.
     next.binaryType = 'arraybuffer';
+    next.onclose = () => {
+      // Only report a live channel's death — teardown-detached closes are
+      // the local side's own doing and never surprise the session.
+      if (channel !== next) return;
+      channel = null;
+      emit({ type: 'channel-closed' });
+    };
     next.onmessage = (event) => {
       const raw = event?.data;
       if (typeof raw === 'string') {
@@ -235,6 +247,22 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
     channel = null;
   };
 
+  /**
+   * One honest send: `false` when the channel is missing, not open, or the
+   * underlying `send` throws (a channel the remote side just closed raises
+   * `InvalidStateError` in real browsers — never let that escape through a
+   * caller's loop).
+   */
+  const trySend = (data: string | ArrayBuffer): boolean => {
+    if (!channel || channel.readyState !== 'open') return false;
+    try {
+      channel.send(data);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return {
     get role() {
       return role;
@@ -275,30 +303,30 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
       // An answer completes the exchange; ICE candidates flow from here.
     },
 
+    /**
+     * Sends fail closed (`false`) when the channel is missing, not open, or
+     * the underlying `send` throws — never thrown through the caller.
+     */
     sendCaptureState(message: CaptureStateMessage): boolean {
-      if (!channel || channel.readyState !== 'open') return false;
-      channel.send(JSON.stringify(message));
-      return true;
+      return trySend(JSON.stringify(message));
     },
 
     sendFrameChunk(header: FrameChunkHeader): boolean {
-      if (!channel || channel.readyState !== 'open') return false;
-      channel.send(JSON.stringify(header));
-      return true;
+      return trySend(JSON.stringify(header));
     },
 
     sendFramePayload(payload: ArrayBuffer | Uint8Array): boolean {
-      if (!channel || channel.readyState !== 'open') return false;
       // slice() yields an ArrayBuffer covering exactly this chunk even when
       // the input view aliases a larger frame buffer.
-      channel.send(payload instanceof Uint8Array ? payload.slice().buffer : payload);
-      return true;
+      return trySend(payload instanceof Uint8Array ? payload.slice().buffer : payload);
     },
 
     sendFrameAck(ack: FrameAckMessage): boolean {
-      if (!channel || channel.readyState !== 'open') return false;
-      channel.send(JSON.stringify(ack));
-      return true;
+      return trySend(JSON.stringify(ack));
+    },
+
+    sendFrameNack(nack: FrameNackMessage): boolean {
+      return trySend(JSON.stringify(nack));
     },
 
     close(): void {

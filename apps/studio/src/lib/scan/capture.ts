@@ -68,6 +68,20 @@ export type GrabFrameDeps = {
   createCanvas(width: number, height: number): CanvasLike;
 };
 
+export type GrabFrameOptions = {
+  /**
+   * Flip the saved frame horizontally (matches the selfie preview).
+   *
+   * `false` (the default) is the reconstruction-bound behaviour: camera
+   * sensors are not mirrored, so saved frames must keep the scene's true
+   * left/right orientation. The preview's mirror is CSS-only
+   * (`CameraPreview.module.css` `transform: scaleX(-1)`) and never leaks
+   * into the bytes — display mirroring and saved-frame orientation are
+   * deliberately separate concerns (T21 audit).
+   */
+  mirror?: boolean;
+};
+
 function domCreateCanvas(width: number, height: number): CanvasLike {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -80,13 +94,15 @@ const defaultGrabFrameDeps: GrabFrameDeps = { createCanvas: domCreateCanvas };
 /**
  * Draw one frame from `video` into a capped canvas and encode it as JPEG.
  *
- * The draw is horizontally mirrored so the captured bytes match the
- * mirrored selfie preview the user was framing against. The promise
- * rejects with an honest reason — it never resolves an empty blob.
+ * The saved pixels are UNMIRRORED by default so reconstruction-bound frames
+ * carry the scene's true orientation; pass `{ mirror: true }` only when the
+ * bytes are meant to match the mirrored preview display. The promise rejects
+ * with an honest reason — it never resolves an empty blob.
  */
 export async function grabFrame(
   video: VideoSourceLike,
   deps: GrabFrameDeps = defaultGrabFrameDeps,
+  options: GrabFrameOptions = {},
 ): Promise<Blob> {
   const { videoWidth, videoHeight } = video;
   if (!Number.isFinite(videoWidth) || !Number.isFinite(videoHeight) || videoWidth <= 0 || videoHeight <= 0) {
@@ -100,8 +116,10 @@ export async function grabFrame(
   }
 
   ctx.save();
-  ctx.translate(width, 0);
-  ctx.scale(-1, 1);
+  if (options.mirror === true) {
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(video, 0, 0, width, height);
   ctx.restore();
 

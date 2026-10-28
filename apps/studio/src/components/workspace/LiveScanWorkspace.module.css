@@ -27,6 +27,76 @@
   min-width: 0;
 }
 
+/* Main column: camera/frames stack above their controls. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.captureRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Real progress only — chunk counts come from the frame-ack tracker. */
+.progress {
+  font: var(--text-meta);
+  color: var(--text-dim);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-dim);
+}
+
+.failure {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--error);
+}
+
+/* Received-frames summary + Capture Studio handoff. */
+.frames {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.framesTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.framesNote {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-dim);
+}
+
+.handoff {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-strong);
+  border-radius: var(--radius-2);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.handoff:hover {
+  border-color: var(--accent-lime);
+}
+
 @media (max-width: 1024px) {
   .layout {
     grid-template-columns: 1fr;

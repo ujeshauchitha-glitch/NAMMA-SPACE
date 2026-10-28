@@ -57,6 +57,7 @@ export {
   CaptureStateSchema,
   FrameAckSchema,
   FrameChunkHeaderSchema,
+  FrameNackSchema,
   IceCandidateSchema,
   PairingMessageSchema,
   SessionDescriptionSchema,
@@ -66,6 +67,7 @@ export {
   type CaptureStateMessage,
   type FrameAckMessage,
   type FrameChunkHeader,
+  type FrameNackMessage,
   type IceCandidateInit,
   type PairingMessage,
   type SessionDescriptionInit,
@@ -90,3 +92,21 @@ export {
   isSecureContextBlocked,
   readIsSecureContext,
 } from './secure-context';
+
+export {
+  createPairingSession,
+  type PairingSession,
+  type PairingSessionEvent,
+  type PairingSessionOptions,
+  type PairingSessionRole,
+  type ReceivedFrame,
+  type SendFrameResult,
+} from './session';
+
+export { legalPairingPath, pairingSyncActions } from './rail-sync';
+
+export {
+  createPairingSyncBridge,
+  type PairingSyncBridge,
+  type PairingSyncBridgeOptions,
+} from './bridge';

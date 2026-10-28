@@ -90,11 +90,31 @@ export const FrameAckSchema = z.object({
 });
 export type FrameAckMessage = z.infer<typeof FrameAckSchema>;
 
+/**
+ * Desktop → phone rejection for a frame that arrived but **failed SHA-256
+ * verification** (or was otherwise unusable). Sent instead of a `frame-ack`,
+ * so a corrupted transfer is reported loudly to the sender and can be
+ * retransmitted — the desktop never stages a frame it could not verify, and
+ * the phone never waits forever for an ack that will not come.
+ *
+ * `reason` is the assembler's exact `invalid { reason }` text (provenance for
+ * the operator), `at` is the desktop clock — provenance only, per `FrameAck`.
+ */
+export const FrameNackSchema = z.object({
+  type: z.literal('frame-nack'),
+  frameId: z.string().min(1),
+  /** Human-readable verification failure — verbatim from the assembler. */
+  reason: z.string().min(1),
+  at: z.number().int().nonnegative(),
+});
+export type FrameNackMessage = z.infer<typeof FrameNackSchema>;
+
 /** Discriminated union of everything allowed on the `capture` channel. */
 export const PairingMessageSchema = z.discriminatedUnion('type', [
   CaptureStateSchema,
   FrameChunkHeaderSchema,
   FrameAckSchema,
+  FrameNackSchema,
 ]);
 export type PairingMessage = z.infer<typeof PairingMessageSchema>;
 

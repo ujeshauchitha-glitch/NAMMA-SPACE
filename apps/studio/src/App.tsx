@@ -22,8 +22,18 @@ import type { WorkspaceAction } from './state/types';
  */
 
 function resolveInitialWorkspace(): WorkspaceId {
-  const requested = new URLSearchParams(window.location.search).get('workspace');
-  return requested && isWorkspaceId(requested) ? requested : DEFAULT_WORKSPACE;
+  const params = new URLSearchParams(window.location.search);
+  const requested = params.get('workspace');
+  if (requested && isWorkspaceId(requested)) return requested;
+  // A `?pair=` link always lands on Live Scan — that is the phone's own
+  // workspace (invalid tokens render an honest "link not valid" state there).
+  if (params.has('pair')) return 'scan';
+  return DEFAULT_WORKSPACE;
+}
+
+/** Raw `?pair=` value from the entry URL; validated downstream (T21). */
+export function readPairToken(search: string): string | null {
+  return new URLSearchParams(search).get('pair');
 }
 
 export default function App() {
@@ -57,6 +67,7 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
   dispatchRef.current = dispatch;
 
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(resolveInitialWorkspace);
+  const [pairToken] = useState<string | null>(() => readPairToken(window.location.search));
   const [sceneState, setSceneState] = useState('No scene loaded');
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
@@ -91,7 +102,7 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
       >
         {activeWorkspace === 'capture' && <CaptureStudioWorkspace />}
         {activeWorkspace === 'viewer' && <SpatialViewerWorkspace onStateChange={handleSceneState} />}
-        {activeWorkspace === 'scan' && <LiveScanWorkspace />}
+        {activeWorkspace === 'scan' && <LiveScanWorkspace pairToken={pairToken} />}
       </AppShell>
       <ToastRegion
         toasts={state.toasts}

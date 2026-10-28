@@ -48,6 +48,13 @@ export type QrPairingCardProps = {
   signallingStatus?: SignallingStatus;
   /** Overrides the detected hostname (tests / forced host). */
   hostname?: string;
+  /**
+   * Called after an explicit refresh with the freshly minted token, so the
+   * session owner can restart its pairing session on the same room the QR
+   * now encodes (token lift — a stale session under a fresh QR would be a
+   * fake pairing surface).
+   */
+  onRefresh?: (token: string) => void;
   className?: string;
 };
 
@@ -107,6 +114,7 @@ export function QrPairingCard({
   expiresAt,
   signallingStatus,
   hostname,
+  onRefresh,
   className,
 }: QrPairingCardProps): ReactElement {
   const [mint] = useState(() => mintToken(token));
@@ -172,6 +180,7 @@ export function QrPairingCard({
       setExpiresAtMs(Date.now() + SESSION_TTL_MS);
       setNow(Date.now());
       setFlash(true);
+      onRefresh?.(next);
     } catch (error) {
       // Never a silent failure — the card says why the code did not move.
       setMintError(error instanceof Error ? error.message : String(error));
