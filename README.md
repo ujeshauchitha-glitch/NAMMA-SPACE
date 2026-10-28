@@ -29,7 +29,7 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-The default scene, `viewer/public/models/scene.json`, points at the compressed splat on external storage (Hugging Face); until that is uploaded the viewer explains that the file is missing. To smoke-test the viewer only, open `/?scene=dev-assets/fixtures/SYNTHETIC/synthetic_room.json`: a procedurally generated box room (`pipeline/make_demo_splat.py`) with a permanent on-screen **SYNTHETIC** badge. It is **not** a reconstruction. `viewer/dev-assets/` is served by `npm run dev` / `npm run preview` only and never ships in the production build.
+The default scene, `viewer/public/models/scene.json`, points at the compressed splat on external storage (Hugging Face); until that is uploaded the viewer explains that the file is missing. To smoke-test the viewer only, open `/?scene=dev-assets/fixtures/SYNTHETIC/synthetic_room.json`: a procedurally generated box room (`pipeline/make_demo_splat.py`) with a permanent on-screen **SYNTHETIC** badge. It is **not** a reconstruction. `viewer/dev-assets/` is served by `npm run dev` / `npm run preview` only and never ships in the production build. The hosted site shows the same fixture from Hugging Face at `/?scene=scenes/synthetic.json`.
 Any splat can be loaded with `?splat=<url>`.
 
 ## Reconstruct your own space (Windows, NVIDIA GPU)

@@ -1,0 +1,24 @@
+{
+  "title": "SYNTHETIC TEST FIXTURE - not a reconstruction",
+  "splat": "https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/test/synthetic_room.ply",
+  "spawn": [
+    3,
+    0,
+    -2.5
+  ],
+  "spawnYaw": 0,
+  "eyeHeight": 1.6,
+  "rotation": [
+    3.141592653589793,
+    0,
+    0
+  ],
+  "scale": 1,
+  "synthetic": true,
+  "bounds": [
+    0.3,
+    5.7,
+    -4.7,
+    -0.3
+  ]
+}
