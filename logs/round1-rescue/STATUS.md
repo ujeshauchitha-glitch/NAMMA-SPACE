@@ -18,7 +18,7 @@
 | D2 | Scene transform/collision contract | IN_PROGRESS (subagent, with D3) |
 | D3 | Scene-loader/validator consistency | IN_PROGRESS (subagent, with D2) |
 | D4 | Live Scan / T21 receiver wiring | IN_PROGRESS (subagent) |
-| E  | V1 milestones: T21 via D4 agent; T22-T27 NOT_STARTED |
+| E  | V1 milestones: T21 IN_PROGRESS (agent); T25+T26 IN_PROGRESS (agents); T22/T23/T24/T27 queued behind T21 |
 | F  | Submission package | NOT_STARTED |
 | G  | Regression + performance verification | NOT_STARTED |
 

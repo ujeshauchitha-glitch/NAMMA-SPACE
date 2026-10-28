@@ -54,3 +54,9 @@
 ## 2026-10-29 03:49 IST — Subset run verdict: capture-quality blocker confirmed
 - Subset (40-img component): 29/40 registered (72% PASS), 0.96px PASS, but 886 sparse points < 2000 gate FAIL -> no training. BLK-001 amended with this evidence.
 - Workstream B conclusion for this sprint: pipeline is fixed and honest (3% -> 57% connected / 72% subset); the remaining gap is capture quality (resolution/texture/overlap). Re-shoot per SOP is the continuation path; RTX 5060 host remains the dense/splat path.
+
+## 2026-10-29 03:52 IST — T25 + T26 dispatched (parallel, disjoint ownership)
+- T25 agent: quality_gate.py additive extension, build budgets (entry <=360KB gzip, lazy-chunk assertions for three/gsap/fflate/qrcode-generator/idb/playcanvas), benchmark/build-report.json + VALIDATION.md budget table. Owns scripts/quality_gate.py, benchmark/**, VALIDATION.md budgets, root tests/. Mandated: report over-budget reality, never silently raise budgets.
+- T26 agent: docs correction (README/VALIDATION/ARCHITECTURE/DECISION_LOG/PIPELINE + new PAIRING.md runbook). Fed today's verified facts: Python 3.14.6, D2+D3 new contract (ARCHITECTURE/PROJECT_STATE stale), sog declared-but-unrendered, SIMPLE_RADIAL fix. Mandated: every doc claim verified/sourced/labeled; no private vision content.
+- Queued behind T21 agent (owns pairing/scan/workspace): T22 (coverage visualizer, dep T21+T14), T23 (GSAP choreography), T24 (e2e extensions), then T27 (final release gate over everything).
+- Workstream B closed with BLK-001 + amendment (commits 969543c and earlier). Phase 2 pushed through a0359fe; further pushes at next green boundary.
