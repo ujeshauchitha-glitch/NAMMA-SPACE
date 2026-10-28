@@ -1,6 +1,6 @@
 {
   "title": "SYNTHETIC TEST FIXTURE - not a reconstruction",
-  "splat": "https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/test/synthetic_room.ply",
+  "splat": "https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/synthetic_room.ply",
   "spawn": [
     3,
     0,
