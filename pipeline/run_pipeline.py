@@ -31,10 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks  # noqa: E402
 import preflight  # noqa: E402
-from common import (AWAITING_INSPECTION, FAILED, INSPECTED_OK, ROOT, PipelineError, Report, Timer,  # noqa: E402
-                    find_tool, run)
-
-MIN_USABLE_FRAMES = 80
+from common import (AWAITING_INSPECTION, BLUR_DROP, FAILED, INSPECTED_OK, MIN_USABLE_FRAMES, ROOT,  # noqa: E402
+                    PipelineError, Report, Timer, find_tool, run)
 
 
 # ---------------------------------------------------------------- frames
@@ -49,7 +47,7 @@ def extract_frames(video: Path, out: Path, fps: float, width: int, log: Path) ->
     return drop_blurry(frames)
 
 
-def drop_blurry(frames: Path, drop: float = 0.15) -> int:
+def drop_blurry(frames: Path, drop: float = BLUR_DROP) -> int:
     """Remove the blurriest fraction by variance of the Laplacian; returns the number kept."""
     import cv2
 
@@ -221,7 +219,10 @@ def main() -> int:
         is_dir = a.input.is_dir()
         if not a.input.exists():
             raise PipelineError(f"Input not found: {a.input}")
-        info, issues = (preflight.validate_photos if is_dir else preflight.validate_video)(a.input, work)
+        if is_dir:
+            info, issues = preflight.validate_photos(a.input, work)
+        else:
+            info, issues = preflight.validate_video(a.input, work, a.fps)
         report.data["input_info"] = info
         for k in [k for k in report.data.get("checks", {}) if k.startswith("input:")]:
             del report.data["checks"][k]  # drop stale input checks from a previous run
@@ -244,8 +245,9 @@ def main() -> int:
             else:
                 n = extract_frames(a.input, work, a.fps, a.width, log)
         report.stage("frames", t.seconds, kept=n)
-        if n < MIN_USABLE_FRAMES:
-            raise PipelineError(f"Only {n} usable frames (need {MIN_USABLE_FRAMES}). Film longer or raise --fps.")
+        min_frames = preflight.MIN_PHOTOS if is_dir else MIN_USABLE_FRAMES
+        if n < min_frames:
+            raise PipelineError(f"Only {n} usable frames (need {min_frames}). Film longer or raise --fps.")
 
         with Timer() as t:
             dataset = sfm(work, matcher, not a.cpu, report, log)

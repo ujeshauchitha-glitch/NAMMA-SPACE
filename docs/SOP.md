@@ -64,9 +64,9 @@ Run `python pipeline/run_pipeline.py clip.mp4 --out work/<name> --check` right a
 
 | Stage | Blocks the run if | Recorded as a warning if |
 |---|---|---|
-| Input video | short side < 720 px; < 20 s; > 900 s; < 10 GB free disk; unreadable file | < 30 s; < 24 fps |
+| Input video | short side < 720 px; < 20 s; too short to give 80 usable frames at `--fps` (31 s at the default 3 fps); > 900 s; < 10 GB free disk; unreadable file | < 30 s; < 24 fps |
 | Input photos | < 40 photos; unreadable files | mixed resolutions |
-| Frames | < 80 usable frames after blur removal | |
+| Frames | video: < 80 usable frames after blur removal; photos: < 40 images | |
 | COLMAP | no model; < 60% of frames registered; < 2000 sparse points | 60-90% registered; reprojection error > 1.5 px; more than one disconnected model |
 | Splat file | missing/empty; not a binary PLY; missing 3DGS attributes; truncated; NaN values; < 50,000 splats | |
 

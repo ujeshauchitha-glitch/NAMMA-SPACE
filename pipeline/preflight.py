@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common import PipelineError, find_tool
+from common import MIN_USABLE_FRAMES, PipelineError, find_tool, min_duration_s, usable_frames
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
@@ -89,7 +89,7 @@ def probe_video(video: Path) -> dict:
             "duration": float(j.get("format", {}).get("duration") or 0)}
 
 
-def validate_video(video: Path, work: Path) -> tuple[dict, list[Issue]]:
+def validate_video(video: Path, work: Path, sample_fps: float) -> tuple[dict, list[Issue]]:
     issues: list[Issue] = []
     if not video.exists():
         raise PipelineError(f"Input not found: {video}")
@@ -103,6 +103,11 @@ def validate_video(video: Path, work: Path) -> tuple[dict, list[Issue]]:
         issues.append(Issue("error", f"only {info['duration']:.0f}s of video; a room needs at least {MIN_DURATION_S}s following the SOP path."))
     elif info["duration"] < WARN_DURATION_S:
         issues.append(Issue("warn", f"{info['duration']:.0f}s is short; coverage may be thin."))
+    expected = usable_frames(info["duration"], sample_fps)
+    info["expected_usable_frames"] = expected
+    if info["duration"] >= MIN_DURATION_S and expected < MIN_USABLE_FRAMES:
+        issues.append(Issue("error", f"{info['duration']:.0f}s at --fps {sample_fps:g} gives ~{expected} usable frames after blur "
+                                     f"removal; need {MIN_USABLE_FRAMES}. Film at least {min_duration_s(sample_fps)}s or raise --fps."))
     if info["duration"] > MAX_DURATION_S:
         issues.append(Issue("error", f"{info['duration']:.0f}s is too long for one run; split per room (limit {MAX_DURATION_S}s)."))
     if info["fps"] and info["fps"] < MIN_FPS:
