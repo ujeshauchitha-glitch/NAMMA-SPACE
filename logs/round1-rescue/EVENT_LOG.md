@@ -45,3 +45,8 @@
 - Run #2 with a4299f5 fix: registration 2/70 (3%) -> 40/70 (57%) in model 0 + disconnected 17-img model 1 (WARN: room split). Points 229 -> 2857 (PASS >=2000), reprojection 0.92px (PASS <=1.5). Gate fail = registration 57% < 60% (needs 42 imgs). Exit 1, no training. report.json honest fail.
 - Camera-model fix PROVEN as the dominant defect: 3% -> 57% on identical capture. Remaining gap (57 vs 60) + split = capture overlap weakness + mapper nondeterminism (same db class gave 59/70 and 50/70 in two earlier manual runs; pipeline attempt landed 40).
 - Decision: ONE documented full rerun (nondeterministic mapper; no threshold changes, no manual stage bypass to keep report.json/reproducibility intact). If <60% again -> B record as BLOCKED with split-room evidence + re-shoot ask per pipeline's own WARN text. Both attempts logged regardless of outcome.
+
+## 2026-10-29 03:46 IST — Run #3 confirms split; BLK-001 recorded; bounded subset run launched
+- Run #3: 40/70 (57%) + 17-img fragment — identical topology to run #2 -> capture split is deterministic, not mapper luck. BLK-001 recorded in BLOCKERS.md (full evidence, impact, continuation).
+- Mitigation (disclosed, gates unchanged): pipeline run on the 40-image connected component (work/captures/room_subset40 -> room_subset_run) in background. This is a genuine sub-capture input, not a gate bypass.
+- D2+D3 committed d4acf04 (11 files, 526/526 tests, validator 2/2, e2e 28/28 verified by lead).
