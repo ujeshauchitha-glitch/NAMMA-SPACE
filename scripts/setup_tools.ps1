@@ -28,7 +28,8 @@ function Get-Zip([string]$name, [string]$url, [string]$sha256 = '') {
     $marker = Join-Path $dest '.complete'
     if (Test-Path $marker) { Write-Host "$name already installed"; return }
     if (Test-Path $dest) { Write-Host "$name is incomplete from an earlier run; reinstalling"; Remove-Item -Recurse -Force $dest }
-    $zip = Join-Path $tools "$name.zip.partial"
+    # Must end in .zip: Windows PowerShell 5.1's Expand-Archive rejects any other extension (e.g. .partial).
+    $zip = Join-Path $tools "$name.partial.zip"
     $tmp = Join-Path $tools "$name.extracting"
     Remove-Item -Recurse -Force $zip, $tmp -ErrorAction SilentlyContinue
     Write-Host "Downloading $name ..."
