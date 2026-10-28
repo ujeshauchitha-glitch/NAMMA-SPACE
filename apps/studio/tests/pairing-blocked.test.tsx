@@ -7,7 +7,7 @@ import {
   isSecureContextBlocked,
   readIsSecureContext,
 } from '../src/lib/pairing/secure-context';
-import { LiveScanWorkspace } from '../src/components/workspace/LiveScanWorkspace';
+import { LiveScanWorkspace, RELAY_UNAVAILABLE_BODY } from '../src/components/workspace/LiveScanWorkspace';
 
 /**
  * T19 — honest insecure-context state (§9.2).
@@ -78,5 +78,16 @@ describe('LiveScanWorkspace — insecure context', () => {
       'Live Scan pairs a phone camera over the local network and stages measured frames into Capture Studio.',
     );
     expect(html).toContain('data-testid="workspace-scan"');
+  });
+});
+
+describe('LiveScanWorkspace — hosted build without the dev relay', () => {
+  it('says Live Scan is development-only instead of offering pairing', () => {
+    const html = markup(createElement(LiveScanWorkspace, { secureContext: true, relayAvailable: false }));
+
+    expect(html).toContain('data-testid="live-scan-unavailable"');
+    expect(html).toContain(RELAY_UNAVAILABLE_BODY);
+    expect(html).toContain('data-testid="workspace-scan"');
+    expect(html).not.toContain('No phone paired yet');
   });
 });

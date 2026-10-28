@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { Lock, Qr } from '../icons/icons';
+import { Lock, Qr, Signal } from '../icons/icons';
 import { EmptyState } from '../ui/EmptyState';
 import { WorkspacePanel } from './WorkspacePanel';
 import { QrPairingCard } from '../scan/QrPairingCard';
@@ -19,7 +19,15 @@ type LiveScanWorkspaceProps = {
    * context (undefined in SSR/tests → never blocked).
    */
   secureContext?: boolean;
+  /**
+   * Whether the `/ws` signalling relay exists. It is a Vite dev-server plugin
+   * (scripts/ws-signalling-plugin.ts), so a static production build has none.
+   */
+  relayAvailable?: boolean;
 };
+
+export const RELAY_UNAVAILABLE_BODY =
+  'Pairing needs the signalling relay that only `npm run dev:lan` runs. This hosted build has no relay, so Live Scan is disabled here.';
 
 /** Render-safe fallback when no WorkspaceStoreProvider is mounted (tests). */
 const IDLE_PAIRING: PairingStatus = { state: 'IDLE', updatedAt: 0 };
@@ -35,11 +43,24 @@ const IDLE_PAIRING: PairingStatus = { state: 'IDLE', updatedAt: 0 };
  * remedy instead of a misleading empty state. This is presentation only —
  * the pairing machine itself is untouched (§9.2).
  */
-export function LiveScanWorkspace({ secureContext }: LiveScanWorkspaceProps = {}) {
+export function LiveScanWorkspace({
+  secureContext,
+  relayAvailable = import.meta.env.DEV,
+}: LiveScanWorkspaceProps = {}) {
   const blocked = isSecureContextBlocked(secureContext ?? readIsSecureContext());
   // Raw useContext: tests render this outside a WorkspaceStoreProvider.
   const store = useContext(WorkspaceStoreContext);
   const pairing = store?.state.pairing ?? IDLE_PAIRING;
+
+  if (!relayAvailable) {
+    return (
+      <WorkspacePanel id="scan">
+        <div className={styles.stub} data-testid="live-scan-unavailable">
+          <EmptyState icon={Signal} title="Live Scan is development-only" body={RELAY_UNAVAILABLE_BODY} />
+        </div>
+      </WorkspacePanel>
+    );
+  }
 
   if (blocked) {
     return (

@@ -11,7 +11,8 @@ export type WorkspaceMeta = {
 export const WORKSPACES: readonly WorkspaceMeta[] = [
   { id: 'capture', index: '01', label: 'Capture Studio' },
   { id: 'viewer', index: '02', label: 'Spatial Viewer' },
-  { id: 'scan', index: '03', label: 'Live Scan' },
+  // The pairing relay only exists on the dev server, so hosted builds say so on the tab.
+  { id: 'scan', index: '03', label: import.meta.env.DEV ? 'Live Scan' : 'Live Scan · dev only' },
 ] as const;
 
 export const DEFAULT_WORKSPACE: WorkspaceId = 'viewer';
