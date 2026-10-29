@@ -43,13 +43,27 @@ ENTRY_GZIP_BUDGET_BYTES = 360 * 1024
 # Library -> marker strings (any one counts as possession). Each marker was
 # chosen because it survives minification and does NOT appear in the entry
 # chunk's dynamic-import site for that library.
+#
+# Markers verified against a real `vite build` on 2026-10-29 (post-T22, three
+# chunk `three.module-*.js` present):
+#   threejs.org       0 in three chunk, 0 everywhere — does NOT survive
+#                     minification; removed after T22 exposed it as dead.
+#   REVISION          1 in three chunk, 0 in entry, 0 in every other chunk.
+#   SRGBColorSpace    1 in three chunk, 0 in entry, 0 in every other chunk.
 LIBRARY_MARKERS: dict[str, tuple[str, ...]] = {
-    "three": ("threejs.org",),          # error-message URLs inside three.js
+    "three": ("REVISION", "SRGBColorSpace"),  # T22 lazy chunk; minification keeps string-literal enum names
     "gsap": ("_gsap",),                 # gsap's property stamped on targets
     "fflate": ("deflateSync",),         # exported; zipSync/strToU8 appear at the import site too
     "qrcode-generator": ("stringToBytes",),  # qrcode-generator export
     "idb": ("deleteDB",),               # idb export; openDB appears at the import site too
     "playcanvas": ("playcanvas.inspector",),  # Symbol.for() string inside the engine
+}
+
+# Libraries where possession requires ALL listed markers, not any one. For
+# three, a lone `REVISION` or `SRGBColorSpace` string in some unrelated chunk
+# would be a coincidence; both together identify the real library chunk.
+LIBRARY_MARKERS_REQUIRE_ALL: dict[str, tuple[str, ...]] = {
+    "three": LIBRARY_MARKERS["three"],
 }
 
 # Libraries whose absence is an honest exception, not laziness evidence.
@@ -70,14 +84,23 @@ def find_entry_chunk(dist: Path) -> str | None:
 
 
 def attribute_libraries(dist: Path, entry_chunk: str) -> dict[str, list[str]]:
-    """Map each declared library to the sorted basenames of chunks holding its marker."""
+    """Map each declared library to the sorted basenames of chunks holding its marker(s).
+
+    Libraries in `LIBRARY_MARKERS_REQUIRE_ALL` need every listed marker in the
+    same chunk; the rest are attributed on any single marker.
+    """
     chunks = sorted((dist / "assets").glob("*.js"))
     contents = {chunk.name: chunk.read_text(encoding="utf-8", errors="replace") for chunk in chunks}
     attribution: dict[str, list[str]] = {}
     for library, markers in LIBRARY_MARKERS.items():
-        holders = sorted(
-            name for name, text in contents.items() if any(marker in text for marker in markers)
-        )
+        if library in LIBRARY_MARKERS_REQUIRE_ALL:
+            holders = sorted(
+                name for name, text in contents.items() if all(marker in text for marker in markers)
+            )
+        else:
+            holders = sorted(
+                name for name, text in contents.items() if any(marker in text for marker in markers)
+            )
         attribution[library] = holders
     return attribution
 
@@ -160,7 +183,15 @@ def main() -> int:
     for failure in report["failures"]:
         print(f"[FAIL] {failure}")
     if not report["failures"]:
+        proven = ", ".join(
+            f"{library} ({'+'.join(LIBRARY_MARKERS[library])} in {', '.join(holders)})"
+            for library, holders in sorted(attribution.items()) if holders
+        )
+        vacuous = ", ".join(report["exceptions"])
         print("[PASS] chunk check — entry within budget; every imported heavy library is in its own lazy chunk")
+        print(f"       proven lazy: {proven}")
+        if vacuous:
+            print(f"       vacuous (imported nowhere, not laziness evidence): {vacuous}")
     return 1 if report["failures"] else 0
 
 

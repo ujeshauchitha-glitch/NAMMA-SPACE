@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "createdAt": "2026-10-28T22:46:04.851871+00:00",
+  "createdAt": "2026-10-29T00:13:28.709531+00:00",
   "dist": "dist",
   "artifacts": [
     {
-      "path": "dist/assets/PlayCanvasViewer-Bt_FrsDT.js",
+      "path": "dist/assets/PlayCanvasViewer-BulP5cgz.js",
       "bytes": 2032704,
       "gzipBytes": 521335
     },
@@ -14,14 +14,14 @@
       "gzipBytes": 4445
     },
     {
-      "path": "dist/assets/index-C9M-qaHL.js",
-      "bytes": 418630,
-      "gzipBytes": 129838
+      "path": "dist/assets/index-BTZn_zDy.css",
+      "bytes": 41330,
+      "gzipBytes": 8639
     },
     {
-      "path": "dist/assets/index-CXriIuxe.css",
-      "bytes": 38882,
-      "gzipBytes": 8220
+      "path": "dist/assets/index-BhAZ-7KR.js",
+      "bytes": 448078,
+      "gzipBytes": 139693
     },
     {
       "path": "dist/assets/index-V7xXUF1b.js",
@@ -32,6 +32,11 @@
       "path": "dist/assets/qrcode-5IewWFXk.js",
       "bytes": 21140,
       "gzipBytes": 7628
+    },
+    {
+      "path": "dist/assets/three.module-Dljb2UHm.js",
+      "bytes": 746766,
+      "gzipBytes": 189564
     },
     {
       "path": "dist/favicon.svg",
@@ -71,7 +76,7 @@
     {
       "path": "dist/index.html",
       "bytes": 1135,
-      "gzipBytes": 557
+      "gzipBytes": 560
     },
     {
       "path": "dist/scenes/fixture/manifest.json",
@@ -121,12 +126,12 @@
   ],
   "scopes": {
     "initialJavaScript": {
-      "bytes": 418630,
-      "gzipBytes": 129838
+      "bytes": 41330,
+      "gzipBytes": 8639
     },
     "entryJavaScript": {
-      "path": "dist/assets/index-C9M-qaHL.js",
-      "gzipBytes": 129838
+      "path": "dist/assets/index-BhAZ-7KR.js",
+      "gzipBytes": 139693
     },
     "lazyViewerJavaScript": {
       "bytes": 2032704,
@@ -139,7 +144,7 @@
   },
   "expectations": {
     "entryGzipBudgetBytes": 368640,
-    "entryGzipBytes": 129838,
+    "entryGzipBytes": 139693,
     "entryBudgetMet": true,
     "expectedLazyChunkLibraries": {
       "fflate": [
@@ -150,18 +155,19 @@
         "index-V7xXUF1b.js"
       ],
       "playcanvas": [
-        "PlayCanvasViewer-Bt_FrsDT.js"
+        "PlayCanvasViewer-BulP5cgz.js"
       ],
       "qrcode-generator": [
         "qrcode-5IewWFXk.js"
       ],
-      "three": []
+      "three": [
+        "three.module-Dljb2UHm.js"
+      ]
     },
     "notImportedExceptions": [
-      "gsap",
-      "three"
+      "gsap"
     ]
   },
-  "totalBytes": 2612329,
-  "totalGzipBytes": 739416
+  "totalBytes": 3390991,
+  "totalGzipBytes": 939257
 }

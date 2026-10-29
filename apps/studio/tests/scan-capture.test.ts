@@ -18,7 +18,8 @@ import {
   requestCamera,
   stopCameraStream,
 } from '../src/lib/scan/camera';
-import { ingestPhoneFrame, type PhoneFrame } from '../src/lib/scan/receive';
+import { ingestPhoneFrame, stageVerifiedFrame, type PhoneFrame, type StagePhoneFrameAction } from '../src/lib/scan/receive';
+import { activeObjectUrlCount } from '../src/lib/objectUrls';
 import type { StoredImageRecord } from '../src/lib/storage';
 import {
   FRAME_CHUNK_BYTES,
@@ -688,5 +689,95 @@ describe('ingestPhoneFrame — verified frame → staged image', () => {
     expect(results[0].file).toBe('frame-empty.jpg');
     expect(results[0].message).toMatch(/empty/i);
     expect(stored).toHaveLength(0);
+  });
+});
+
+describe('stageVerifiedFrame — receive path owns no display URLs (T25 R3)', () => {
+  /** Minimal bytes that sniff as JPEG (magic FF D8 FF …). */
+  function jpegFrame(frameId: string, length = 64): PhoneFrame {
+    const data = new Uint8Array(length);
+    data.set([0xff, 0xd8, 0xff, 0xe0], 0);
+    return { frameId, data };
+  }
+
+  const fakeDecode = async (file: Blob) => ({
+    blob: new Blob([await file.arrayBuffer()], { type: 'image/jpeg' }),
+    width: 640,
+    height: 480,
+  });
+
+  /** Collecting seams: actions dispatched, errors surfaced. */
+  function makeSeams() {
+    const actions: StagePhoneFrameAction[] = [];
+    const errors: Array<{ title: string; detail: string }> = [];
+    return {
+      actions,
+      errors,
+      deps: {
+        ingest: { putImage: async () => {}, decode: fakeDecode, now: () => 1_234 },
+        dispatch: (action: StagePhoneFrameAction) => actions.push(action),
+        onError: (title: string, detail: string) => errors.push({ title, detail }),
+      },
+    };
+  }
+
+  it('stages a verified frame with the canonical empty objectUrl and mints no registry URL', async () => {
+    const seams = makeSeams();
+    const urlsBefore = activeObjectUrlCount();
+
+    await stageVerifiedFrame(jpegFrame('frame-n1'), seams.deps);
+
+    expect(seams.errors).toEqual([]);
+    expect(seams.actions).toHaveLength(1);
+    const action = seams.actions[0];
+    expect(action?.type).toBe('image/stage');
+    // Capture Studio's restore effect mints display URLs from the durable
+    // bytes — a URL minted here had no revocation path in Live Scan.
+    expect(action?.objectUrl).toBe('');
+    expect(action?.meta.source).toBe('phone');
+    expect(action?.at).toBe(1_234);
+    // The leak probe: zero net registry entries after staging.
+    expect(activeObjectUrlCount()).toBe(urlsBefore);
+  });
+
+  it('a failed frame surfaces through onError and dispatches nothing', async () => {
+    const seams = makeSeams();
+
+    await stageVerifiedFrame({ frameId: 'frame-bad', data: new Uint8Array(0) }, {
+      ...seams.deps,
+      ingest: { ...seams.deps.ingest, decode: async () => { throw new Error('must not run'); } },
+    });
+
+    expect(seams.actions).toEqual([]);
+    expect(seams.errors).toHaveLength(1);
+    expect(seams.errors[0]?.title).toBe('frame-bad.jpg was not staged');
+    expect(seams.errors[0]?.detail).toMatch(/empty/i);
+  });
+
+  it('an unexpected throw settles through onError — never rejects upward, never silent', async () => {
+    const seams = makeSeams();
+
+    await stageVerifiedFrame(jpegFrame('frame-throw'), {
+      ...seams.deps,
+      dispatch: () => {
+        throw new Error('store exploded');
+      },
+    });
+
+    expect(seams.errors).toHaveLength(1);
+    expect(seams.errors[0]?.title).toBe('Phone frame could not be staged');
+    expect(seams.errors[0]?.detail).toBe('store exploded');
+  });
+
+  it('staging two frames leaves the object-URL registry untouched (demo repetition)', async () => {
+    const seams = makeSeams();
+    const urlsBefore = activeObjectUrlCount();
+
+    await stageVerifiedFrame(jpegFrame('frame-r1'), seams.deps);
+    await stageVerifiedFrame(jpegFrame('frame-r2'), seams.deps);
+
+    expect(seams.actions).toHaveLength(2);
+    expect(seams.actions.every((action) => action.objectUrl === '')).toBe(true);
+    expect(activeObjectUrlCount()).toBe(urlsBefore);
   });
 });

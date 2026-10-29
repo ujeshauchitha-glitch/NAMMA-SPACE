@@ -131,7 +131,14 @@ def test_expected_suite_inventory_reports_missing(tmp_path):
 
 
 # ------------------------------------------------------------------ integration: real src must be clean
+def test_real_src_is_clean_unrevoked_object_urls():
+    """Guards src/ against regression of the object-URL leak R3 originally
+    caught (LiveScanWorkspace minted registry URLs nothing revoked; fixed by
+    the owning session 2026-10-29). No xfail — this is a genuine green guard."""
+    assert gate.scan_unrevoked_object_urls(REPO / "apps" / "studio" / "src") == []
+
+
 @pytest.mark.parametrize("scanner", [gate.scan_legacy_tokens, gate.scan_percent_coverage_strings,
-                                     gate.scan_unrevoked_object_urls, gate.scan_simulated_derivation])
+                                     gate.scan_simulated_derivation])
 def test_real_src_is_clean(scanner):
     assert scanner(REPO / "apps" / "studio" / "src") == []

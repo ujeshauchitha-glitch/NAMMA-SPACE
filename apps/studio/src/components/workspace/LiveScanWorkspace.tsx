@@ -6,6 +6,8 @@ import { WorkspacePanel } from './WorkspacePanel';
 import { QrPairingCard } from '../scan/QrPairingCard';
 import { StageRail } from '../scan/StageRail';
 import { CameraPreview } from '../scan/CameraPreview';
+import { CoverageVisualizer } from '../scan/CoverageVisualizer';
+import { coverageFramesFromStagedImages } from './coverageFrames';
 import styles from './LiveScanWorkspace.module.css';
 import {
   INSECURE_CONTEXT_REMEDY,
@@ -19,10 +21,9 @@ import {
   type ReceivedFrame,
   type SignallingStatus,
 } from '../../lib/pairing';
-import { ingestPhoneFrame } from '../../lib/scan/receive';
+import { stageVerifiedFrame } from '../../lib/scan/receive';
 import { grabFrame, type FrameSendProgress } from '../../lib/scan/capture';
 import { getDefaultStorage, type StorageHandle } from '../../lib/storage';
-import { createObjectUrl } from '../../lib/objectUrls';
 import { createEntityId } from '../../state/bootstrap';
 import { WorkspaceStoreContext } from '../../state/workspaceContext';
 import type { PairingState, PairingStatus } from '../../state/types';
@@ -171,29 +172,21 @@ export function LiveScanWorkspace({
   /** A verified inbound frame → T11 ingest (`source: 'phone'`) → `image/stage`. */
   const stageFrame = useCallback(
     async (frame: ReceivedFrame): Promise<void> => {
+      let storage: StorageHandle | null;
       try {
-        const storage = await resolveStorage();
-        if (!storage) return; // resolveStorage already surfaced the failure
-        const results = await ingestPhoneFrame(frame, {
-          putImage: (record) => storage.putImage(record),
-        });
-        for (const result of results) {
-          if (result.ok) {
-            dispatchRef.current?.({
-              type: 'image/stage',
-              id: result.record.id,
-              viewGroupId: null,
-              objectUrl: createObjectUrl(result.record.blob),
-              meta: result.record.meta,
-              at: result.record.stagedAt,
-            });
-          } else {
-            pushError(`${result.file} was not staged`, result.message);
-          }
-        }
+        storage = await resolveStorage();
       } catch (error) {
+        // resolveStorage handles its own rejections; this keeps the old
+        // wrapper's guarantee that NO stageFrame call ever rejects upward.
         pushError('Phone frame could not be staged', error instanceof Error ? error.message : String(error));
+        return;
       }
+      if (!storage) return; // resolveStorage already surfaced the failure
+      await stageVerifiedFrame(frame, {
+        ingest: { putImage: (record) => storage.putImage(record) },
+        dispatch: (action) => dispatchRef.current?.(action),
+        onError: pushError,
+      });
     },
     [pushError, resolveStorage],
   );
@@ -385,17 +378,22 @@ export function LiveScanWorkspace({
   }
 
   // Desktop side: QR card + rail, and the received-frames handoff once
-  // verified phone frames exist in the store.
-  const phoneFrames = (store?.state.stagedImages ?? []).filter(
+  // verified phone frames exist in the store. Every staged frame is unposed
+  // in V1, so the visualizer draws grid-plane markers — never frustums.
+  const phoneImages = (store?.state.stagedImages ?? []).filter(
     (image) => image.meta.source === 'phone',
-  ).length;
+  );
+  const phoneFrames = coverageFramesFromStagedImages(phoneImages);
 
   return (
     <WorkspacePanel id="scan">
       <div className={styles.layout}>
         <div className={styles.stage}>
-          {phoneFrames > 0 ? (
-            <PhoneFramesPanel count={phoneFrames} />
+          {phoneFrames.length > 0 ? (
+            <>
+              <CoverageVisualizer frames={phoneFrames} />
+              <PhoneFramesPanel count={phoneFrames.length} />
+            </>
           ) : (
             <div className={`${styles.stub} ${styles.stubBare}`}>
               <EmptyState

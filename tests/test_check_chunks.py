@@ -84,6 +84,35 @@ def test_lib_in_entry_chunk_is_reported_as_entry_resident(tmp_path):
     assert found["fflate"] == ["index-app.js"]
 
 
+# ------------------------------------------------------------------ three (AND markers, post-T22)
+def test_three_requires_all_markers_not_just_one(tmp_path):
+    # T22 imports three as a real lazy chunk. three is attributed only when a
+    # chunk holds EVERY marker in LIBRARY_MARKERS_REQUIRE_ALL ("REVISION" AND
+    # "SRGBColorSpace") — a single coincidental hit must not count.
+    dist = make_dist(tmp_path, {
+        "index-app.js": b"const T=await import('three');console.log(T);",
+        "three.module-fake.js": b"const REVISION='186';const SRGBColorSpace='srgb';export{REVISION,SRGBColorSpace};",
+    }, entry="index-app.js")
+    found = cc.attribute_libraries(dist, "index-app.js")
+    assert found["three"] == ["three.module-fake.js"]
+
+
+def test_three_single_marker_hit_is_not_possession(tmp_path):
+    dist = make_dist(tmp_path, {
+        "index-app.js": b"const REVISION='app-version-string';",
+        "vendor-other.js": b"export const SRGBColorSpace='unrelated';",
+    }, entry="index-app.js")
+    found = cc.attribute_libraries(dist, "index-app.js")
+    assert found["three"] == []
+
+
+def test_old_threejs_org_marker_is_gone():
+    # The pre-T22 marker `threejs.org` does not survive minification (verified
+    # count 0 in every chunk of the real build) — it must not come back.
+    assert "threejs.org" not in cc.LIBRARY_MARKERS["three"]
+    assert set(cc.LIBRARY_MARKERS_REQUIRE_ALL["three"]) <= set(cc.LIBRARY_MARKERS["three"])
+
+
 # ------------------------------------------------------------------ verdicts
 def _report_for(found, entry="index-app.js"):
     return cc.evaluate(found, entry_chunk=entry, entry_gzip=100_000, budget=cc.ENTRY_GZIP_BUDGET_BYTES)
