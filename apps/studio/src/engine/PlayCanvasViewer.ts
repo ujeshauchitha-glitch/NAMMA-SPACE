@@ -32,7 +32,7 @@ type ViewerOptions = {
 };
 
 const PLAYER_HEIGHT = 1.65;
-const WALK_SPEED = 2.2;
+const WALK_SPEED = 1.4; // normal indoor walking pace, m/s
 const LOOK_SPEED = 0.12;
 
 export class PlayCanvasViewer {
@@ -44,6 +44,9 @@ export class PlayCanvasViewer {
   private readonly manifest: SceneManifest;
   private readonly manifestUrl: string;
   private readonly navigation: NavigationGrid | null;
+  private readonly maxPixelRatio: number;
+  private frameTime = 1 / 60;
+  private framesSinceResize = 0;
   private readonly pois: Poi[];
   private readonly callbacks: ViewerCallbacks;
   private readonly pressedKeys = new Set<string>();
@@ -85,6 +88,11 @@ export class PlayCanvasViewer {
     });
     this.app.setCanvasFillMode(FILLMODE_NONE);
     this.app.setCanvasResolution(RESOLUTION_AUTO);
+    // PlayCanvas renders at 1 pixel per CSS pixel by default, which on a 150-200% display upscales
+    // the image and blurs every splat. Start at the display's real resolution; update() steps it down
+    // only if the frame rate cannot keep up.
+    this.maxPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    this.app.graphicsDevice.maxPixelRatio = this.maxPixelRatio;
 
     this.yawPivot = new Entity('player-yaw');
     this.pitchPivot = new Entity('player-pitch');
@@ -92,6 +100,9 @@ export class PlayCanvasViewer {
     this.camera.addComponent('camera', {
       clearColor: new Color(0.055, 0.07, 0.065),
       fov: 68,
+      // Splats within a hand's reach of the eye are almost always reconstruction noise that would
+      // fill the screen as a smear; real surfaces are kept further away by the navigation clearance.
+      nearClip: hasSplat ? 0.2 : 0.1,
       farClip: 100,
     });
     this.pitchPivot.addChild(this.camera);
@@ -237,6 +248,7 @@ export class PlayCanvasViewer {
   };
 
   private update(dt: number): void {
+    this.adaptResolution(dt);
     const inputX = (this.pressedKeys.has('KeyD') || this.pressedKeys.has('ArrowRight') ? 1 : 0) - (this.pressedKeys.has('KeyA') || this.pressedKeys.has('ArrowLeft') ? 1 : 0);
     const inputZ = (this.pressedKeys.has('KeyS') || this.pressedKeys.has('ArrowDown') ? 1 : 0) - (this.pressedKeys.has('KeyW') || this.pressedKeys.has('ArrowUp') ? 1 : 0);
     if (!inputX && !inputZ) {
@@ -279,6 +291,21 @@ export class PlayCanvasViewer {
       this.yawPivot.setPosition(x, current[1] - PLAYER_HEIGHT, z);
       this.emitPosition();
     }
+  }
+
+  /** Lower the render resolution when frames are slow (< 30 fps) and raise it back when fast (> 50 fps). */
+  private adaptResolution(dt: number): void {
+    this.frameTime = this.frameTime * 0.9 + dt * 0.1;
+    this.framesSinceResize += 1;
+    if (this.framesSinceResize < 30) return;
+    const device = this.app.graphicsDevice;
+    let ratio = device.maxPixelRatio;
+    if (this.frameTime > 1 / 30 && ratio > 1) ratio = Math.max(1, ratio - 0.25);
+    else if (this.frameTime < 1 / 50 && ratio < this.maxPixelRatio) ratio = Math.min(this.maxPixelRatio, ratio + 0.25);
+    else return;
+    device.maxPixelRatio = ratio;
+    this.framesSinceResize = 0;
+    this.resize();
   }
 
   private currentPosition(): Vec3 {
@@ -445,6 +472,12 @@ export class PlayCanvasViewer {
   /** Restore a previously captured pose and re-emit its position. */
   public setPose(pose: { position: Vec3; yawDegrees: number; pitchDegrees: number }): void {
     const [x, y, z] = pose.position;
+    // A saved pose from an older build of the scene can sit outside today's walkable area, where the
+    // visitor would be stuck in a smear; start from the scene's start point instead.
+    if (this.navigation && !isWalkable(this.navigation, worldToCell(this.navigation, pose.position))) {
+      this.reset();
+      return;
+    }
     this.yawPivot.setPosition(x, y - PLAYER_HEIGHT, z);
     this.yawPivot.setEulerAngles(0, pose.yawDegrees, 0);
     this.pitchPivot.setLocalEulerAngles(pose.pitchDegrees, 0, 0);
