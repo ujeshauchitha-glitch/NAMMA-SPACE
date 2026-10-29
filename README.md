@@ -70,7 +70,7 @@ apps/studio Round 2 studio app (from main)
 ## Status
 - [x] Viewer: first-person walkthrough, config-driven scene, touch fallback
 - [x] Pipeline scripts and SOP
-- [ ] Real capture + first full reconstruction — footage now exists and the stages have been exercised: COLMAP + Brush ran end to end on a synthetic clip (28 Oct 2026), and since the SIMPLE_RADIAL camera-model fix (29 Oct, `a4299f5`) real photos register at 57% instead of 3%, but the 70-photo set still splits into two disconnected rooms (below the 60% registration gate — honest blocker `logs/round1-rescue/BLOCKERS.md` BLK-001). Blocked on a re-shoot per the SOP; no real reconstruction has succeeded yet.
+- [ ] Real capture + first full reconstruction — a 70-photo set (28 Oct 2026) has been taken and every pipeline stage is exercised and green on synthetic content; since the SIMPLE_RADIAL camera-model fix (29 Oct, `a4299f5`) real photos register at 57% instead of 3%, but the set still splits into two disconnected rooms (below the 60% registration gate — honest blocker `logs/round1-rescue/BLOCKERS.md` BLK-001; run-by-run numbers in `docs/CAPTURE_DAY.md`). Blocked on a re-shoot per the SOP; no real reconstruction has succeeded yet.
 - [ ] Deploy viewer to static hosting, record demo video, write abstract PDF
 - [x] Compress stage in the pipeline (`.sog`/`.spz` ≤ 50 MB); viewer loads external splat URLs with progress
 - [ ] Compression quality checked on a real splat
