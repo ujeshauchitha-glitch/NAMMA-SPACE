@@ -45,6 +45,8 @@ export class PlayCanvasViewer {
   private readonly manifestUrl: string;
   private readonly navigation: NavigationGrid | null;
   private readonly maxPixelRatio: number;
+  /** Captures are filmed with the phone roughly level, so steep views (ceiling, floor) are mostly unfilmed. */
+  private readonly maxPitch: number;
   private frameTime = 1 / 60;
   private framesSinceResize = 0;
   private readonly pois: Poi[];
@@ -71,7 +73,7 @@ export class PlayCanvasViewer {
     this.yawPivot.rotateLocal(0, -event.movementX * LOOK_SPEED, 0);
     this.pitchPivot.rotateLocal(-event.movementY * LOOK_SPEED, 0, 0);
     const pitch = this.pitchPivot.getLocalEulerAngles().x;
-    this.pitchPivot.setLocalEulerAngles(Math.max(-82, Math.min(82, pitch)), 0, 0);
+    this.pitchPivot.setLocalEulerAngles(Math.max(-this.maxPitch, Math.min(this.maxPitch, pitch)), 0, 0);
   };
   private readonly onPointerLockChange = () => this.callbacks.onPointerLock(document.pointerLockElement === this.canvas);
 
@@ -83,8 +85,12 @@ export class PlayCanvasViewer {
     this.pois = options.pois;
     this.callbacks = options.callbacks;
 
+    // Splats rendered into a multisampled target are several times more expensive (PlayCanvas warns
+    // about this), so MSAA is only used for mesh scenes.
+    const hasSplat = this.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog');
+    this.maxPitch = hasSplat ? 35 : 82;
     this.app = new Application(this.canvas, {
-      graphicsDeviceOptions: { antialias: true, alpha: false },
+      graphicsDeviceOptions: { antialias: !hasSplat, alpha: false },
     });
     this.app.setCanvasFillMode(FILLMODE_NONE);
     this.app.setCanvasResolution(RESOLUTION_AUTO);
@@ -131,10 +137,14 @@ export class PlayCanvasViewer {
     document.addEventListener('pointerlockchange', this.onPointerLockChange);
     this.resize();
     this.reset();
+    // Dev builds only: lets a person (or a test) place the camera from the console, e.g. to compare
+    // two splats from the same pose: __nammaViewer.setPose({ position, yawDegrees, pitchDegrees }).
+    if (import.meta.env.DEV) (window as unknown as { __nammaViewer?: PlayCanvasViewer }).__nammaViewer = this;
     this.callbacks.onStatus('Ready to explore');
   }
 
   public enterWalkthrough(): void {
+    // Full screen is the workspace's own toggle (F / HUD button), so it keeps the HUD around the canvas.
     this.canvas.requestPointerLock();
     this.callbacks.onStatus('Walkthrough active · WASD to move · Esc to release');
   }
