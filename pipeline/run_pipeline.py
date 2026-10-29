@@ -408,6 +408,14 @@ def main() -> int:
             splat = train(dataset, work, a.steps, a.trainer, report, log)
         report.stage("train", t.seconds, steps=a.steps)
 
+        print("== clean splat")
+        import clean_splat
+        with Timer() as t:
+            cleaned = splat.with_name(splat.stem + "_clean.ply")
+            report.data["clean_splat"] = clean_splat.clean(splat, cleaned)
+            splat = cleaned
+        report.stage("clean", t.seconds)
+
         print("== output checks")
         if not checks.check_splat(report, splat):
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
