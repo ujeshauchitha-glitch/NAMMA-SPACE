@@ -29,3 +29,4 @@ apps/studio/public/scenes/*/output/
 .venv/
 target/
 .worktrees/
+docs/round1/ABSTRACT.html
