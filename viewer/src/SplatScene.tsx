@@ -15,7 +15,10 @@ export function SplatScene({ config, onProgress, onBytes }: Props) {
   const { gl, scene } = useThree()
 
   useEffect(() => {
-    const spark = new SparkRenderer({ renderer: gl })
+    // Brush (like the reference 3DGS rasteriser) adds a 0.3 px² blur to every projected splat while
+    // training and cuts Gaussians at 3 sigma. Spark's defaults (no blur, sqrt(8) sigma) render the same
+    // splats thinner, which shows up as speckle and pin-holes; matching the training renderer fixes that.
+    const spark = new SparkRenderer({ renderer: gl, preBlurAmount: 0.3, maxStdDev: 3 })
     scene.add(spark)
     const base = import.meta.env.BASE_URL
     const url = /^(https?:)?\/\//.test(config.splat) ? config.splat : `${base}${config.splat}`

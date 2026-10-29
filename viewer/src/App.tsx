@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
+import { AdaptiveResolution } from './AdaptiveResolution'
 import { DEFAULT_CONFIG, loadConfig, type SceneConfig } from './config'
 import { FirstPersonControls } from './FirstPersonControls'
 import { SplatScene } from './SplatScene'
@@ -46,9 +47,10 @@ export default function App() {
         <Canvas
           camera={{ fov: 70, near: 0.05, far: 200 }}
           gl={{ antialias: false, powerPreference: 'high-performance' }}
-          dpr={[1, 1.5]}
+          dpr={1}
           onClick={() => started && !locked && document.querySelector('canvas')?.requestPointerLock?.()}
         >
+          <AdaptiveResolution />
           <SplatScene config={config} onProgress={onProgress} onBytes={onBytes} />
           <FirstPersonControls
             spawn={spawn}
@@ -81,7 +83,7 @@ export default function App() {
             <p>Walk through the reconstructed space in first person.</p>
             <p>
               <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move · mouse look · <kbd>Shift</kbd> sprint ·{' '}
-              <kbd>Q</kbd>/<kbd>E</kbd> down/up · <kbd>Esc</kbd> release mouse
+              <kbd>Q</kbd>/<kbd>E</kbd> down/up · <kbd>R</kbd> back to start · <kbd>Esc</kbd> release mouse
             </p>
             <p>On touch: drag to look, two fingers to walk.</p>
             <button onClick={enter}>Enter space</button>

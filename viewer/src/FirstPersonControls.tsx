@@ -14,6 +14,7 @@ interface Props {
 const WALK = 1.6 // m/s
 const SPRINT = 3.4
 const LOOK = 0.0022
+const SMOOTHING = 12 // 1/s: how fast walking speed follows the keys
 
 /** Pointer-lock mouse look + WASD on the floor plane. Collision lands in Round 2. */
 export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, enabled, onLock }: Props) {
@@ -21,6 +22,7 @@ export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, enabled, on
   const keys = useRef(new Set<string>())
   const look = useRef({ yaw, pitch: 0 })
   const lift = useRef(0)
+  const velocity = useRef(new THREE.Vector2())
   const touch = useRef<{ id: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -83,21 +85,32 @@ export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, enabled, on
     camera.rotation.set(look.current.pitch, look.current.yaw, 0)
     if (!enabled) return
     const k = keys.current
-    const speed = (k.has('ShiftLeft') || k.has('ShiftRight') ? SPRINT : WALK) * Math.min(dt, 0.1)
+    const step = Math.min(dt, 0.1)
+    if (k.has('KeyR')) {
+      camera.position.set(spawn.x, spawn.y + eyeHeight, spawn.z)
+      look.current = { yaw, pitch: 0 }
+      velocity.current.set(0, 0)
+      lift.current = 0
+      k.delete('KeyR')
+      return
+    }
+    const speed = k.has('ShiftLeft') || k.has('ShiftRight') ? SPRINT : WALK
     const fwd = Number(k.has('KeyW') || k.has('ArrowUp')) - Number(k.has('KeyS') || k.has('ArrowDown'))
     const side = Number(k.has('KeyD') || k.has('ArrowRight')) - Number(k.has('KeyA') || k.has('ArrowLeft'))
+    const target = new THREE.Vector2()
     if (fwd || side) {
       const sin = Math.sin(look.current.yaw)
       const cos = Math.cos(look.current.yaw)
       // Movement stays on the floor plane regardless of pitch.
-      const dx = -sin * fwd + cos * side
-      const dz = -cos * fwd - sin * side
-      const len = Math.hypot(dx, dz) || 1
-      camera.position.x += (dx / len) * speed
-      camera.position.z += (dz / len) * speed
+      target.set(-sin * fwd + cos * side, -cos * fwd - sin * side).normalize().multiplyScalar(speed)
     }
+    // Ease towards the target velocity: no jolt on key press, a short glide on release. Sudden jumps
+    // make splat sorting pop, so smooth motion also looks cleaner.
+    velocity.current.lerp(target, 1 - Math.exp(-SMOOTHING * step))
+    camera.position.x += velocity.current.x * step
+    camera.position.z += velocity.current.y * step
     lift.current = THREE.MathUtils.clamp(
-      lift.current + (Number(k.has('KeyE')) - Number(k.has('KeyQ'))) * speed,
+      lift.current + (Number(k.has('KeyE')) - Number(k.has('KeyQ'))) * speed * step,
       -0.8,
       1.2,
     )

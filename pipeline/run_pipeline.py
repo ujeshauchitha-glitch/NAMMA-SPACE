@@ -147,15 +147,18 @@ def check_dataset(dataset: Path, report: Report) -> None:
                             "the COLMAP points. Delete it (or re-run with --force).")
 
 
+# Brush's default penalties are ~1e-9/1e-8, which let thousands of near-transparent splats pile up as
+# floating fog. On the first classroom these values gave a cleaner room with 29% fewer splats; 1e-7/1e-6
+# was too strong (155k splats, blurry). Tested on one scene only.
+BRUSH_FLAGS = ["--opac-loss-weight", "1e-8", "--scale-loss-weight", "1e-7", "--max-splats", "1500000"]
+
+
 def train_brush(dataset: Path, export: Path, steps: int, log: Path) -> None:
     # Flags checked against Brush v0.3.0 source (brush-cli, brush-process/src/config.rs). A positional source
-    # runs headless; export_every == total_steps writes exactly one file, at the last step.
+    # runs headless; export_every == total_steps writes exactly one file, at the last step. A masks/ folder
+    # next to images/ (see mask_people.py) makes Brush ignore the masked pixels.
     run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps), "--export-path", str(export),
-         "--export-every", str(steps), "--export-name", "splat.ply",
-         # Brush's default penalties are ~1e-9/1e-8, which let thousands of near-transparent splats pile up as
-         # floating fog. On the first classroom these values gave a cleaner room with 29% fewer splats; 1e-7/1e-6
-         # was too strong (155k splats, blurry). Tested on one scene only.
-         "--opac-loss-weight", "1e-8", "--scale-loss-weight", "1e-7", "--max-splats", "1500000"], log, "Brush training")
+         "--export-every", str(steps), "--export-name", "splat.ply", *BRUSH_FLAGS], log, "Brush training")
 
 
 def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None:
@@ -180,6 +183,8 @@ def train_fingerprint(dataset: Path, trainer: str, steps: int) -> dict:
     model = sorted(p for p in dataset.rglob("images.*") if p.suffix in (".bin", ".txt"))
     stat = model[0].stat() if model else None
     return {"trainer": trainer, "steps": steps,
+            "flags": BRUSH_FLAGS if trainer == "brush" else [],
+            "masks": len(list_images(dataset / "masks")),
             "model": str(model[0]) if model else None,
             "model_size": stat.st_size if stat else None, "model_mtime": stat.st_mtime if stat else None}
 
@@ -211,8 +216,10 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
 DEV_MODELS = ROOT / "viewer" / "dev-assets" / "models"  # git-ignored; served by `npm run dev` only
 
 
-def publish(web_splat: Path, title: str, report: Report) -> None:
+def publish(web_splat: Path, title: str, report: Report, work: Path, sparse: Path | None = None) -> None:
     """Write scene.json next to the compressed splat and copy both to the dev server for inspection.
+
+    With the COLMAP model (`sparse`) the scene is aligned automatically from the camera poses.
 
     Production never reads these: viewer/public/models/scene.json points at the uploaded copy on external storage.
     """
@@ -220,12 +227,23 @@ def publish(web_splat: Path, title: str, report: Report) -> None:
     cfg = {"title": title, "splat": f"dev-assets/models/{web_splat.name}",
            "spawn": [0, 0, 0], "spawnYaw": 0, "eyeHeight": 1.6, "rotation": [3.141592653589793, 0, 0], "scale": 1,
            "_note": f"AUTO-GENERATED, UNALIGNED. Model centre {centre}. Set spawn/scale/rotation by hand; see docs/SOP.md."}
+    if sparse is not None:
+        try:
+            import room_coverage
+            _, _, cams, axes = room_coverage.load_model(sparse, work / "coverage" / "sparse_txt")
+            align = room_coverage.viewer_alignment(cams, axes)
+            cfg.update({k: align[k] for k in ("rotation", "spawn", "spawnYaw", "eyeHeight", "bounds")})
+            cfg["_note"] = ("AUTO-ALIGNED from camera poses: floor levelled, spawn at a real camera position, bounds "
+                            "around the walked path. Scale is NOT metric (scale 1 = COLMAP units).")
+        except Exception as e:
+            print(f"publish: auto-alignment failed ({e}); scene.json left unaligned")
     (web_splat.parent / "scene.json").write_text(json.dumps(cfg, indent=2))
     shutil.rmtree(DEV_MODELS, ignore_errors=True)
     DEV_MODELS.mkdir(parents=True)
     shutil.copy2(web_splat, DEV_MODELS / web_splat.name)
     shutil.copy2(web_splat.parent / "scene.json", DEV_MODELS / "scene.json")
-    print(f"publish: {web_splat} -> viewer/dev-assets/models/ (scene.json needs manual alignment)\n"
+    aligned = "auto-aligned" if "bounds" in cfg else "needs manual alignment"
+    print(f"publish: {web_splat} -> viewer/dev-assets/models/ (scene.json {aligned})\n"
           f"  inspect: cd viewer; npm run dev  ->  http://localhost:5173/?scene=dev-assets/models/scene.json")
 
 
@@ -265,6 +283,8 @@ def main() -> int:
     ap.add_argument("--title", default="Namma Space")
     ap.add_argument("--max-mb", type=float, default=compress.DEFAULT_MAX_MB, help="size budget for the web splat")
     ap.add_argument("--cpu", action="store_true", help="disable COLMAP GPU (use with the no-CUDA build)")
+    ap.add_argument("--mask-people", action="store_true",
+                    help="mask people out of training frames (YOLO segmentation) so walkers leave no ghosts")
     ap.add_argument("--force", action="store_true", help="delete previous outputs in --out and start over")
     ap.add_argument("--check", action="store_true", help="validate dependencies and input, then stop")
     ap.add_argument("--doctor", action="store_true", help="check dependencies, then stop")
@@ -341,7 +361,10 @@ def main() -> int:
             try:
                 dataset = sfm(work, matcher, not a.cpu, report, log)
             except PipelineError:
-                if not (auto and report.data.get("sfm", {}).get("registration_ratio") is not None):
+                # Only a low registration ratio is worth an exhaustive retry; anything else (no model,
+                # too few points) fails the same way again, and there is no dataset to fall through to.
+                ratio = report.data.get("sfm", {}).get("registration_ratio")
+                if not (auto and ratio is not None and ratio < checks.MIN_REGISTRATION):
                     raise
                 dataset = work / "dataset"
             ratio = report.data.get("sfm", {}).get("registration_ratio")
@@ -353,6 +376,33 @@ def main() -> int:
                 shutil.rmtree(work / "sparse", ignore_errors=True)
                 dataset = sfm(work, "exhaustive", not a.cpu, report, log)
         report.stage("sfm", t.seconds)
+
+        print("== coverage")
+        sparse = dataset / "sparse" / "0" if (dataset / "sparse" / "0").exists() else dataset / "sparse"
+        try:
+            import room_coverage  # needs opencv + scipy; imported here so --doctor/--check stay light
+            cov = room_coverage.analyse(sparse, work / "coverage")
+            report.data["coverage"] = {k: v for k, v in cov.items() if k != "gaps"} | {"gaps": cov["gaps"][:15]}
+            report.check("coverage:room_closed", cov["verified"],
+                         "every face of the room observed" if cov["verified"]
+                         else f"gaps remain; what to film is in {work / 'coverage' / 'RECAPTURE.txt'}", "warn")
+        except Exception as e:  # coverage is advice, never a reason to lose a run
+            report.check("coverage:room_closed", False, f"coverage could not run: {e}", "warn")
+
+        if a.mask_people:
+            with Timer() as t:
+                masked = work / "dataset_masked"
+                if len(list_images(masked / "masks")) == len(list_images(dataset / "images")) > 0:
+                    print("mask_people: already done")
+                else:
+                    try:
+                        import mask_people
+                    except ImportError as e:
+                        raise PipelineError(f"--mask-people needs ultralytics: pip install ultralytics ({e})") from e
+                    shutil.rmtree(masked, ignore_errors=True)
+                    report.data["mask_people"] = mask_people.main(dataset, masked)
+                dataset = masked
+            report.stage("mask_people", t.seconds)
 
         with Timer() as t:
             splat = train(dataset, work, a.steps, a.trainer, report, log)
@@ -367,12 +417,12 @@ def main() -> int:
             web_splat = compress.compress(splat, work, report, log, a.max_mb)
         report.stage("compress", t.seconds, mb=report.data["web_splat"]["mb"])
 
-        publish(web_splat, a.title, report)
+        publish(web_splat, a.title, report, work, sparse)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
         print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
               f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n"
-              "Next: align viewer/dev-assets/models/scene.json, run `npm run dev` in viewer/, open\n"
+              "Next: check viewer/dev-assets/models/scene.json, run `npm run dev` in viewer/, open\n"
               "  http://localhost:5173/?scene=dev-assets/models/scene.json, walk the whole room, then\n"
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
