@@ -257,15 +257,26 @@ export class PlayCanvasViewer {
     const forward = this.yawPivot.forward;
     const right = this.yawPivot.right;
     const distance = WALK_SPEED * dt / length;
+    const dx = (right.x * inputX - forward.x * inputZ) * distance;
+    const dz = (right.z * inputX - forward.z * inputZ) * distance;
     const current = this.currentPosition();
-    const candidate: Vec3 = [
-      current[0] + (right.x * inputX - forward.x * inputZ) * distance,
-      current[1],
-      current[2] + (right.z * inputX - forward.z * inputZ) * distance,
-    ];
+    // Move in steps of at most half a cell so a slow frame cannot carry the visitor through a thin
+    // wall, and slide along blocked cells (try the full step, then each axis alone) instead of sticking.
     // Blocked and unknown cells are both refused (resolveWalkableStep).
-    if (resolveWalkableStep(this.navigation, candidate)) {
-      this.yawPivot.setPosition(candidate[0], current[1] - PLAYER_HEIGHT, candidate[2]);
+    const grid = this.navigation;
+    const free = (x: number, z: number) => resolveWalkableStep(grid, [x, current[1], z]) !== null;
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (grid.cellSize / 2)));
+    let [x, , z] = current;
+    for (let step = 0; step < steps; step += 1) {
+      const sx = dx / steps;
+      const sz = dz / steps;
+      if (free(x + sx, z + sz)) { x += sx; z += sz; }
+      else if (free(x + sx, z)) x += sx;
+      else if (free(x, z + sz)) z += sz;
+      else break;
+    }
+    if (x !== current[0] || z !== current[2]) {
+      this.yawPivot.setPosition(x, current[1] - PLAYER_HEIGHT, z);
       this.emitPosition();
     }
   }

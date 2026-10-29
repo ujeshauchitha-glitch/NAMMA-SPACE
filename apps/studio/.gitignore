@@ -1,2 +1,6 @@
 .vercel
 .env*
+!.env.example
+
+# Real captures: built by pipeline/scene_bundle.py, splats are too big for git
+public/scenes/classroom/

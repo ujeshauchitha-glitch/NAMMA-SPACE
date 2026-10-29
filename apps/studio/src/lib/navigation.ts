@@ -14,9 +14,23 @@ function isInside(grid: NavigationGrid, cell: GridCell): boolean {
   return cell.x >= 0 && cell.x < grid.width && cell.z >= 0 && cell.z < grid.height;
 }
 
+// Captured scenes have thousands of blocked cells; a lookup table keeps the per-frame collision check
+// and route search O(1) per cell instead of scanning the index lists.
+const occupancyCache = new WeakMap<NavigationGrid, Uint8Array>();
+
+function occupancy(grid: NavigationGrid): Uint8Array {
+  let table = occupancyCache.get(grid);
+  if (!table) {
+    table = new Uint8Array(grid.width * grid.height);
+    for (const index of grid.blocked) table[index] = 1;
+    for (const index of grid.unknown) table[index] = 1;
+    occupancyCache.set(grid, table);
+  }
+  return table;
+}
+
 function isBlocked(grid: NavigationGrid, cell: GridCell): boolean {
-  const index = cell.z * grid.width + cell.x;
-  return grid.blocked.includes(index) || grid.unknown.includes(index);
+  return occupancy(grid)[cell.z * grid.width + cell.x] === 1;
 }
 
 export function isWalkable(grid: NavigationGrid, cell: GridCell): boolean {
