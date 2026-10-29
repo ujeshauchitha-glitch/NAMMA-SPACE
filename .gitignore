@@ -19,3 +19,6 @@ tools/
 work/
 # The raw trained PLY is too big for git/Pages. The compressed web copy (scene.sog / scene.spz) IS committed.
 spark-viewer/public/models/scene.ply
+
+# Real captures: built by pipeline/scene_bundle.py, splats are too big for git
+public/scenes/classroom/

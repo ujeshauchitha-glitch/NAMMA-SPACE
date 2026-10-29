@@ -240,23 +240,36 @@ export class PlayCanvasViewer {
     const forward = this.yawPivot.forward;
     const right = this.yawPivot.right;
     const distance = WALK_SPEED * dt / length;
+    const dx = (right.x * inputX - forward.x * inputZ) * distance;
+    const dz = (right.z * inputX - forward.z * inputZ) * distance;
     const current = this.currentPosition();
-    const candidate: Vec3 = [
-      current[0] + (right.x * inputX - forward.x * inputZ) * distance,
-      current[1],
-      current[2] + (right.z * inputX - forward.z * inputZ) * distance,
-    ];
     if (!this.navigation) {
       // No walkable grid yet (e.g. a fresh reconstruction): stay inside the manifest's bounding box so
       // the visitor cannot walk out of the model. This is a box, not collision with walls or furniture.
       const { min, max } = this.manifest.bounds;
       const margin = 0.3;
-      candidate[0] = Math.max(min[0] + margin, Math.min(max[0] - margin, candidate[0]));
-      candidate[2] = Math.max(min[2] + margin, Math.min(max[2] - margin, candidate[2]));
+      const x = Math.max(min[0] + margin, Math.min(max[0] - margin, current[0] + dx));
+      const z = Math.max(min[2] + margin, Math.min(max[2] - margin, current[2] + dz));
+      this.yawPivot.setPosition(x, current[1] - PLAYER_HEIGHT, z);
+      this.emitPosition();
+      return;
     }
-    const cell = this.navigation ? worldToCell(this.navigation, candidate) : null;
-    if (!this.navigation || (cell && isWalkable(this.navigation, cell))) {
-      this.yawPivot.setPosition(candidate[0], current[1] - PLAYER_HEIGHT, candidate[2]);
+    // Move in steps of at most half a cell so a slow frame cannot carry the visitor through a thin
+    // wall, and slide along blocked cells (try the full step, then each axis alone) instead of sticking.
+    const grid = this.navigation;
+    const free = (x: number, z: number) => isWalkable(grid, worldToCell(grid, [x, current[1], z]));
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (grid.cellSize / 2)));
+    let [x, , z] = current;
+    for (let step = 0; step < steps; step += 1) {
+      const sx = dx / steps;
+      const sz = dz / steps;
+      if (free(x + sx, z + sz)) { x += sx; z += sz; }
+      else if (free(x + sx, z)) x += sx;
+      else if (free(x, z + sz)) z += sz;
+      else break;
+    }
+    if (x !== current[0] || z !== current[2]) {
+      this.yawPivot.setPosition(x, current[1] - PLAYER_HEIGHT, z);
       this.emitPosition();
     }
   }
