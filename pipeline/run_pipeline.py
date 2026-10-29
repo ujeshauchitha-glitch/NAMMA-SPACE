@@ -281,7 +281,8 @@ def main() -> int:
     ap.add_argument("input", nargs="?", type=Path, help="video file, or a folder of photos")
     ap.add_argument("--out", type=Path, default=ROOT / "work" / "scene")
     ap.add_argument("--fps", type=float, default=3.0, help="frames sampled per second of video")
-    ap.add_argument("--width", type=int, default=1600, help="max frame width in px")
+    # 1920 = full 1080p width and Brush's own --max-resolution, so training sees every pixel filmed.
+    ap.add_argument("--width", type=int, default=1920, help="max frame width in px")
     ap.add_argument("--matcher", choices=["sequential", "exhaustive"], default=None,
                     help="default: sequential for video, exhaustive for photos")
     ap.add_argument("--steps", type=int, default=30000, help="Gaussian-splat training steps")
