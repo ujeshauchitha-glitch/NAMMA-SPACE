@@ -18,8 +18,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-DILATE_PX = 25
-CONF = 0.25
+# Tuned on the classroom: at conf 0.25 / 25 px a person sitting right next to the camera (cut off by the
+# frame edge) was only partly found and left a smear. Missing a person costs a ghost; masking a little
+# too much only costs some training pixels that other frames see anyway.
+DILATE_PX = 45
+CONF = 0.15
 WEIGHTS = Path(__file__).resolve().parents[1] / "tools" / "yolov8m-seg.pt"  # downloaded on first use
 
 
