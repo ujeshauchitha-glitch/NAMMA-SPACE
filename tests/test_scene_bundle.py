@@ -31,6 +31,8 @@ def test_bundle_scale_walls_and_start(tmp_path):
     s = grid["start"]
     assert not occ[s["z"], s["x"]]                                # the visitor starts on free floor
     assert occ[:, 0].all() and occ[:, -1].all()                   # walls along both x edges block walking
-    assert not occ[grid["height"] // 2, grid["width"] // 2]       # the middle of the room is walkable
+    # The camera ring (radius 1-1.5 m) is walkable all the way round; the far corners, never filmed, are not.
+    assert (~occ).sum() * grid["cellSize"] ** 2 > 2.0
+    assert occ[0, 0] and occ[-1, -1]
     start_y = manifest["startPosition"][1]
     assert start_y == pytest.approx(scene_bundle.ASSUMED_CAMERA_HEIGHT_M)

@@ -419,7 +419,12 @@ def main() -> int:
         import clean_splat
         with Timer() as t:
             cleaned = splat.with_name(splat.stem + "_clean.ply")
-            report.data["clean_splat"] = clean_splat.clean(splat, cleaned)
+            cams, radius = None, 0.0
+            try:
+                cams, radius = clean_splat.camera_path(sparse, work / "coverage" / "sparse_txt")
+            except Exception as e:  # no poses: skip only the floater pass
+                print(f"clean splat: no camera path ({e}); floaters kept")
+            report.data["clean_splat"] = clean_splat.clean(splat, cleaned, cameras=cams, camera_radius=radius)
             splat = cleaned
         report.stage("clean", t.seconds)
 

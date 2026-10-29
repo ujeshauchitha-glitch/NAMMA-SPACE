@@ -34,7 +34,9 @@ CELL_M = 0.10                   # navigation grid resolution
 CLEARANCE_M = 0.25              # player radius: blocked cells are widened by this
 OBSTACLE_BAND_M = (0.25, 1.9)   # points in this height band block walking (floor and ceiling do not)
 MIN_POINTS = 2                  # points per cell to count as an obstacle (single points are noise)
-FILMED_RADIUS_M = 1.5           # beyond this distance from the filmed path, cells are "unknown"
+# Beyond this distance from the filmed path cells are "unknown". A splat is only sharp near the views
+# it was trained from: at 1.5 m visitors reached spots that looked like smeared paint, so keep it tight.
+FILMED_RADIUS_M = 0.75
 WALKED_RADIUS_M = 0.2           # cells this close to a camera position are always free
 
 
