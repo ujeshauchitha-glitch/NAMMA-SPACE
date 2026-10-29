@@ -18,6 +18,7 @@
 import type {
   CameraPose,
   PairingState,
+  PairingStatus,
   Room,
   Space,
   StagedImage,
@@ -94,6 +95,37 @@ export function illegalPairingReason(from: PairingState, to: PairingState): stri
     `Illegal pairing transition ${from} → ${to}. ` +
     `Expected one of: ${PAIRING_TRANSITIONS[from].join(', ') || '(none)'}.`
   );
+}
+
+/**
+ * Pairing states that represent an in-flight session with a peer (or a scan
+ * on its way to one). A restored snapshot must never clobber one of these;
+ * IDLE / OFFLINE / ERROR are dead and hydrate normally.
+ */
+const LIVE_PAIRING_STATES: ReadonlySet<PairingState> = new Set<PairingState>([
+  'PAIRING',
+  'LIVE',
+  'CAPTURING',
+  'STAGED',
+]);
+
+/**
+ * Merge rule for `state/hydrate` (fixes the "returning phone" stall: a stale
+ * snapshot's persisted `pairing: IDLE` used to replace a live session
+ * wholesale, leaving the rail stuck and capture locked). Both directions:
+ *
+ *  - NO-CLOBBER: when the live machine is in-flight (PAIRING/LIVE/CAPTURING/
+ *    STAGED), the live slice wins over a restored IDLE — except a restored
+ *    slice that is itself in-flight with a strictly newer `updatedAt`
+ *    (ties favor the session in hand).
+ *  - NO-ZOMBIE: when the live machine is dead (IDLE/OFFLINE/ERROR), the
+ *    restored slice wins untouched — a genuinely dead session hydrates to
+ *    IDLE, never a forever-LIVE pairing with no peer behind it.
+ */
+export function mergePairingOnHydrate(live: PairingStatus, restored: PairingStatus): PairingStatus {
+  if (!LIVE_PAIRING_STATES.has(live.state)) return restored;
+  if (LIVE_PAIRING_STATES.has(restored.state) && restored.updatedAt > live.updatedAt) return restored;
+  return live;
 }
 
 /* ------------------------------------------------------------------ *
@@ -362,8 +394,15 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.id) };
 
     /* ---------------- hydration (persistence replay) ---------------- */
+    // The snapshot restores the durable workspace, but the pairing slice is
+    // merged: hydration is async and can land after a session went live in
+    // this tab (returning phone with a stale IDB snapshot) — a snapshot must
+    // never downgrade a live pairing machine. See mergePairingOnHydrate.
     case 'state/hydrate':
-      return action.state;
+      return {
+        ...action.state,
+        pairing: mergePairingOnHydrate(state.pairing, action.state.pairing),
+      };
 
     default: {
       // Exhaustiveness: adding an action to WorkspaceAction without handling it
