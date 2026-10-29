@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark'
 import type { SceneConfig } from './config'
-import { fetchSplat, SplatLoadError, type LoadProgress } from './loadSplat'
+import { loadSplat, SplatLoadError, splatUrl, type LoadProgress } from './loadSplat'
 
 interface Props {
   config: SceneConfig
@@ -20,16 +20,17 @@ export function SplatScene({ config, onProgress, onBytes }: Props) {
     // splats thinner, which shows up as speckle and pin-holes; matching the training renderer fixes that.
     const spark = new SparkRenderer({ renderer: gl, preBlurAmount: 0.3, maxStdDev: 3 })
     scene.add(spark)
-    const base = import.meta.env.BASE_URL
-    const url = /^(https?:)?\/\//.test(config.splat) ? config.splat : `${base}${config.splat}`
+    const url = splatUrl(config.splat)
     const abort = new AbortController()
     let mesh: SplatMesh | null = null
 
     onProgress('loading')
-    fetchSplat(url, onBytes, abort.signal)
+    loadSplat(url, (p) => !abort.signal.aborted && onBytes(p))
       .then((fileBytes) => {
         if (abort.signal.aborted) return
-        mesh = new SplatMesh({ fileBytes, fileName: url.split(/[?#]/, 1)[0] })
+        // Copy: Spark may hand the buffer to a worker, and the shared download must stay usable for a
+        // remount (React StrictMode, scene change).
+        mesh = new SplatMesh({ fileBytes: fileBytes.slice(), fileName: url.split(/[?#]/, 1)[0] })
         mesh.rotation.set(...config.rotation)
         mesh.scale.setScalar(config.scale)
         scene.add(mesh)

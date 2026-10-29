@@ -20,6 +20,38 @@ function looksLikeSplat(bytes: Uint8Array): boolean {
   return false
 }
 
+// One download per URL, shared: App starts it as soon as scene.json arrives, before the WebGL canvas
+// exists (R3F mounts the scene only after the canvas is measured, and later still in a background tab),
+// and SplatScene picks up the same bytes. Listeners get the latest progress when they subscribe.
+const shared = new Map<string, { promise: Promise<Uint8Array>; last: LoadProgress; listeners: Set<(p: LoadProgress) => void> }>()
+
+export function loadSplat(url: string, onProgress?: (p: LoadProgress) => void): Promise<Uint8Array> {
+  let entry = shared.get(url)
+  if (!entry) {
+    const listeners = new Set<(p: LoadProgress) => void>()
+    const e = { last: { loaded: 0, total: null } as LoadProgress, listeners, promise: Promise.resolve(new Uint8Array()) as Promise<Uint8Array> }
+    e.promise = fetchSplat(url, (p) => {
+      e.last = p
+      listeners.forEach((l) => l(p))
+    }, new AbortController().signal)
+    // A failed download must be retryable (e.g. after the file is uploaded), so do not cache failures.
+    e.promise.catch(() => shared.delete(url))
+    shared.set(url, e)
+    entry = e
+  }
+  if (onProgress) {
+    entry.listeners.add(onProgress)
+    onProgress(entry.last)
+    const remove = () => entry.listeners.delete(onProgress)
+    entry.promise.then(remove, remove)
+  }
+  return entry.promise
+}
+
+export function splatUrl(splat: string): string {
+  return /^(https?:)?\/\//.test(splat) ? splat : `${import.meta.env.BASE_URL}${splat}`
+}
+
 export async function fetchSplat(
   url: string,
   onProgress: (p: LoadProgress) => void,

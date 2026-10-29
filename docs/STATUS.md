@@ -40,9 +40,10 @@ Brush 0.3.0 CLI flags and its COLMAP loading (any `cameras.bin`, so `sparse/` an
 | Milder Brush regularisation (`BRUSH_FLAGS`) | same classroom: floating fog gone, 29% fewer splats. One scene only |
 | `pipeline/room_coverage.py`: seen map, room-closed check, re-film list | unit tests on synthetic rooms (closed room verifies, missing ceiling reported); on the classroom it reports 82% of the floor plan and a mostly unfilmed ceiling, which matches the footage. Plain walls can read as gaps because sparse points are thin there |
 | Auto-alignment written into `scene.json` (level floor, spawn at a real camera, walk bounds) | unit tests at three tilts; on the classroom it reproduces the hand-tuned rotation to all printed digits |
-| `--mask-people` (YOLOv8 segmentation, Brush `masks/` folder) | people found in 187/287 classroom frames (3% of pixels); masks checked by eye on the busiest frame. Retrain result: see PROJECT_STATE.md |
+| `--mask-people` (YOLOv8 segmentation, Brush `masks/` folder) | people found in 187/287 classroom frames (3% of pixels); masks checked by eye on the busiest frame. Retrained (30k steps, 18.5 MB): at two people-heavy viewpoints the seated and walking people are gone and the furniture behind them shows; one person sitting right next to the camera still leaves a smear |
 | Auto exhaustive-matcher retry | logic only; it re-raises every SfM failure except low registration. Not run end to end |
 | Viewer: training-matched splat filter (0.3 px blur, 3 sigma), adaptive resolution (1x to 2x), eased movement, `R` to reset | rendered the classroom in the Browser pane; the filter change is subtle at normal distance |
+| Viewer: splat download starts as soon as `scene.json` arrives, not after the canvas mounts | resource timing: `.sog` request at 0.1 s after load (it previously waited for the canvas) |
 
 ## Not yet tested (written, never run on real data)
 - `pipeline/run_pipeline.py` stages on real footage: frame extraction + blur removal, COLMAP mapping, `model_analyzer` output parsing (the parse fails closed if the format differs), Brush training, publish

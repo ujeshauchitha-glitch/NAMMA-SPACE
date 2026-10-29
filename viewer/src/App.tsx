@@ -5,7 +5,7 @@ import { AdaptiveResolution } from './AdaptiveResolution'
 import { DEFAULT_CONFIG, loadConfig, type SceneConfig } from './config'
 import { FirstPersonControls } from './FirstPersonControls'
 import { SplatScene } from './SplatScene'
-import type { LoadProgress } from './loadSplat'
+import { loadSplat, splatUrl, type LoadProgress } from './loadSplat'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -22,7 +22,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (config) document.title = config.title
+    if (!config) return
+    document.title = config.title
+    // Start downloading now; SplatScene mounts only once the canvas is laid out.
+    loadSplat(splatUrl(config.splat), setBytes).catch(() => {}) // errors are reported by SplatScene
   }, [config])
 
   const onProgress = useCallback((s: Status, message?: string) => {
