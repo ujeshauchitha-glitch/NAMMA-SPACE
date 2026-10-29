@@ -1,0 +1,75 @@
+<meta charset=utf-8><style>body{font:10.5pt/1.4 Segoe UI,Arial;margin:0}h1{font-size:18pt}h2{font-size:12.5pt;margin:12px 0 3px}pre{background:#f3f3f3;padding:6px;font-size:8.5pt}table{border-collapse:collapse}td,th{border:1px solid #999;padding:2px 8px}img{border:1px solid #ccc}</style><h1>Namma Space: Technical Abstract (Round 1)</h1>
+<p>Team: <strong>[TBD names, institute]</strong> · Team ID: <strong>[TBD]</strong> · Repo: https://github.com/ujeshauchitha-glitch/NAMMA-SPACE · Live viewer: <strong>[TBD URL]</strong></p>
+<h2>1. Problem and approach</h2>
+<p>Turn an ordinary smartphone video of an indoor space into a photorealistic 3D model that can be walked through in a web browser, with no manual 3D modelling. Round 1 covers the capture procedure, reconstruction and free-roaming first-person exploration. Points of interest and path planning (Round 2) are designed for, not implemented.</p>
+<p>Approach: structure-from-motion (COLMAP) recovers camera poses; 3D Gaussian Splatting (Brush) trains a photorealistic scene; the browser renders it with Spark. Splats are a rendering representation, not collision geometry, so the Round 2 navigation layer is planned separately (section 6).</p>
+<h2>2. Architecture</h2>
+<pre><code>smartphone video -&gt; validate -&gt; frames + blur filter -&gt; COLMAP (poses, sparse model)
+  -&gt; Gaussian-splat training (Brush) -&gt; output checks -&gt; compressed .sog -&gt; web viewer
+     (React + TypeScript + Vite + react-three-fiber + Spark)
+</code></pre>
+<p>Every stage is a separate command with its own output check, so a stage can be re-run or moved to another machine. A run is only reported successful after a person walks the result and approves it.</p>
+<h2>3. Capture SOP</h2>
+<p>Full procedure in <code>docs/SOP.md</code>. Rules and why:
+- 1x lens, stabilisation off, locked focus/exposure: one fixed camera model; stabilisation warps frames and breaks pose estimation.
+- Slow walking (~0.5 m/s), no fast rotation: blur is the main cause of failed reconstruction.
+- Perimeter loop, centre passes, corner pans, two-way doorway crossings: every surface is seen from 3+ positions; the closed loop lets the solver cancel drift.
+- Original-quality file: a WhatsApp-compressed 480p copy of a clip registered only 14% of frames; the original 1080p registered 94%.</p>
+<h2>4. Reconstruction pipeline</h2>
+<ol>
+<li><strong>Input validation</strong> (resolution, duration, frame rate, disk space) rejects unusable captures before any compute is spent.</li>
+<li><strong>Frames:</strong> 3 fps, blurriest 15% dropped (Laplacian variance); 306 frames kept.</li>
+<li><strong>COLMAP 4.2.1</strong> (CUDA): SIFT features, exhaustive matching, incremental mapping. <strong>287/306 frames registered (94%)</strong>, 35,337 sparse points, mean reprojection error 0.81 px. The default sequential matcher registered only 27% of the same clip, so large rooms use exhaustive matching.</li>
+<li><strong>Splat training:</strong> Brush 0.3.0, 30,000 steps, RTX 5060 laptop GPU, <strong>1,825,915 splats</strong>, 39.8 min.</li>
+<li><strong>Output checks:</strong> file parses, all 3DGS attributes present, size matches header, finite values, sane extent.</li>
+<li><strong>Web copy:</strong> splat-transform 3.10.3 to <code>.sog</code>: <strong>27.7 MB</strong> from a 430.9 MB PLY (budget 50 MB), 65 s.</li>
+<li><strong>Human inspection gate:</strong> <code>inspected_ok</code> is set only by <code>--approve</code> after a person walks the scene. <strong>[TBD: inspection note]</strong></li>
+</ol>
+<h2>5. Web viewer</h2>
+<p>React + TypeScript + Vite; Three.js via react-three-fiber; Spark renders the splats. First-person controls: pointer-lock mouse look, WASD, sprint, height adjust; touch fallback. A scene is described by <code>scene.json</code> (splat, spawn, orientation, scale, walk bounds), so a new capture needs no code change. Measured performance: <strong>[TBD fps / device / load time]</strong>.</p>
+<h2>6. Design for Round 2 (not implemented)</h2>
+<p>POIs as JSON in metre-scaled coordinates; a walkable-area grid with A* pathfinding. Splats carry no reliable surfaces, so the grid is first hand-annotated from a floor plan, with floor-plane fitting on COLMAP's sparse points as the upgrade. AR navigation is deferred.</p>
+<h2>7. Results</h2>
+<p>First real capture: one classroom, 180 s, 1080p, handheld phone video.</p>
+<p><img alt="View toward the window wall" src="images/screenshot_1_windows.jpg" width="48%" /> <img alt="View toward the opposite wall" src="images/screenshot_2_desks.jpg" width="48%" /></p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frames registered</td>
+<td>287 / 306 (94%)</td>
+</tr>
+<tr>
+<td>Sparse points / reprojection error</td>
+<td>35,337 / 0.81 px</td>
+</tr>
+<tr>
+<td>Splats</td>
+<td>1,825,915</td>
+</tr>
+<tr>
+<td>Web file</td>
+<td>27.7 MB (.sog)</td>
+</tr>
+<tr>
+<td>Training / compression time</td>
+<td>39.8 min / 65 s</td>
+</tr>
+</tbody>
+</table>
+<p>Observed artefacts: smeared ceiling (rarely filmed), ghosting around moving people, floaters mid-room.</p>
+<h2>8. Limitations</h2>
+<ul>
+<li>No collision in Round 1: the viewer can walk through walls except for an optional bounding rectangle.</li>
+<li>Scale and orientation are set by hand in <code>scene.json</code>; the first scene's scale is not yet metric.</li>
+<li>Mirrors, glass, plain walls and moving people degrade the result.</li>
+<li>Splat compression is lossy; reconstruction needs an NVIDIA GPU, the viewer needs only WebGL2.</li>
+<li>Training on a laptop required thermal throttling (paused 136 times); a desktop GPU avoids this.</li>
+</ul>
+<h2>9. Tools and licences</h2>
+<p>COLMAP (BSD), Brush (Apache-2.0), Spark (MIT), three.js (MIT), react-three-fiber (MIT), React (MIT), Vite (MIT), OpenCV (Apache-2.0), ffmpeg, splat-transform (MIT).</p>
