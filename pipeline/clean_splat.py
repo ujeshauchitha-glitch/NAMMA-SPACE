@@ -26,6 +26,7 @@ MAX_ASPECT = 8.0
 HUGE_FRAC = float("inf")
 MIN_OPACITY = 0.005
 FLOATER_RADIUS_M = 0.35  # the phone and the hand holding it filled this much space around each camera
+ROOM_PAD_M = 0.3         # keep this much beyond the walls' SfM points (wall splats sit slightly behind them)
 
 
 def read_ply(path: Path) -> tuple[str, list[str], np.ndarray]:
@@ -53,21 +54,28 @@ def write_ply(path: Path, header: str, data: np.ndarray) -> None:
     path.write_bytes(("\n".join(lines) + "\n").encode("ascii") + data.astype("<f4").tobytes())
 
 
-def camera_path(sparse: Path, scratch: Path) -> tuple[np.ndarray, float]:
-    """Camera centres in capture order, and FLOATER_RADIUS_M converted to model units (estimated scale)."""
+def scene_geometry(sparse: Path, scratch: Path) -> dict:
+    """Keyword arguments for clean() from the COLMAP model: the camera path with FLOATER_RADIUS_M in model
+    units (estimated scale), and the room box (levelling rotation, robust point extent + ROOM_PAD_M)."""
     from room_coverage import level_rotation, load_model
     from scene_bundle import estimate_scale
 
     pts, tracks, centres, axes = load_model(sparse, scratch)
     R = level_rotation(centres, axes[:, 1])
-    metres_per_unit, _, _ = estimate_scale((pts @ R.T)[tracks >= 3], centres @ R.T)
-    return centres, FLOATER_RADIUS_M / metres_per_unit
+    P = (pts @ R.T)[tracks >= 3]
+    metres_per_unit, _, _ = estimate_scale(P, centres @ R.T)
+    pad = ROOM_PAD_M / metres_per_unit
+    room = (R, np.percentile(P, 1, axis=0) - pad, np.percentile(P, 99, axis=0) + pad)
+    return {"cameras": centres, "camera_radius": FLOATER_RADIUS_M / metres_per_unit, "room": room}
 
 
 def clean(src: Path, dst: Path, max_aspect: float = MAX_ASPECT, huge_frac: float = HUGE_FRAC,
-          min_opacity: float = MIN_OPACITY, cameras: np.ndarray | None = None, camera_radius: float = 0.0) -> dict:
+          min_opacity: float = MIN_OPACITY, cameras: np.ndarray | None = None, camera_radius: float = 0.0,
+          room: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None) -> dict:
     """`cameras` (M,3) with `camera_radius` (model units): splats centred that close to a camera position
-    are floaters, since the phone was carried through that space and nothing solid can be there."""
+    are floaters, since the phone was carried through that space and nothing solid can be there.
+    `room` (R, lo, hi): splats outside the box lo..hi in the levelled frame (x @ R.T) are dropped; past the
+    walls only glimpses through doors and windows were filmed, and they render as smears."""
     header, props, d = read_ply(src)
     col = {k: i for i, k in enumerate(props)}
     sc = [col["scale_0"], col["scale_1"], col["scale_2"]]
@@ -101,16 +109,22 @@ def clean(src: Path, dst: Path, max_aspect: float = MAX_ASPECT, huge_frac: float
         path = np.vstack([*steps, cameras[-1:]]) if len(cameras) > 1 else cameras
         dist, _ = cKDTree(path).query(xyz, distance_upper_bound=camera_radius)
         floater = np.isfinite(dist)
-    keep = ~(huge | faint | floater)
+    outside = np.zeros(n0, bool)
+    if room is not None:
+        R, lo, hi = room
+        lev = xyz @ R.T
+        outside = np.any((lev < lo) | (lev > hi), axis=1)
+    keep = ~(huge | faint | floater | outside)
     write_ply(dst, header, d[keep])
     stats = {"splats_in": n0, "splats_out": int(keep.sum()), "needles_capped": int(needles.sum()),
              "huge_removed": int(huge.sum()), "faint_removed": int((faint & ~huge).sum()),
              "floaters_removed": int((floater & ~huge & ~faint).sum()),
+             "outside_room_removed": int((outside & ~floater & ~huge & ~faint).sum()),
              "max_aspect": max_aspect, "huge_frac": huge_frac, "min_opacity": min_opacity,
              "camera_radius": camera_radius}
     print(f"clean_splat: {n0} -> {stats['splats_out']} splats; capped {stats['needles_capped']} needles, "
           f"removed {stats['huge_removed']} huge, {stats['faint_removed']} faint and "
-          f"{stats['floaters_removed']} floaters on the camera path")
+          f"{stats['floaters_removed']} floaters on the camera path, {stats['outside_room_removed']} outside the room")
     return stats
 
 
