@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CoverageFrame, RendererLike, RendererRegistry } from '../../lib/scan/scene3d';
-import { mountCoverageScene } from '../../lib/scan/scene3d';
+import { disposeRenderer, mountCoverageScene } from '../../lib/scan/scene3d';
 import styles from './CoverageVisualizer.module.css';
 
 /** Factory for the real renderer. Dynamic `import('three')` keeps `three` in
@@ -17,7 +17,7 @@ async function makeThreeRenderer(canvas: HTMLCanvasElement): Promise<RendererLik
  * frame that carries a real pose; frames without a pose render as an honest
  * grid-plane marker instead of a faked frustum.
  *
- * WebGL lifetime is the whole point of the AC. Three seams keep it provable
+ * WebGL lifetime is the whole point of the AC. Four seams keep it provable
  * in node (no WebGL in vitest):
  *  - `createRenderer` is injectable, so tests count live instances through a
  *    registry and assert the unmount path drives `live()` to zero;
@@ -26,10 +26,20 @@ async function makeThreeRenderer(canvas: HTMLCanvasElement): Promise<RendererLik
  *  - the three chunk is loaded by dynamic `import()` so it never enters the
  *    entry bundle (T25 budget) and the render path stays out of unit scope —
  *    the real GPU path is proven by the T24 e2e remount loop.
+ *  - PER-MOUNT canvas ownership (EX-1 fix): the `<canvas>` element is created
+ *    INSIDE the effect and owned by that effect invocation. A JSX-rendered
+ *    canvas shared via ref survives StrictMode's effect → cleanup → effect
+ *    re-run, so pass 1's cleanup could `forceContextLoss()` the very canvas
+ *    pass 2's lazy `import('three')` renderer was about to claim;
+ *    `getContext()` then returned null, three threw the "precision"
+ *    TypeError, and the component rendered the false context-conflict
+ *    alert with no canvas (100% reproducible on the dev e2e, fixed by this
+ *    ownership rule — see tests/e2e/scan-leak.spec.ts).
  *
  * Disposal order is fixed: scene graph (geometries/materials) → forceContextLoss()
  * → dispose(). forceContextLoss() before dispose() is what keeps a remount
- * from tripping the browser's "WebGL context lost" console warning.
+ * from tripping the browser's "WebGL context lost" console warning — and it
+ * only ever touches the canvas THIS effect invocation created.
  */
 export type CoverageVisualizerProps = {
   /** Staged frames. Posed ones get a frustum, unposed ones a grid marker. */
@@ -52,15 +62,26 @@ export function CoverageVisualizer({
   registry,
   reducedMotion = false,
 }: CoverageVisualizerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   // A per-mount registry keeps the zero-instance invariant local, so a
   // remount never inherits a stale count from a previous mount.
   const ownRegistry = useRef<RendererRegistry | undefined>(registry);
   const [contextConflict, setContextConflict] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Per-mount canvas ownership (EX-1): every effect invocation creates and
+    // owns ITS canvas element, so cleanup (including StrictMode's synchronous
+    // pass-1 teardown) can only ever touch what that pass created — it can
+    // never forceContextLoss() a canvas another pass's renderer is about to
+    // claim. Appended synchronously so the canvas is deterministic in the
+    // DOM before the lazy three chunk resolves.
+    const canvas = document.createElement('canvas');
+    canvas.className = styles.canvas;
+    canvas.setAttribute('aria-label', 'Coverage visualizer');
+    container.appendChild(canvas);
 
     // The renderer factory may be sync (test fake) or async (lazy three chunk);
     // a mount holds a renderer, so the sync case is promoted to a Promise.
@@ -70,9 +91,11 @@ export function CoverageVisualizer({
     void Promise.resolve(createRenderer ? createRenderer(canvas) : makeThreeRenderer(canvas))
       .then((renderer) => {
         // Unmount raced the lazy chunk — dispose immediately, never leak.
+        // This pass's renderer on this pass's canvas; no other pass is
+        // affected (each owns its own element).
         if (cancelled) {
-          renderer.forceContextLoss();
-          renderer.dispose();
+          disposeRenderer(renderer);
+          canvas.remove();
           return;
         }
         try {
@@ -91,11 +114,16 @@ export function CoverageVisualizer({
           setContextConflict(true);
         }
       })
-      .catch(() => setContextConflict(true));
+      .catch(() => {
+        // A cancelled pass failing is not a context conflict — the live pass
+        // (if any) owns that verdict, and this element is already gone.
+        if (!cancelled) setContextConflict(true);
+      });
 
     return () => {
       cancelled = true;
       releaseMount?.(); // idempotent — StrictMode-safe
+      canvas.remove(); // the canvas THIS pass created — never a shared one
     };
     // Mount-once: the WebGL context is created once per mount. `frames` is
     // intentionally excluded — the scene rebuilds on frame changes through the
@@ -115,8 +143,6 @@ export function CoverageVisualizer({
   }
 
   return (
-    <div className={styles.bed} data-unposed-count={unposedCount}>
-      <canvas ref={canvasRef} className={styles.canvas} aria-label="Coverage visualizer" />
-    </div>
+    <div ref={containerRef} className={styles.bed} data-unposed-count={unposedCount} />
   );
 }
