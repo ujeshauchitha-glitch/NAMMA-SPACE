@@ -98,3 +98,12 @@
 - 12 visual §7.3 moments NOT implemented (documented in src/motion/index.ts header): need lazy import('gsap') + component wiring + browser verification (T24 territory). Remaining T23 = choreography sweep, explicitly deferred.
 - build-report.json diff = gate byproduct (timestamps/hashes), committed at boundary as before.
 - Reviewer dispatched on T23 diff (background) while T24 (e2e) still runs. Next: T24 + review results -> commit T23 -> T27 final release gate -> G closure.
+
+## 2026-10-29 07:2x IST — T24 e2e suites complete; two real defects surfaced
+- T24 agent: 5 new specs + 7 new tests, GREEN 2x consecutive + 3rd pass inside gate. e2e total 35/35 (was 28), walls 1:26.8 / 1:38.1. Gate 10/10 GATE_EXIT=0. eslint clean on tests/e2e.
+  - workflow: 3-tab journey + reload IDB restore (room/group/thumbnail/camera pose). capture-export: ZIP magic PK\x03\x04, size>0, honest filename via download intercept. camera: fake-device flags + channel:'chromium' (headless-shell NotSupportedError proven w/ probe), LIVE->CAPTURING->STAGED via MutationObserver, denied variant exact remedy copy. webrtc-loopback: real RTCPeerConnection connected <=10s, capture-state crosses datachannel, retry-then-loud-fail. motion-reduced: static skeleton + in-page 16ms zero-transform-delta probe across tab switches.
+  - channel:'chromium' rationale + wire-ups documented in VALIDATION.md (+29 lines).
+- T24 deliberately withheld scan-leak spec (EX-1) instead of skipping: found a REAL bug - StrictMode double-mount + lazy import('three') race in CoverageVisualizer: pass-1 cancelled branch forceContextLoss()es the shared canvas before pass-2 renderer ctor -> getContext null -> three throws -> canvas never mounts (100% repro on dev; prod single-pass OK).
+- T24 also flagged EX-2: state/hydrate replaces store wholesale -> returning phone hydrates pairing:IDLE over its live session -> rail stuck IDLE, capture locked.
+- Dispatched in parallel: reviewer on T24 diff; developer on EX-2 hydrate clobber (pure mergePairingOnHydrate + wiring, vitest-only validation, no e2e/gate to avoid port contention with the e2e lane). EX-1 CoverageVisualizer fix queued NEXT (needs exclusive e2e lane) + scan-leak spec re-add from T24's preserved body.
+- Then T27 final release gate (full battery into VALIDATION.md), then G closure.
