@@ -78,3 +78,10 @@
 - Lead verification: vitest 558/558, typecheck 0, lint 0 errors (6 known-class react-refresh warnings), build ok (QR lazy 21KB). AC grep: zero simulated progress.
 - NOT claimed: device-to-device. T24 scope: mounted-effect e2e, ?pair click-through, real-hardware smoke.
 - Dispatching T22 (coverage visualizer, dep T21 done + T14). T23 (GSAP) queues behind T22 per spec deps.
+
+## 2026-10-29 04:55 IST — T22 committed (74a112b); gate catches real leak, fixed same cycle
+- T22: CoverageVisualizer (lazy three chunk, honest unposed-frame markers, context-guard refusal, disposal proven in node: 5 remounts -> 0 live). Browser-level AC = T24 (no WebGL in node, documented PARTIAL).
+- QUALITY GATE PAYOFF: T25's R3 heuristic found a TRUE POSITIVE - LiveScanWorkspace minted object URLs never revoked (spec 7.3 leak under demo repetition). Owner session fixed at source (no-mint staging, Capture Studio owns display URLs; red test captured actual leaked blob:nodedata URL). T25's strict xfail promoted to green guard (65/65 pytest).
+- three laziness: dead marker threejs.org (0 hits everywhere) replaced with AND of REVISION+SRGBColorSpace (per-chunk counts verified); check now prints marker evidence. gsap = honest vacuous exception until T23.
+- Lead verified: vitest 591/591, typecheck 0, lint 0 err, build ok, check_chunks PASS, quality gate 10/10 GATE_EXIT=0 (incl. e2e 28), pytest 65/65.
+- Dispatching T23 (GSAP choreography + reduced-motion gates, spec-dep T22 now done).
