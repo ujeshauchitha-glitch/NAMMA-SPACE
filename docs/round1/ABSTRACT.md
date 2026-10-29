@@ -1,6 +1,6 @@
-# Namma Space: Technical Abstract (Round 1)
+﻿# Namma Space: Technical Abstract (Round 1)
 
-Team: **[TBD names, institute]** · Team ID: **[TBD]** · Repo: https://github.com/ujeshauchitha-glitch/NAMMA-SPACE · Live viewer: **[TBD URL]**
+Team: **[TBD names, institute]** Â· Team ID: **[TBD]** Â· Repo: https://github.com/ujeshauchitha-glitch/NAMMA-SPACE Â· Live viewer: **[TBD URL]**
 
 ## 1. Problem and approach
 Turn an ordinary smartphone video of an indoor space into a photorealistic 3D model that can be walked through in a web browser, with no manual 3D modelling. Round 1 covers the capture procedure, reconstruction and free-roaming first-person exploration. Points of interest and path planning (Round 2) are designed for, not implemented.
@@ -26,9 +26,9 @@ Full procedure in `docs/SOP.md`. Rules and why:
 1. **Input validation** (resolution, duration, frame rate, disk space) rejects unusable captures before any compute is spent.
 2. **Frames:** 3 fps, blurriest 15% dropped (Laplacian variance); 306 frames kept.
 3. **COLMAP 4.2.1** (CUDA): SIFT features, exhaustive matching, incremental mapping. **287/306 frames registered (94%)**, 35,337 sparse points, mean reprojection error 0.81 px. The default sequential matcher registered only 27% of the same clip, so large rooms use exhaustive matching.
-4. **Splat training:** Brush 0.3.0, 30,000 steps, RTX 5060 laptop GPU, **1,825,915 splats**, 39.8 min.
+4. **Splat training:** Brush 0.3.0, 30,000 steps, RTX 5060 laptop GPU, **1,293,629 splats**, about 43 min wall-clock including thermal pauses; opacity and scale penalties raised (1e-8, 1e-7) and splats capped at 1.5M, which removed most floating fog.
 5. **Output checks:** file parses, all 3DGS attributes present, size matches header, finite values, sane extent.
-6. **Web copy:** splat-transform 3.10.3 to `.sog`: **27.7 MB** from a 430.9 MB PLY (budget 50 MB), 65 s.
+6. **Web copy:** splat-transform 3.10.3 to `.sog`: **19.6 MB** from a 305.3 MB PLY (budget 50 MB), 45 s.
 7. **Human inspection gate:** `inspected_ok` is set only by `--approve` after a person walks the scene. **[TBD: inspection note]**
 
 ## 5. Web viewer
@@ -40,17 +40,17 @@ POIs as JSON in metre-scaled coordinates; a walkable-area grid with A* pathfindi
 ## 7. Results
 First real capture: one classroom, 180 s, 1080p, handheld phone video.
 
-![View toward the window wall](images/screenshot_1_windows.jpg){width=48%} ![View toward the opposite wall](images/screenshot_2_desks.jpg){width=48%}
+![View toward the window wall](images/screenshot_1_window_wall.jpg){width=48%} ![View toward the opposite wall](images/screenshot_2_desks_floor.jpg){width=48%}
 
 | Metric | Value |
 |---|---|
 | Frames registered | 287 / 306 (94%) |
 | Sparse points / reprojection error | 35,337 / 0.81 px |
-| Splats | 1,825,915 |
-| Web file | 27.7 MB (.sog) |
-| Training / compression time | 39.8 min / 65 s |
+| Splats | 1,293,629 |
+| Web file | 19.6 MB (.sog) |
+| Training / compression time | ~43 min / 45 s |
 
-Observed artefacts: smeared ceiling (rarely filmed), ghosting around moving people, floaters mid-room.
+Observed artefacts: the ceiling is hazy (rarely filmed) and moving people leave faint ghosts. The first training with default settings left heavy floating fog mid-room (1.83M splats, 27.7 MB); raising the opacity/scale penalties removed most of it with fewer splats and a smaller file.
 
 ## 8. Limitations
 - No collision in Round 1: the viewer can walk through walls except for an optional bounding rectangle.
@@ -61,3 +61,4 @@ Observed artefacts: smeared ceiling (rarely filmed), ghosting around moving peop
 
 ## 9. Tools and licences
 COLMAP (BSD), Brush (Apache-2.0), Spark (MIT), three.js (MIT), react-three-fiber (MIT), React (MIT), Vite (MIT), OpenCV (Apache-2.0), ffmpeg, splat-transform (MIT).
+

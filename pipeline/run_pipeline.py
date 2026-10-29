@@ -151,7 +151,11 @@ def train_brush(dataset: Path, export: Path, steps: int, log: Path) -> None:
     # Flags checked against Brush v0.3.0 source (brush-cli, brush-process/src/config.rs). A positional source
     # runs headless; export_every == total_steps writes exactly one file, at the last step.
     run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps), "--export-path", str(export),
-         "--export-every", str(steps), "--export-name", "splat.ply"], log, "Brush training")
+         "--export-every", str(steps), "--export-name", "splat.ply",
+         # Brush's default penalties are ~1e-9/1e-8, which let thousands of near-transparent splats pile up as
+         # floating fog. On the first classroom these values gave a cleaner room with 29% fewer splats; 1e-7/1e-6
+         # was too strong (155k splats, blurry). Tested on one scene only.
+         "--opac-loss-weight", "1e-8", "--scale-loss-weight", "1e-7", "--max-splats", "1500000"], log, "Brush training")
 
 
 def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None:
@@ -333,7 +337,21 @@ def main() -> int:
             raise PipelineError(f"Only {n} usable frames (need {min_frames}). Film longer or raise --fps.")
 
         with Timer() as t:
-            dataset = sfm(work, matcher, not a.cpu, report, log)
+            auto = a.matcher is None and not is_dir
+            try:
+                dataset = sfm(work, matcher, not a.cpu, report, log)
+            except PipelineError:
+                if not (auto and report.data.get("sfm", {}).get("registration_ratio") is not None):
+                    raise
+                dataset = work / "dataset"
+            ratio = report.data.get("sfm", {}).get("registration_ratio")
+            if auto and ratio is not None and ratio < checks.MIN_REGISTRATION:
+                # Sequential matching only links neighbouring frames; big rooms with loops need all pairs.
+                print(f"sfm: sequential matching registered {ratio:.0%}; retrying with exhaustive matching")
+                report.data["sfm_sequential_ratio"] = ratio
+                shutil.rmtree(dataset, ignore_errors=True)
+                shutil.rmtree(work / "sparse", ignore_errors=True)
+                dataset = sfm(work, "exhaustive", not a.cpu, report, log)
         report.stage("sfm", t.seconds)
 
         with Timer() as t:
