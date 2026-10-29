@@ -37,21 +37,17 @@ These cannot be automated:
 - **Public URL:** with Ojas, deploy the viewer (GitHub Pages workflow already exists) and the `.sog`.
 - **Drive upload:** put `work/send_to_ojas/classroom/` into the team Drive folder. Refresh its `report.json` and `pipeline.log` from the newest run first; the ones there now are from the first run.
 
-## 5. [P2] Scene has no real-world scale
-**Symptom:** viewer units are whatever COLMAP picked. Walking speed and eye height are tuned by hand per scene (`eyeHeight: 0` in `scene.json`).
-**Task:** recover metres. Simplest option: place an A4 sheet or a printed ArUco marker in the room at capture time, detect it in the frames, and scale the COLMAP model. Fallback: assume the phone was held at about 1.5 m and use the camera-to-floor distance from `room_coverage.viewer_alignment`.
-**Files:** `pipeline/room_coverage.py` (`viewer_alignment`), `pipeline/run_pipeline.py` (`publish`), and `docs/SOP.md` (add the marker step).
-**Done when:** `scene.json` carries `metersPerUnit`, the viewer walks at 1.4 m/s at 1.6 m eye height, and a test with a synthetic scaled scene passes.
+## 5. [DONE, estimated] Real-world scale
+`pipeline/scene_bundle.py` assumes the phone was held 1.45 m above the floor. On the classroom this gives a 2.65 m room height, which is plausible. The manifest says `scaleStatus: "estimated"`. Still open, and optional: a printed marker in the room for a measured scale.
 
-## 6. [P2] No walls or collision in the viewer
-**Symptom:** you can only stay near the filmed path (`keepNearPath` in `viewer/src/FirstPersonControls.tsx`). There are no real walls.
-**Task:** build a 2D occupancy grid from the COLMAP points (the same grid `room_coverage.py` already builds). Export it in `scene.json` and block movement into occupied cells in the viewer. This is also the groundwork for Round 2 navigation.
-**Done when:** walking into a desk or wall stops you, walking between desks still works, and there is a unit test for the grid export.
+## 6. [DONE] Walls and collision
+`pipeline/scene_bundle.py` writes a navigation grid: 10 cm cells, desks and walls blocked with a 25 cm clearance, and areas far from the filmed path marked unknown. The studio viewer (branch `ujesha/viewer-unify`) stops you at walls and slides you along them. Checked on the classroom: walking straight ahead stops at arm's length from the bookshelf.
 
-## 7. [P2] Merge with Ashwin's pipeline
-`integration/r1` contains Ashwin's PlayCanvas viewer (it loads `.sog`/`.ply`). `round1/viewer-pipeline` and `ujesha/round1-fixes` contain the Spark/R3F viewer and all the pipeline work above. Two viewers now exist.
-**Task:** pick one viewer (compare load time, frame rate on a mid-range laptop and phone, and image quality on the same `.sog`), port walkPath, spawn and alignment from `scene.json` into it, and delete the other.
-**Done when:** one branch, one viewer, and `scene.json` from the pipeline loads in it unchanged.
+## 7. [P2] Finish the merge into one branch
+**Decision (29 Oct): the studio app (Ashwin's PlayCanvas viewer) is the viewer.** It renders our classroom `.sog` correctly and already has metres, routing, POI search and a HUD, all of which Round 2 needs. The Spark viewer (`viewer/`) is kept only until this card is done.
+**Task:** on `ujesha/viewer-unify` (based on `integration/r1`), replace `reconstruction/pipeline/` with `pipeline/` from `ujesha/round1-fixes`, together with its tests. Make `run_pipeline.py` publish copy `work/<run>/bundle` into `public/scenes/<name>/`. Port two features from the Spark viewer: the touch controls and adaptive resolution. Then remove `spark-viewer/` and `viewer/`.
+**Done when:** one branch, one viewer, and a pipeline run opens in the studio app at `/?scene=/scenes/<name>/manifest.json` with no manual step.
+**Not yet measured:** frame rate. Both viewers ran at about 2 fps while COLMAP was using the CPU, and the browser was on the integrated GPU. Measure again on an idle machine before deleting the Spark viewer.
 
 ## 8. [P3] A full run takes 3–4 hours
 Exhaustive COLMAP matching plus Brush 30k steps, held to 8 cores so the laptop survives.

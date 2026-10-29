@@ -237,6 +237,13 @@ def publish(web_splat: Path, title: str, report: Report, work: Path, sparse: Pat
                             "around the walked path. Scale is NOT metric (scale 1 = COLMAP units).")
         except Exception as e:
             print(f"publish: auto-alignment failed ({e}); scene.json left unaligned")
+        # Bundle for the studio viewer: metric (estimated) scale and a navigation grid for collision.
+        try:
+            import scene_bundle
+            report.data["bundle"] = scene_bundle.build(sparse, web_splat, work / "bundle", title)
+            print(f"publish: studio bundle -> {work / 'bundle'} (copy to public/scenes/<name>/ in the studio app)")
+        except Exception as e:
+            print(f"publish: studio bundle failed ({e})")
     (web_splat.parent / "scene.json").write_text(json.dumps(cfg, indent=2))
     shutil.rmtree(DEV_MODELS, ignore_errors=True)
     DEV_MODELS.mkdir(parents=True)

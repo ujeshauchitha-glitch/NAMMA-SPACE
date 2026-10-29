@@ -1,0 +1,36 @@
+"""Scene bundle for the studio viewer: estimated scale and navigation grid on a synthetic room."""
+import json
+
+import numpy as np
+import pytest
+
+pytest.importorskip("scipy")
+pytest.importorskip("cv2")
+import scene_bundle  # noqa: E402  (conftest puts pipeline/ on sys.path)
+from test_coverage import write_model  # noqa: E402
+
+
+def test_bundle_scale_walls_and_start(tmp_path):
+    # 4 x 2.6 x 6 m box, cameras at 1.4 m: the guess (1.45 m camera height) is within 4% of the truth.
+    model = write_model(tmp_path / "m", 0.3)
+    splat = tmp_path / "scene.sog"
+    splat.write_bytes(b"not a real splat")
+    stats = scene_bundle.build(model, splat, tmp_path / "bundle", "Synthetic")
+    assert stats["room_height_m"] == pytest.approx(2.6 * 1.45 / 1.4, rel=0.05)
+
+    manifest = json.loads((tmp_path / "bundle" / "manifest.json").read_text())
+    grid = json.loads((tmp_path / "bundle" / manifest["navigationUri"]).read_text())
+    assert manifest["scaleStatus"] == "estimated" and manifest["units"] == "metre"
+    assert (tmp_path / "bundle" / manifest["visualAssets"][0]["uri"]).is_file()
+
+    blocked = np.zeros(grid["width"] * grid["height"], bool)
+    blocked[grid["blocked"]] = True
+    blocked[grid["unknown"]] = True
+    assert not set(grid["blocked"]) & set(grid["unknown"])        # the viewer rejects overlapping lists
+    occ = blocked.reshape(grid["height"], grid["width"])          # [z, x]
+    s = grid["start"]
+    assert not occ[s["z"], s["x"]]                                # the visitor starts on free floor
+    assert occ[:, 0].all() and occ[:, -1].all()                   # walls along both x edges block walking
+    assert not occ[grid["height"] // 2, grid["width"] // 2]       # the middle of the room is walkable
+    start_y = manifest["startPosition"][1]
+    assert start_y == pytest.approx(scene_bundle.ASSUMED_CAMERA_HEIGHT_M)
