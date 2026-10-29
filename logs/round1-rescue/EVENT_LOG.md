@@ -85,3 +85,9 @@
 - three laziness: dead marker threejs.org (0 hits everywhere) replaced with AND of REVISION+SRGBColorSpace (per-chunk counts verified); check now prints marker evidence. gsap = honest vacuous exception until T23.
 - Lead verified: vitest 591/591, typecheck 0, lint 0 err, build ok, check_chunks PASS, quality gate 10/10 GATE_EXIT=0 (incl. e2e 28), pytest 65/65.
 - Dispatching T23 (GSAP choreography + reduced-motion gates, spec-dep T22 now done).
+
+## 2026-10-29 06:05 IST — usage-limit recovery; F committed; T23+T24 re-dispatched
+- Both F and T23 agents died at startup on free-usage limit. F had completed its files before dying: SUBMISSION_ROUND1/CAPTURE_DAY/ABSTRACT (adapted from stranded c305a36) + HANDOFF append + contradiction report. Lead verified docs (no fabrication; only honest denials matched risky-claim grep), corrected stale entry-chunk figure (129,838 -> 139,693 B gzip post-T22), committed 44d72cb.
+- Lead inline (deviation noted - no subagent capacity): resolved all 4 F-routed contradictions in README:73 (dropped unverifiable synthetic end-to-end claim; 'footage'->'70-photo set') and DEMO_SCRIPT.md (not-recordable banner + honest options) -> 7e224af. These were doc-honesty corrections, not feature work.
+- Capacity returned: re-dispatched T23 as BOUNDED slice (pure motion registry consolidating 3 duplicate duration gates + kill-path controller + tests; NO gsap import to game chunk check; 12 visual moments documented as e2e-dependent remainder) and T24 (e2e: loopback/camera/motion-reduced/remount-leak/export/workflow; no-silent-skip rule; 2x-deterministic requirement).
+- After T23+T24: T27 final release gate (record in VALIDATION.md) + G closure (HANDOFF finalization, final push). Sprint at ~4h of 12h.
