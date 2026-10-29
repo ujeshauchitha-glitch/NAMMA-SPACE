@@ -107,3 +107,11 @@
 - T24 also flagged EX-2: state/hydrate replaces store wholesale -> returning phone hydrates pairing:IDLE over its live session -> rail stuck IDLE, capture locked.
 - Dispatched in parallel: reviewer on T24 diff; developer on EX-2 hydrate clobber (pure mergePairingOnHydrate + wiring, vitest-only validation, no e2e/gate to avoid port contention with the e2e lane). EX-1 CoverageVisualizer fix queued NEXT (needs exclusive e2e lane) + scan-leak spec re-add from T24's preserved body.
 - Then T27 final release gate (full battery into VALIDATION.md), then G closure.
+
+## 2026-10-29 07:5x IST — EX-2 hydrate clobber fixed (agent); review dispatched
+- Root cause (agent): reducer.ts:365-366 'state/hydrate' returned action.state WHOLESALE. Hydration is async (persistence.load resolves after mount); toPersistedSnapshot always persists pairing:IDLE -> returning phone's stale IDB snapshot clobbered its in-flight PAIRING/LIVE session; later rail-sync transitions were illegal hops out of IDLE, rejected silently -> rail stuck IDLE, capture locked.
+- Fix: pure mergePairingOnHydrate(live, restored) in reducer. NO-CLOBBER: live in-flight {PAIRING,LIVE,CAPTURING,STAGED} beats restored IDLE; restored wins only if itself in-flight with strictly newer updatedAt (ties->live). NO-ZOMBIE: live dead {IDLE,OFFLINE,ERROR} -> restored wins untouched. Bridge-resync alternative rejected (would mask the store lie).
+- Evidence: tests/pairing-hydrate.test.ts 15 tests, RED 13 failed -> GREEN 15/15; full vitest 667/667 (652+15, concurrent-lane count note); tsc 0; lint 6 known warnings. e2e/gate NOT run by fixer (port owned by EX-1 lane) - lead to run at T27.
+- DISCREPANCY raised: fixer reports the pairing-clobber text is at VALIDATION.md ~L171 while the literal 'EX-2' label at ~L99 is a different exception - reviewer asked to adjudicate + whether a label correction needs routing.
+- Reviewer dispatched on the reducer diff (2 files) while EX-1 (CoverageVisualizer per-mount canvas + scan-leak spec) still runs.
+- Fixer's follow-up risks for e2e lane: return-phone loopback re-check without clearWorkspaceSnapshot helper (now redundant but harmless); bridge shadow seam look; vitest count re-baseline at merge.
