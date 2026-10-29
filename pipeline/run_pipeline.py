@@ -232,7 +232,7 @@ def publish(web_splat: Path, title: str, report: Report, work: Path, sparse: Pat
             import room_coverage
             _, _, cams, axes = room_coverage.load_model(sparse, work / "coverage" / "sparse_txt")
             align = room_coverage.viewer_alignment(cams, axes)
-            cfg.update({k: align[k] for k in ("rotation", "spawn", "spawnYaw", "eyeHeight", "bounds")})
+            cfg.update({k: align[k] for k in ("rotation", "spawn", "spawnYaw", "eyeHeight", "bounds", "walkPath", "walkRadius")})
             cfg["_note"] = ("AUTO-ALIGNED from camera poses: floor levelled, spawn at a real camera position, bounds "
                             "around the walked path. Scale is NOT metric (scale 1 = COLMAP units).")
         except Exception as e:

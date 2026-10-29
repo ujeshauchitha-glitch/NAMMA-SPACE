@@ -16,6 +16,10 @@ export interface SceneConfig {
   scale: number
   /** Optional axis-aligned walk limits [minX, maxX, minZ, maxZ]. */
   bounds?: [number, number, number, number]
+  /** Optional filmed path as [x, z] points in capture order. With it, walking is limited to within
+   *  walkRadius of the path: splats only look right near the views they were trained from. */
+  walkPath?: [number, number][]
+  walkRadius?: number
   /** True for test fixtures that are not a reconstruction; the viewer shows a permanent badge. */
   synthetic?: boolean
 }

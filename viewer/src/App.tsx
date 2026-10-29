@@ -60,6 +60,8 @@ export default function App() {
             yaw={config.spawnYaw}
             eyeHeight={config.eyeHeight}
             bounds={config.bounds}
+            walkPath={config.walkPath}
+            walkRadius={config.walkRadius}
             enabled={status === 'ready'}
             onLock={setLocked}
           />

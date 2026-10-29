@@ -97,10 +97,27 @@ def viewer_alignment(centres, axes) -> dict:
     R = level_rotation(centres, axes[:, 1])
     C = centres @ R.T
     fwd = axes[:, 0] @ R.T
-    i = int(np.argmin(np.linalg.norm(C - C.mean(0), axis=1)))
+    # Spawn where the first view shows the most room: a real camera near the edge of the walk that was
+    # looking back across the middle (not one in the middle that may face a wall a metre away).
+    to_mid = C.mean(0) - C
+    dist = np.linalg.norm(to_mid[:, [0, 2]], axis=1)
+    facing = np.einsum("ij,ij->i", fwd[:, [0, 2]], to_mid[:, [0, 2]]) / np.maximum(
+        dist * np.linalg.norm(fwd[:, [0, 2]], axis=1), 1e-9)
+    i = int(np.argmax(np.where(facing > 0.8, dist, -1.0)))
+    if facing[i] <= 0.8:  # nobody looked inwards: fall back to the camera nearest the middle
+        i = int(np.argmin(dist))
     lo, hi = C.min(0), C.max(0)
     pad = (hi - lo) * 0.15
+    # A splat only looks right near the views it was trained from, so the viewer keeps the visitor within
+    # walkRadius of the filmed path (camera centres in capture order; COLMAP lists images by id = name order).
+    path = C[:, [0, 2]]
+    keep = [0]
+    for k in range(1, len(path)):  # drop near-duplicates to keep scene.json small
+        if np.linalg.norm(path[k] - path[keep[-1]]) > 0.02 * float((hi - lo).max()):
+            keep.append(k)
     return {"rotation": euler_xyz(R), "spawn": C[i].round(3).tolist(),
+            "walkPath": [[round(float(x), 3), round(float(z), 3)] for x, z in path[keep]],
+            "walkRadius": round(0.08 * float((hi - lo)[[0, 2]].max()), 3),
             "spawnYaw": round(math.atan2(-fwd[i, 0], -fwd[i, 2]), 3), "eyeHeight": 0,
             "bounds": [round(float(v), 3) for v in (lo[0] - pad[0], hi[0] + pad[0], lo[2] - pad[2], hi[2] + pad[2])],
             "spawn_image_index": i}

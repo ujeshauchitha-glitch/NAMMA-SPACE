@@ -7,6 +7,8 @@ interface Props {
   yaw: number
   eyeHeight: number
   bounds?: [number, number, number, number]
+  walkPath?: [number, number][]
+  walkRadius?: number
   enabled: boolean
   onLock: (locked: boolean) => void
 }
@@ -17,7 +19,34 @@ const LOOK = 0.0022
 const SMOOTHING = 12 // 1/s: how fast walking speed follows the keys
 
 /** Pointer-lock mouse look + WASD on the floor plane. Collision lands in Round 2. */
-export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, enabled, onLock }: Props) {
+/** Moves (x, z) back to within `radius` of the nearest segment of `path` if it strayed further. */
+function keepNearPath(pos: THREE.Vector3, path: [number, number][], radius: number) {
+  let best = Infinity
+  let bx = pos.x
+  let bz = pos.z
+  for (let i = 0; i < path.length; i++) {
+    const [ax, az] = path[i]
+    const [cx, cz] = path[Math.min(i + 1, path.length - 1)]
+    const dx = cx - ax
+    const dz = cz - az
+    const len2 = dx * dx + dz * dz
+    const t = len2 > 0 ? THREE.MathUtils.clamp(((pos.x - ax) * dx + (pos.z - az) * dz) / len2, 0, 1) : 0
+    const px = ax + t * dx
+    const pz = az + t * dz
+    const d = Math.hypot(pos.x - px, pos.z - pz)
+    if (d < best) {
+      best = d
+      bx = px
+      bz = pz
+    }
+  }
+  if (best > radius) {
+    pos.x = bx + ((pos.x - bx) / best) * radius
+    pos.z = bz + ((pos.z - bz) / best) * radius
+  }
+}
+
+export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, walkPath, walkRadius, enabled, onLock }: Props) {
   const { camera, gl } = useThree()
   const keys = useRef(new Set<string>())
   const look = useRef({ yaw, pitch: 0 })
@@ -109,13 +138,17 @@ export function FirstPersonControls({ spawn, yaw, eyeHeight, bounds, enabled, on
     velocity.current.lerp(target, 1 - Math.exp(-SMOOTHING * step))
     camera.position.x += velocity.current.x * step
     camera.position.z += velocity.current.y * step
+    // With a filmed path, stay near the height the phone was held at; far above it is unfilmed ceiling.
+    const [liftMin, liftMax] = walkPath ? [-0.3, 0.3] : [-0.8, 1.2]
     lift.current = THREE.MathUtils.clamp(
       lift.current + (Number(k.has('KeyE')) - Number(k.has('KeyQ'))) * speed * step,
-      -0.8,
-      1.2,
+      liftMin,
+      liftMax,
     )
     camera.position.y = spawn.y + eyeHeight + lift.current
-    if (bounds) {
+    if (walkPath && walkPath.length > 1 && walkRadius) {
+      keepNearPath(camera.position, walkPath, walkRadius)
+    } else if (bounds) {
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds[0], bounds[1])
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds[2], bounds[3])
     }
