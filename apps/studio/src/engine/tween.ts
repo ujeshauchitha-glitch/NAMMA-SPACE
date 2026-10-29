@@ -11,6 +11,8 @@
  * can never accidentally "finish" a motion the user killed.
  */
 
+import { momentDuration } from '../motion';
+
 export type Tween = {
   elapsedMs: number;
   durationMs: number;
@@ -42,9 +44,10 @@ export function cancelTween(tween: Tween): Tween {
 /**
  * Reduced motion resolves a tween's base duration: instant cut (0 ms) vs the
  * designed duration (the engine owns the matchMedia lookup, this owns math).
+ * Delegates to the T23 registry so the gate exists in exactly one place.
  */
 export function resolveTweenDuration(baseMs: number, reducedMotion: boolean): number {
-  return reducedMotion ? 0 : Math.max(0, baseMs);
+  return momentDuration(baseMs, reducedMotion);
 }
 
 /** Advance by a non-negative delta; returns raw progress for the caller to ease. */

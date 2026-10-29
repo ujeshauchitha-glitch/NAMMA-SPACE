@@ -14,6 +14,7 @@
  * and is exercised only by the T24 e2e remount loop.
  */
 import type { CameraPose } from '../../state/types';
+import { momentDuration } from '../../motion';
 
 export type Vec3Tuple = readonly [number, number, number];
 
@@ -365,11 +366,11 @@ export const webglContextGuard: ContextGuard = createContextGuard();
 /**
  * How long a settle/idle animation should run. Under reduced motion the
  * visualizer holds a static grid (no idle drift, no settle ease) — same
- * contract as `resolveTweenDuration` in the engine, so T23's registry can
- * read this without a new mechanism.
+ * contract as `resolveTweenDuration` in the engine; both delegate to the
+ * T23 registry (`momentDuration`) so the gate is defined once.
  */
 export function resolveVisualizerDuration(baseMs: number, reducedMotion: boolean): number {
-  return reducedMotion ? 0 : Math.max(0, baseMs);
+  return momentDuration(baseMs, reducedMotion);
 }
 
 /** Map a pose list to the coverage frames the visualizer renders. */

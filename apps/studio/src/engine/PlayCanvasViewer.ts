@@ -14,6 +14,7 @@ import { resolveWalkableStep } from '../lib/movement';
 import { assetFailureMessage, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
+import { resolveMotionPrefersReduced } from '../motion';
 
 type ViewerCallbacks = {
   onStatus: (message: string) => void;
@@ -425,11 +426,17 @@ export class PlayCanvasViewer {
     [...this.motionStops].forEach((stop) => stop());
   }
 
-  /** Reduced-motion preference (§7.4): motion resolves to instant cuts. */
+  /**
+   * Reduced-motion preference (§7.4): motion resolves to instant cuts.
+   * The environment lookup stays here (browser-only guards); the decision
+   * delegates to the T23 registry (src/motion) — single source of truth.
+   */
   private prefersReducedMotion(): boolean {
-    return typeof window !== 'undefined'
-      && typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return resolveMotionPrefersReduced(
+      typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    );
   }
 
   /**

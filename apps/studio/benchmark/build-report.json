@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "createdAt": "2026-10-29T00:27:01.639703+00:00",
+  "createdAt": "2026-10-29T07:09:23.605248+00:00",
   "dist": "dist",
   "artifacts": [
     {
-      "path": "dist/assets/PlayCanvasViewer-BulP5cgz.js",
-      "bytes": 2032704,
-      "gzipBytes": 521335
+      "path": "dist/assets/PlayCanvasViewer-DBMMGUEn.js",
+      "bytes": 2032736,
+      "gzipBytes": 521354
     },
     {
       "path": "dist/assets/browser-Cgug2DPz.js",
@@ -19,7 +19,7 @@
       "gzipBytes": 8639
     },
     {
-      "path": "dist/assets/index-BhAZ-7KR.js",
+      "path": "dist/assets/index-D7_RJSj7.js",
       "bytes": 448078,
       "gzipBytes": 139693
     },
@@ -76,7 +76,7 @@
     {
       "path": "dist/index.html",
       "bytes": 1135,
-      "gzipBytes": 560
+      "gzipBytes": 561
     },
     {
       "path": "dist/scenes/fixture/manifest.json",
@@ -130,12 +130,12 @@
       "gzipBytes": 8639
     },
     "entryJavaScript": {
-      "path": "dist/assets/index-BhAZ-7KR.js",
+      "path": "dist/assets/index-D7_RJSj7.js",
       "gzipBytes": 139693
     },
     "lazyViewerJavaScript": {
-      "bytes": 2032704,
-      "gzipBytes": 521335
+      "bytes": 2032736,
+      "gzipBytes": 521354
     },
     "generatedGlbFixture": {
       "bytes": 13556,
@@ -155,7 +155,7 @@
         "index-V7xXUF1b.js"
       ],
       "playcanvas": [
-        "PlayCanvasViewer-BulP5cgz.js"
+        "PlayCanvasViewer-DBMMGUEn.js"
       ],
       "qrcode-generator": [
         "qrcode-5IewWFXk.js"
@@ -168,6 +168,6 @@
       "gsap"
     ]
   },
-  "totalBytes": 3390991,
-  "totalGzipBytes": 939257
+  "totalBytes": 3391023,
+  "totalGzipBytes": 939277
 }
