@@ -17,6 +17,7 @@
     "validate:scene": "python3 scripts/validate_scene.py public/scenes/fixture",
     "validate:scenes": "python3 scripts/validate_all_scenes.py public/scenes",
     "benchmark:build": "python3 scripts/benchmark_build.py",
+    "predeploy": "python3 scripts/predeploy_check.py",
     "preflight:reconstruction": "python3 scripts/reconstruct_colmap.py preflight",
     "reconstruct:colmap": "python3 scripts/reconstruct_colmap.py run",
     "pipeline": "python3 scripts/run_pipeline.py",

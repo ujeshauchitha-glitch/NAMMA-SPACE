@@ -18,6 +18,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Everything this script does NOT and CANNOT verify. Kept next to the quality
+# report so no reader mistakes "bundle generated" for "scene fully validated".
+# Same honesty pattern as prepare_capture.py's notMeasured list.
+NOT_MEASURED = [
+    "route smoke tests (this script never runs the route planner)",
+    "visual fidelity against the source capture",
+    "metric scale accuracy",
+    "geometry completeness beyond the declared bounds",
+    "start-position reachability",
+]
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -44,6 +55,35 @@ def read_bounds(report_path: Path) -> tuple[list[float], list[float]]:
     if len(minimum) != 3 or len(maximum) != 3 or any(not math.isfinite(value) for value in minimum + maximum) or any(a >= b for a, b in zip(minimum, maximum)):
         raise ValueError("Geometry bounds must be finite and strictly non-degenerate.")
     return minimum, maximum
+
+
+def navigation_bounds_consistent(navigation: dict, minimum: list[float], maximum: list[float]) -> bool:
+    """True when the nav grid covers the manifest XZ footprint with at most one cell of overshoot.
+
+    make_nav_grid.py uses ceil(), so a generated grid may extend one cell past
+    the declared bounds. A larger overshoot, or a grid that does not cover the
+    footprint, is an inconsistency — not a pass.
+    """
+    origin = navigation.get("origin")
+    if not isinstance(origin, dict):
+        return False
+    try:
+        origin_x = float(origin["x"])
+        origin_z = float(origin["z"])
+        cell = float(navigation["cellSize"])
+        width = int(navigation["width"])
+        height = int(navigation["height"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if cell <= 0 or width <= 0 or height <= 0:
+        return False
+    grid_max_x = origin_x + width * cell
+    grid_max_z = origin_z + height * cell
+    min_x, min_z = minimum[0], minimum[2]
+    max_x, max_z = maximum[0], maximum[2]
+    covers = origin_x <= min_x + 1e-6 and origin_z <= min_z + 1e-6 and grid_max_x >= max_x - 1e-6 and grid_max_z >= max_z - 1e-6
+    overshoot_ok = grid_max_x <= max_x + cell + 1e-6 and grid_max_z <= max_z + cell + 1e-6
+    return covers and overshoot_ok
 
 
 def validate_glb(path: Path) -> None:
@@ -124,17 +164,58 @@ def main() -> int:
         processing_path = output / "processing-report.json"
         shutil.copy2(args.processing_report, processing_path)
 
-    quality_status = "passed" if navigation_path else "needs-review"
-    readiness = "validated" if navigation_path else "visual_ready"
+    QUALITY_NOT_MEASURED = [
+        "route smoke tests",
+        "collision accuracy with dynamic objects",
+        "dense visual surface completeness",
+        "photometric consistency under variable lighting",
+    ]
+
+    warnings: list[str] = []
+    if navigation_path is None:
+        quality_status = "needs-review"
+        readiness = "visual_ready"
+        warnings.append("Navigation data was not supplied; route planning is unavailable.")
+        nav_check_status = "warning"
+        nav_check_detail = "No trusted navigation input was supplied."
+        measured = {
+            "navigationSupplied": False,
+            "navigationBoundsConsistentWithManifest": None,
+        }
+    else:
+        nav_dict = json.loads(navigation_path.read_text(encoding="utf-8"))
+        is_consistent = navigation_bounds_consistent(nav_dict, minimum, maximum)
+        if is_consistent:
+            quality_status = "passed"
+            readiness = "validated"
+            nav_check_status = "passed"
+            nav_check_detail = "Navigation copied into bundle and verified consistent with geometry bounds."
+            measured = {
+                "navigationSupplied": True,
+                "navigationBoundsConsistentWithManifest": True,
+            }
+        else:
+            quality_status = "needs-review"
+            readiness = "visual_ready"
+            warnings.append("Navigation grid bounds are inconsistent with geometry manifest bounds.")
+            nav_check_status = "failed"
+            nav_check_detail = "Navigation grid bounds are inconsistent with geometry manifest bounds."
+            measured = {
+                "navigationSupplied": True,
+                "navigationBoundsConsistentWithManifest": False,
+            }
+
     quality = {
         "status": quality_status,
         "readiness": readiness,
-        "warnings": ([] if navigation_path else ["Navigation data was not supplied; route planning is unavailable."]),
+        "warnings": warnings,
         "checks": [
             {"id": "visual-asset", "label": "Visual GLB exists and has a valid header", "status": "passed", "detail": "Validated by the bundle generator."},
             {"id": "geometry-bounds", "label": "Geometry bounds are finite and non-degenerate", "status": "passed", "detail": f"Bounds: {minimum} to {maximum}."},
-            {"id": "navigation", "label": "Navigation data is available", "status": "passed" if navigation_path else "warning", "detail": "Navigation copied into bundle." if navigation_path else "No trusted navigation input was supplied."},
+            {"id": "navigation", "label": "Navigation data is available", "status": nav_check_status, "detail": nav_check_detail},
         ],
+        "measured": measured,
+        "notMeasured": QUALITY_NOT_MEASURED,
     }
     (quality_dir / "report.json").write_text(json.dumps(quality, indent=2) + "\n", encoding="utf-8")
 

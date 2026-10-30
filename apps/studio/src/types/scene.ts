@@ -65,7 +65,58 @@ export const QualityReportSchema = z.object({
     status: z.enum(['passed', 'warning', 'failed']),
     detail: z.string(),
   })).default([]),
+  /** Properties the emitter never measured — omitted or empty means none declared. */
+  notMeasured: z.array(z.string()).optional(),
+  measured: z.record(z.string(), z.unknown()).optional(),
 });
+
+/* ------------------------------------------------------------------ *
+ * Unified per-frame Observation (T-B). Additive on staged-bundle entries
+ * and on prepare_capture.py frame records. Unknown stays unknown:
+ * omitted keys or explicit unknown markers — never a fabricated pose.
+ * ------------------------------------------------------------------ */
+
+const Sha256HexSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+export const ObservationSchema = z.object({
+  projectId: z.string().min(1).optional(),
+  spaceId: z.string().min(1).optional(),
+  roomId: z.string().min(1).nullable().optional(),
+  captureSessionId: z.string().min(1).optional(),
+  viewGroupId: z.string().min(1).nullable().optional(),
+  modality: z.enum(['photo', 'video-frame', 'live-frame']),
+  sourceFilename: z.string().min(1).optional(),
+  perFrameTimestampSec: z.number().finite().optional(),
+  format: z.enum(['jpeg', 'png', 'webp']).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  bytes: z.number().int().positive().optional(),
+  orientation: z.union([
+    z.literal('unknown'),
+    z.number().int().min(1).max(8),
+  ]),
+  cameraMetadata: z.discriminatedUnion('status', [
+    z.object({ status: z.literal('unknown') }).strict(),
+    z.object({
+      status: z.literal('recorded'),
+      make: z.string().optional(),
+      model: z.string().optional(),
+      iso: z.number().int().positive().optional(),
+    }).strict(),
+  ]),
+  contentHash: Sha256HexSchema,
+  qualityResults: z.object({
+    status: z.enum(['unknown', 'measured']),
+    notMeasured: z.array(z.string()).default([]),
+  }),
+  stagedAt: z.number().int().nonnegative().optional(),
+  provenance: z.object({
+    emitter: z.string().min(1),
+    stage: z.string().min(1),
+  }),
+});
+
+export type Observation = z.infer<typeof ObservationSchema>;
 
 export const PoiSchema = z.object({
   id: z.string().min(1),
@@ -234,6 +285,8 @@ export const StagedImageEntrySchema = z.object({
   stagedAt: z.number().int().nonnegative(),
   /** Path inside the archive: `images/<sha256>.jpg`. */
   file: z.string().regex(/^images\/[0-9a-f]{64}\.jpg$/),
+  /** Additive T-B observation. Legacy bundles omit this and still parse. */
+  observation: ObservationSchema.optional(),
 });
 
 export const PreparedRoomSchema = z.object({

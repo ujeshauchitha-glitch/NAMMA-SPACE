@@ -9,5 +9,11 @@
     { "id": "navigation", "label": "Navigation grid", "status": "passed", "detail": "24 × 18 verified occupancy grid loaded." },
     { "id": "collision", "label": "Collision mesh", "status": "warning", "detail": "No collision GLB is supplied; grid movement is the source of movement constraints." },
     { "id": "start", "label": "Start position", "status": "passed", "detail": "Starting cell is walkable." }
+  ],
+  "notMeasured": [
+    "route smoke tests",
+    "collision accuracy with dynamic objects",
+    "dense visual surface completeness",
+    "photometric consistency under variable lighting"
   ]
 }

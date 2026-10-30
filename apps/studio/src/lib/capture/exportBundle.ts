@@ -13,6 +13,7 @@
  * tests/bundle-integrity.test.ts.
  */
 import type {
+  Observation,
   PreparedBundleManifest,
   PreparedRoom,
   PreparedViewGroup,
@@ -41,7 +42,20 @@ export const EXPORT_COPY = {
 
 export type BundleRoomInput = Omit<PreparedRoom, 'viewGroupIds'>;
 export type BundleViewGroupInput = PreparedViewGroup;
-export type BundleImageInput = { record: StoredImageRecord; viewGroupId: string | null };
+export type BundleImageInput = {
+  record: StoredImageRecord;
+  viewGroupId: string | null;
+  /** Original filename when the studio actually had one; omitted otherwise. */
+  sourceFilename?: string;
+  /** Override when the frame did not come from a still photograph. */
+  modality?: Observation['modality'];
+};
+
+export type CaptureContext = {
+  projectId?: string;
+  spaceId?: string;
+  captureSessionId?: string;
+};
 
 export type BuildBundleInput = {
   displayName: string;
@@ -50,7 +64,67 @@ export type BuildBundleInput = {
   rooms: BundleRoomInput[];
   viewGroups: BundleViewGroupInput[];
   images: BundleImageInput[];
+  captureContext?: CaptureContext;
 };
+
+/** Quality properties this emitter never measures — copied into every observation. */
+export const OBSERVATION_NOT_MEASURED = [
+  'blur',
+  'exposure consistency',
+  'camera coverage',
+  'pose registration',
+  'scale accuracy',
+  'geometry completeness',
+  'navigation trustworthiness',
+] as const;
+
+function formatFromBlobType(type: string): Observation['format'] | undefined {
+  if (type === 'image/png') return 'png';
+  if (type === 'image/webp') return 'webp';
+  if (type === 'image/jpeg' || type === 'image/jpg') return 'jpeg';
+  return undefined;
+}
+
+function modalityFor(image: BundleImageInput): Observation['modality'] {
+  if (image.modality) return image.modality;
+  return image.record.meta.source === 'phone' ? 'live-frame' : 'photo';
+}
+
+function buildObservation(
+  image: BundleImageInput,
+  sha256: string,
+  byteLength: number,
+  roomId: string | null,
+  context: CaptureContext | undefined,
+): Observation {
+  const format = formatFromBlobType(image.record.blob.type);
+  const observation: Observation = {
+    modality: modalityFor(image),
+    orientation: 'unknown',
+    cameraMetadata: { status: 'unknown' },
+    contentHash: sha256,
+    qualityResults: {
+      status: 'unknown',
+      notMeasured: [...OBSERVATION_NOT_MEASURED],
+    },
+    provenance: {
+      emitter: 'namma-space capture studio (browser ingest)',
+      stage: 'browser-staging',
+    },
+    viewGroupId: image.viewGroupId,
+    roomId,
+    width: image.record.meta.width,
+    height: image.record.meta.height,
+    bytes: byteLength,
+    stagedAt: image.record.stagedAt,
+  };
+  if (context?.projectId) observation.projectId = context.projectId;
+  if (context?.spaceId) observation.spaceId = context.spaceId;
+  if (context?.captureSessionId) observation.captureSessionId = context.captureSessionId;
+  if (image.sourceFilename) observation.sourceFilename = image.sourceFilename;
+  if (format) observation.format = format;
+  return observation;
+}
 
 export type BuiltBundle = {
   bytes: Uint8Array;
@@ -89,6 +163,9 @@ export async function buildBundle(input: BuildBundleInput): Promise<BuiltBundle>
       viewGroupIds: viewGroups.filter((group) => group.roomId === room.id).map((group) => group.id),
     }));
 
+  const roomIdByGroup = new Map<string, string | null>();
+  for (const group of viewGroups) roomIdByGroup.set(group.id, group.roomId);
+
   const sortedImages = [...input.images].sort(byTimeThenId);
   const imageIdsByGroup = new Map<string, string[]>();
   for (const image of sortedImages) {
@@ -105,7 +182,8 @@ export async function buildBundle(input: BuildBundleInput): Promise<BuiltBundle>
   const entries: StagedImageEntry[] = [];
   const seen = new Set<string>();
 
-  for (const { record, viewGroupId } of sortedImages) {
+  for (const image of sortedImages) {
+    const { record, viewGroupId } = image;
     const raw = await record.blob.arrayBuffer();
     const bytes = new Uint8Array(raw);
     if (bytes.length === 0) throw new Error(HASH_MISMATCH_MESSAGE);
@@ -118,6 +196,7 @@ export async function buildBundle(input: BuildBundleInput): Promise<BuiltBundle>
       // Fixed mtime keeps the archive byte-identical across builds.
       files[file] = [bytes, { mtime: FIXED_MTIME }];
     }
+    const roomId = viewGroupId ? (roomIdByGroup.get(viewGroupId) ?? null) : null;
     entries.push({
       id: record.id,
       viewGroupId,
@@ -128,6 +207,13 @@ export async function buildBundle(input: BuildBundleInput): Promise<BuiltBundle>
       source: record.meta.source,
       stagedAt: record.stagedAt,
       file,
+      observation: buildObservation(
+        { record, viewGroupId, sourceFilename: image.sourceFilename, modality: image.modality },
+        sha256,
+        bytes.length,
+        roomId,
+        input.captureContext,
+      ),
     });
   }
 

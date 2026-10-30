@@ -38,6 +38,16 @@ HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"heif", b"mif1"}
 # Honest remedy copy for HEIC frames (voice guide §9.1 — never blame the user).
 HEIC_REMEDY = "This file is HEIC — export JPG or run the prepare script."
 
+OBSERVATION_NOT_MEASURED = [
+    "blur",
+    "exposure consistency",
+    "camera coverage",
+    "pose registration",
+    "scale accuracy",
+    "geometry completeness",
+    "navigation trustworthiness",
+]
+
 # Raster formats resolved via the mimetypes fallback (signatures outside the
 # magic table, kept for parity with the previous imghdr-based behaviour).
 MIMETYPE_FALLBACKS = {
@@ -72,6 +82,65 @@ def sniff_image_type(path: Path) -> str | None:
         return "heic"
     kind, _ = mimetypes.guess_type(path.name)
     return MIMETYPE_FALLBACKS.get(kind) if kind else None
+
+
+def build_observation(
+    *,
+    capture_id: str,
+    source_kind: str,
+    content_hash: str,
+    frame: Path,
+    meta: dict,
+    source_name: str,
+) -> dict:
+    """Emit one canonical Observation for a prepared frame.
+
+    Unknown stays unknown: omitted keys or explicit unknown markers. Pose is
+    never invented. A per-frame video timestamp is only copied when the
+    incoming studio observation actually recorded one — never derived from fps.
+    """
+    data = frame.read_bytes()
+    kind = sniff_image_type(frame)
+    incoming = meta.get("observation") if isinstance(meta.get("observation"), dict) else {}
+    observation: dict = {
+        "captureSessionId": capture_id,
+        "contentHash": content_hash,
+        "bytes": len(data),
+        "orientation": "unknown",
+        "cameraMetadata": {"status": "unknown"},
+        "qualityResults": {
+            "status": "unknown",
+            "notMeasured": list(OBSERVATION_NOT_MEASURED),
+        },
+        "provenance": {"emitter": "prepare_capture.py", "stage": "capture-preparation"},
+    }
+    if kind in {"jpeg", "png", "webp"}:
+        observation["format"] = kind
+
+    incoming_modality = incoming.get("modality")
+    if incoming_modality in {"photo", "video-frame", "live-frame"}:
+        observation["modality"] = incoming_modality
+    elif source_kind == "video":
+        observation["modality"] = "video-frame"
+    else:
+        observation["modality"] = "photo"
+
+    for key in ("projectId", "spaceId", "perFrameTimestampSec"):
+        if key in incoming:
+            observation[key] = incoming[key]
+
+    if isinstance(incoming.get("sourceFilename"), str) and incoming["sourceFilename"]:
+        observation["sourceFilename"] = incoming["sourceFilename"]
+    else:
+        observation["sourceFilename"] = source_name
+
+    for key in ("width", "height", "stagedAt"):
+        if meta.get(key) is not None:
+            observation[key] = meta[key]
+        elif key in incoming:
+            observation[key] = incoming[key]
+
+    return observation
 
 
 def sha256_file(path: Path) -> str:
@@ -240,6 +309,7 @@ def ingest_bundle(source: Path, frames_dir: Path, limit: int) -> tuple[list[Path
             frames.append(destination)
             group = groups_by_id.get(entry.get("viewGroupId"))
             room = rooms_by_id.get(group.get("roomId")) if group else None
+            incoming_observation = entry.get("observation") if isinstance(entry.get("observation"), dict) else {}
             frame_meta.append({
                 "sourceEntryId": entry["id"],
                 "viewGroupId": entry.get("viewGroupId"),
@@ -248,6 +318,8 @@ def ingest_bundle(source: Path, frames_dir: Path, limit: int) -> tuple[list[Path
                 "height": entry.get("height"),
                 "source": entry.get("source"),
                 "stagedAt": entry.get("stagedAt"),
+                "sourceFilename": incoming_observation.get("sourceFilename") or entry["file"],
+                "observation": incoming_observation,
             })
 
     bundle_summary = {
@@ -269,18 +341,20 @@ def run_ffmpeg(source: Path, frames_dir: Path, fps: float, limit: int) -> list[P
     return sorted(frames_dir.glob("frame-*.jpg"))
 
 
-def copy_images(source: Path, frames_dir: Path, limit: int) -> list[Path]:
+def copy_images(source: Path, frames_dir: Path, limit: int) -> tuple[list[Path], list[str]]:
     frames_dir.mkdir(parents=True, exist_ok=True)
     images = sorted(path for path in source.iterdir() if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS)
     if not images:
         raise RuntimeError("No supported images found. Use JPG, PNG, WEBP or HEIC files.")
     selected = images[:limit]
     output: list[Path] = []
+    names: list[str] = []
     for index, image in enumerate(selected, start=1):
         destination = frames_dir / f"frame-{index:05d}{image.suffix.lower()}"
         shutil.copy2(image, destination)
         output.append(destination)
-    return output
+        names.append(image.name)
+    return output, names
 
 
 def image_diagnostics(frames: list[Path]) -> dict[str, object]:
@@ -322,16 +396,22 @@ def main() -> int:
     bundle_warnings: list[str] = []
     bundle_summary: dict | None = None
     frame_meta: list[dict] = []
+    source_names: list[str] = []
     try:
         if source.is_dir():
-            frames = copy_images(source, frames_dir, args.limit)
+            frames, source_names = copy_images(source, frames_dir, args.limit)
             source_kind = "image-directory"
         elif source.suffix.lower() in VIDEO_EXTENSIONS:
             frames = run_ffmpeg(source, frames_dir, args.fps, args.limit)
             source_kind = "video"
+            source_names = [source.name] * len(frames)
         elif source.suffix.lower() == ".zip" or zipfile.is_zipfile(source):
             frames, frame_meta, bundle_warnings, bundle_summary = ingest_bundle(source, frames_dir, args.limit)
             source_kind = "prepared-capture-bundle"
+            source_names = [
+                str(meta.get("sourceFilename") or meta.get("sourceEntryId") or frame.name)
+                for meta, frame in zip(frame_meta, frames)
+            ]
         else:
             raise RuntimeError("Unsupported input. Use a bundle ZIP exported from the studio, a video (MP4/MOV/M4V/AVI), or an image folder.")
     except BundleError as error:
@@ -356,15 +436,28 @@ def main() -> int:
         quality_warnings.append(f"{len(tiny_frames)} frame file(s) are under 1 KiB and may be corrupt or unusable.")
     if len(frames) < 8:
         quality_warnings.append("Fewer than 8 frames were prepared; indoor coverage is likely insufficient for reconstruction.")
+    capture_id = f"capture-{sha256_file(source)[:12] if source.is_file() else source.name}"
     frame_records = []
     for index, frame in enumerate(frames):
+        meta = dict(frame_meta[index]) if index < len(frame_meta) else {}
+        incoming_observation = meta.pop("observation", None)
+        if incoming_observation is not None:
+            meta["observation"] = incoming_observation
+        source_name = source_names[index] if index < len(source_names) else frame.name
         record = {"id": frame.stem, "path": str(frame.relative_to(output)), "sha256": hashes[index]}
-        if index < len(frame_meta):
-            record.update(frame_meta[index])
+        record.update({key: value for key, value in meta.items() if key != "observation" and key != "sourceFilename"})
+        record["observation"] = build_observation(
+            capture_id=capture_id,
+            source_kind=source_kind,
+            content_hash=hashes[index],
+            frame=frame,
+            meta=meta,
+            source_name=source_name,
+        )
         frame_records.append(record)
     manifest = {
         "schemaVersion": 1,
-        "captureId": f"capture-{sha256_file(source)[:12] if source.is_file() else source.name}",
+        "captureId": capture_id,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "source": {"kind": source_kind, "path": str(source), "sha256": sha256_file(source) if source.is_file() else None},
         "sampling": {"fps": args.fps if source_kind == "video" else None, "limit": args.limit},

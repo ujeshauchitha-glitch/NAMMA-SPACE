@@ -17,7 +17,13 @@ import wsSignallingPlugin from './scripts/ws-signalling-plugin';
  */
 const lan = process.env.VITE_LAN === '1';
 
+// Deploy-path base is env-driven: Vercel serves the app from the domain root
+// (default '/'), but a sub-path deploy can set VITE_BASE=/sub/ without code
+// changes. Only affects the build; dev server behaviour is unchanged.
+const base = process.env.VITE_BASE || '/';
+
 export default defineConfig({
+  base,
   plugins: [react(), wsSignallingPlugin(), ...(lan ? [basicSsl()] : [])],
   server: {
     host: lan ? '0.0.0.0' : '127.0.0.1',

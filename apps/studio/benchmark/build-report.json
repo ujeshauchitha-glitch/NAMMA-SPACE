@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "createdAt": "2026-10-30T08:39:11.413067+00:00",
+  "createdAt": "2026-10-30T13:46:59.402500+00:00",
   "dist": "dist",
   "artifacts": [
     {
-      "path": "dist/assets/PlayCanvasViewer-BbhGi6Qi.js",
+      "path": "dist/assets/PlayCanvasViewer-4e9aSCgz.js",
       "bytes": 2032736,
-      "gzipBytes": 521352
+      "gzipBytes": 521353
     },
     {
       "path": "dist/assets/browser-Cgug2DPz.js",
@@ -19,9 +19,9 @@
       "gzipBytes": 8639
     },
     {
-      "path": "dist/assets/index-CY1ys4oe.js",
-      "bytes": 448455,
-      "gzipBytes": 139805
+      "path": "dist/assets/index-BZf9NKTA.js",
+      "bytes": 455414,
+      "gzipBytes": 141855
     },
     {
       "path": "dist/assets/index-V7xXUF1b.js",
@@ -76,7 +76,7 @@
     {
       "path": "dist/index.html",
       "bytes": 1135,
-      "gzipBytes": 559
+      "gzipBytes": 560
     },
     {
       "path": "dist/scenes/fixture/manifest.json",
@@ -90,8 +90,8 @@
     },
     {
       "path": "dist/scenes/fixture/quality/report.json",
-      "bytes": 814,
-      "gzipBytes": 386
+      "bytes": 980,
+      "gzipBytes": 474
     },
     {
       "path": "dist/scenes/fixture/semantic/pois.json",
@@ -110,8 +110,8 @@
     },
     {
       "path": "dist/scenes/glb-fixture/quality/report.json",
-      "bytes": 933,
-      "gzipBytes": 448
+      "bytes": 1124,
+      "gzipBytes": 543
     },
     {
       "path": "dist/scenes/glb-fixture/semantic/pois.json",
@@ -130,12 +130,12 @@
       "gzipBytes": 8639
     },
     "entryJavaScript": {
-      "path": "dist/assets/index-CY1ys4oe.js",
-      "gzipBytes": 139805
+      "path": "dist/assets/index-BZf9NKTA.js",
+      "gzipBytes": 141855
     },
     "lazyViewerJavaScript": {
       "bytes": 2032736,
-      "gzipBytes": 521352
+      "gzipBytes": 521353
     },
     "generatedGlbFixture": {
       "bytes": 13556,
@@ -144,7 +144,7 @@
   },
   "expectations": {
     "entryGzipBudgetBytes": 368640,
-    "entryGzipBytes": 139805,
+    "entryGzipBytes": 141855,
     "entryBudgetMet": true,
     "expectedLazyChunkLibraries": {
       "fflate": [
@@ -155,7 +155,7 @@
         "index-V7xXUF1b.js"
       ],
       "playcanvas": [
-        "PlayCanvasViewer-BbhGi6Qi.js"
+        "PlayCanvasViewer-4e9aSCgz.js"
       ],
       "qrcode-generator": [
         "qrcode-5IewWFXk.js"
@@ -168,6 +168,6 @@
       "gsap"
     ]
   },
-  "totalBytes": 3391400,
-  "totalGzipBytes": 939385
+  "totalBytes": 3398716,
+  "totalGzipBytes": 941620
 }

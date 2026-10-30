@@ -9,5 +9,10 @@
     { "id": "navigation", "label": "Navigation grid", "status": "passed", "detail": "24 × 18 verified occupancy grid loaded." },
     { "id": "start", "label": "Start position", "status": "passed", "detail": "Starting cell is walkable." },
     { "id": "routes", "label": "Route smoke tests", "status": "passed", "detail": "Known POI approach points have verified routes." }
+  ],
+  "notMeasured": [
+    "collision accuracy with dynamic objects",
+    "dense visual surface completeness",
+    "photometric consistency under variable lighting"
   ]
 }
