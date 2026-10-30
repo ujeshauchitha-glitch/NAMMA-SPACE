@@ -65,7 +65,7 @@ describe('reconstruction preflight', () => {
     };
     // Magic-byte valid files pass; only the garbage file is flagged (an extension never promotes content).
     // Note: copy_images renames frames to frame-0000N.<ext> in sorted order (garbage.jpg sorts first).
-    const basename = (p: string) => p.split('/').pop();
+    const basename = (p: string) => p.split(/[\\/]/).pop(); // Windows paths use backslashes
     expect(manifest.quality.diagnostics.invalidFrames.map(basename)).toEqual(['frame-00001.jpg']);
     expect(manifest.quality.diagnostics.heicFrames.map(basename)).toEqual(['frame-00002.heic']);
     // HEIC carries the honest remedy copy per the design voice guide (§9.1).
@@ -110,7 +110,8 @@ describe('reconstruction preflight', () => {
     expect(report.blocker).toContain('COLMAP');
   });
 
-  it('records dense and meshing stages when a compatible COLMAP executable is supplied', () => {
+  // The fake COLMAP is a shebang script, which Windows cannot execute.
+  it.skipIf(process.platform === 'win32')('records dense and meshing stages when a compatible COLMAP executable is supplied', () => {
     const root = mkdtempSync(join(tmpdir(), 'namma-fake-colmap-'));
     const bin = join(root, 'bin');
     const frames = join(root, 'frames');
