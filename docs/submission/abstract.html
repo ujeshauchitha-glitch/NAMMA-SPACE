@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Namma Space: Technical Abstract</title>
+<style>
+  @page { size: A4; margin: 14mm 15mm 14mm 15mm; }
+  :root { --ink: #16181d; --muted: #555b66; --rule: #d5d9e0; --accent: #1f5fae; --soft: #f3f5f8; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9.6pt; line-height: 1.38; color: var(--ink); margin: 0; }
+  h1 { font-size: 17pt; margin: 0 0 2pt; letter-spacing: -0.2pt; }
+  h2 { font-size: 11.2pt; margin: 11pt 0 4pt; padding-bottom: 2pt; border-bottom: 1.2pt solid var(--accent); color: var(--accent); break-after: avoid; }
+  h3 { font-size: 9.8pt; margin: 7pt 0 2pt; break-after: avoid; }
+  p { margin: 0 0 5pt; }
+  ul { margin: 0 0 5pt; padding-left: 14pt; }
+  li { margin: 0 0 1.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 3pt 0 6pt; font-size: 8.8pt; }
+  tr { break-inside: avoid; }
+  thead, tr:first-child { break-after: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 2.4pt 5pt; border-bottom: 0.6pt solid var(--rule); }
+  th { background: var(--soft); font-weight: 600; }
+  code { font-family: Menlo, Consolas, monospace; font-size: 8.4pt; background: var(--soft); padding: 0 2pt; border-radius: 2pt; }
+  .ph { background: #ffe94d; padding: 0 2pt; border-radius: 2pt; font-weight: 600; }
+  .meta { color: var(--muted); font-size: 9pt; margin-bottom: 6pt; }
+  .meta b { color: var(--ink); }
+  .summary { background: var(--soft); border-left: 3pt solid var(--accent); padding: 6pt 9pt; margin: 6pt 0 2pt; }
+  .fig { margin: 4pt 0 2pt; break-inside: avoid; }
+  .cap { font-size: 8.2pt; color: var(--muted); margin-top: 2pt; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+  .shot { border: 1pt dashed #9aa3b0; height: 52mm; display: flex; align-items: center; justify-content: center; font-size: 9pt; color: var(--muted); }
+  .note { font-size: 8.4pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>Namma Space: Smartphone Video to a Walkable Photorealistic Indoor Twin</h1>
+<div class="meta">
+  <b>Team ID:</b> TM-12354C3F6F2 &nbsp;·&nbsp; <b>Institute:</b> Vellore Institute of Technology &nbsp;·&nbsp; <b>Round 1 Technical Abstract</b>, Techfest 2026-27, IIT Bombay<br>
+  <b>Members:</b> Nilesh Kumar Srivastava, Ojas Ashish Kulkarni, Ujesha Sivaramakrishnan, <span class="ph">[ASHWIN_FULL_NAME]</span><br>
+  All links (live viewer, repository, dataset, demo video) are in <i>Additional_Links_and_Prototypes.pdf</i>.
+</div>
+
+<div class="summary">
+  <b>Summary.</b> One person walks a room with an ordinary phone, following a short capture SOP. A Python pipeline turns the video into a 3D Gaussian Splatting (3DGS) model. ffmpeg samples frames and drops blurred ones; COLMAP recovers camera poses; Brush trains the splat on any WebGPU GPU; splat-transform compresses it to a ≤ 50 MB web file. The result is served from a CDN to a zero-install browser viewer (Spark on three.js) with first-person WASD + mouse controls and a touch fallback. Every stage has an automated quality gate, and a run counts as successful only after a person has walked the result and signed it off.
+</div>
+
+<h2>1. Problem and scope</h2>
+<p>Floor plans do not tell a visitor what a space looks like, and photo tours cannot be walked. <b>Round 1</b> targets the core loop: <b>capture → photorealistic twin → free roam in the browser</b>, reproducible by a non-expert with one phone and one consumer NVIDIA GPU. Fidelity comes from the capture SOP and the pipeline's gates rather than manual modelling. <b>Rounds 2–3:</b> the repository already contains a Round 2 studio app (<code>apps/studio</code>) with a validated scene-bundle format, POI search and A* routing over an occupancy grid. Round 2 will attach those to the Round 1 splat in a shared metre-scaled frame. Round 3 adds on-site capture via phone pairing (prototype in the studio) and optional AR navigation.</p>
+
+<h2>2. System architecture</h2>
+<div class="fig">
+<svg viewBox="0 0 760 210" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f5fae"/></marker>
+  </defs>
+  <style>
+    .box { fill: #f3f5f8; stroke: #1f5fae; stroke-width: 1.2; }
+    .web { fill: #eaf3ea; stroke: #2f7d32; stroke-width: 1.2; }
+    .t { font-size: 11.5px; font-weight: 700; fill: #16181d; }
+    .s { font-size: 9.6px; fill: #555b66; }
+    .ln { stroke: #1f5fae; stroke-width: 1.4; fill: none; marker-end: url(#a); }
+    .lbl { font-size: 9.6px; font-weight: 700; fill: #1f5fae; letter-spacing: 0.6px; }
+  </style>
+  <text x="8" y="14" class="lbl">CAPTURE + OFFLINE PIPELINE (Windows, NVIDIA GPU) — pipeline/run_pipeline.py</text>
+  <rect class="box" x="8" y="24" width="112" height="66" rx="6"/>
+  <text x="64" y="46" text-anchor="middle" class="t">Phone video</text>
+  <text x="64" y="61" text-anchor="middle" class="s">1080p/4K, 30 fps</text>
+  <text x="64" y="74" text-anchor="middle" class="s">capture SOP</text>
+  <rect class="box" x="140" y="24" width="128" height="66" rx="6"/>
+  <text x="204" y="46" text-anchor="middle" class="t">Frames + blur filter</text>
+  <text x="204" y="61" text-anchor="middle" class="s">ffmpeg 3 fps, ≤1600 px</text>
+  <text x="204" y="74" text-anchor="middle" class="s">OpenCV: drop blurriest 15%</text>
+  <rect class="box" x="288" y="24" width="128" height="66" rx="6"/>
+  <text x="352" y="46" text-anchor="middle" class="t">COLMAP 4.2.1</text>
+  <text x="352" y="61" text-anchor="middle" class="s">SIFT · sequential match</text>
+  <text x="352" y="74" text-anchor="middle" class="s">SfM + undistort</text>
+  <rect class="box" x="436" y="24" width="128" height="66" rx="6"/>
+  <text x="500" y="46" text-anchor="middle" class="t">Brush 0.3 (3DGS)</text>
+  <text x="500" y="61" text-anchor="middle" class="s">30k steps, WebGPU</text>
+  <text x="500" y="74" text-anchor="middle" class="s">→ splat.ply (source)</text>
+  <rect class="box" x="584" y="24" width="168" height="66" rx="6"/>
+  <text x="668" y="46" text-anchor="middle" class="t">Compress</text>
+  <text x="668" y="61" text-anchor="middle" class="s">splat-transform → .sog / .spz</text>
+  <text x="668" y="74" text-anchor="middle" class="s">≤ 50 MB, fallbacks</text>
+  <path class="ln" d="M120 57 H138"/><path class="ln" d="M268 57 H286"/><path class="ln" d="M416 57 H434"/><path class="ln" d="M564 57 H582"/>
+  <text x="380" y="106" text-anchor="middle" class="s">quality gates after every stage → report.json · human inspection → --approve → status inspected_ok</text>
+  <text x="8" y="134" class="lbl">DELIVERY (static, zero-install)</text>
+  <rect class="web" x="584" y="144" width="168" height="58" rx="6"/>
+  <text x="668" y="166" text-anchor="middle" class="t">Hugging Face CDN</text>
+  <text x="668" y="181" text-anchor="middle" class="s">public dataset, CORS: *</text>
+  <rect class="web" x="300" y="144" width="250" height="58" rx="6"/>
+  <text x="425" y="166" text-anchor="middle" class="t">Viewer: React + three.js + Spark</text>
+  <text x="425" y="181" text-anchor="middle" class="s">streamed load with progress · WASD/mouse, touch</text>
+  <text x="425" y="194" text-anchor="middle" class="s">static build on Vercel (3.7 MB, cached assets)</text>
+  <rect class="web" x="40" y="144" width="200" height="58" rx="6"/>
+  <text x="140" y="166" text-anchor="middle" class="t">Any browser (WebGL2)</text>
+  <text x="140" y="181" text-anchor="middle" class="s">desktop · laptop · phone</text>
+  <path class="ln" d="M668 90 V142"/>
+  <path class="ln" d="M584 173 H552"/>
+  <path class="ln" d="M300 173 H242"/>
+  <text x="568" y="167" text-anchor="middle" class="s">splat</text>
+</svg>
+<div class="cap">Figure 1. End-to-end architecture. Heavy work runs offline on one GPU machine; the web side is two static origins (app on Vercel, splat on a CORS-enabled CDN) with no server code.</div>
+</div>
+<p>The pipeline is a single Python CLI (<code>pipeline/run_pipeline.py</code>) with resumable stages. Each stage writes its outputs and check results to <code>work/&lt;name&gt;/report.json</code>, the one source of truth for a run's state (<code>failed</code> → <code>automated_checks_passed_awaiting_inspection</code> → <code>inspected_ok</code>). The viewer reads a small <code>scene.json</code> (splat URL, spawn, scale, rotation, optional walk bounds), so a new capture needs no code change.</p>
+
+<h2>3. Capture SOP: rules and why they exist</h2>
+<table>
+  <tr><th style="width:30%">Rule</th><th>Why</th></tr>
+  <tr><td><b>Lock exposure and focus</b> (long-press AE/AF); 1x lens, no zoom; stabilisation and HDR off; no setting changes mid-clip</td><td>Structure-from-motion assumes one camera with fixed intrinsics. Zoom, digital stabilisation and focus hunting change the effective camera from frame to frame and warp straight walls. Exposure pumping changes pixel brightness, which hurts feature matching and bakes flicker into the splat's colours.</td></tr>
+  <tr><td><b>Pace:</b> slow walk ~0.5 m/s, pan ≤ 20°/s, never spin in place</td><td>Motion blur is the top cause of failed reconstructions. At 3 fps sampling and 0.5 m/s, consecutive frames are ~17 cm apart: dense overlap with little blur.</td></tr>
+  <tr><td><b>Overlap:</b> perimeter loop facing ~20° into the wall, two centre passes, corner pans, half-arcs round furniture; cross doorways slowly both ways; <b>end where you started</b></td><td>Every surface must appear in 3+ frames from different positions for triangulation and view-dependent colour. Closing the loop lets bundle adjustment cancel drift. Doorway crossings in both directions stop rooms splitting into disconnected models.</td></tr>
+  <tr><td><b>Lighting:</b> all lights on, curtains open, no direct sun beams, no flash</td><td>Even, constant illumination gives consistent colours across views. Blown highlights and moving flash shadows become baked-in artefacts.</td></tr>
+  <tr><td><b>Avoid</b> mirrors, glass, windows, plain white walls, moving people</td><td>Reflections and transparency violate the static-scene assumption and produce "floaters". Texture-less walls give SIFT nothing to match, so keep edges, switches or posters in frame. Moving people break the static-scene assumption.</td></tr>
+  <tr><td><b>Length:</b> ≥ 31 s (aim 60–120 s per room, ≤ 900 s); landscape 1080p/4K at 30 fps</td><td>The pipeline needs ≥ 80 usable frames after dropping the blurriest 15 % at 3 fps: ⌊31·3⌋ = 93, minus 13 dropped = 80. <code>--check</code> computes this from the clip's real duration and rejects shorter clips <i>before</i> any processing, naming the minimum length.</td></tr>
+</table>
+<p>A 60-second on-phone checklist (scrub for blur and dark sections, doorways covered both ways, loop closed, no lingering people) catches re-shoots before leaving the site. The SOP also documents failure modes and fixes, and how to set metric scale from one known length (e.g. a 0.9 m doorway).</p>
+
+<h2>4. Pipeline design and quality gates</h2>
+<table>
+  <tr><th style="width:15%">Stage</th><th style="width:38%">What and key parameters</th><th>Automated gate (blocks the run unless noted)</th></tr>
+  <tr><td><b>Validate</b></td><td>ffprobe resolution, duration, fps; free disk; dependency doctor (COLMAP, Brush, ffmpeg, Node ≥ 22, splat-transform, OpenCV)</td><td>short side ≥ 720 px; length gives ≥ 80 usable frames at the chosen fps; ≤ 900 s; ≥ 10 GB free. Warnings: &lt; 30 s, &lt; 24 fps. Photo input: ≥ 40 images, any extension case, HEIC flagged.</td></tr>
+  <tr><td><b>Frames</b></td><td>ffmpeg at 3 fps, longest side ≤ 1600 px, JPEG q2; OpenCV variance-of-Laplacian ranks sharpness and drops the blurriest 15 %</td><td>≥ 80 usable frames (same formula as Validate, so a clip that passes <code>--check</code> cannot fail here)</td></tr>
+  <tr><td><b>SfM</b></td><td>COLMAP 4.2.1 (CUDA): SIFT extraction, single shared OPENCV camera; sequential matching for video (exhaustive for photo sets); incremental mapper; best of any sub-models; <code>image_undistorter</code></td><td>model exists; registered ≥ 60 % of frames, ≥ 2 000 sparse points. Warnings: registration &lt; 90 %, reprojection error &gt; 1.5 px, room split into several models. <b>Acceptance bar: ≥ 0.90 registration</b>, else re-shoot.</td></tr>
+  <tr><td><b>Train</b></td><td>Brush 0.3.0, 3DGS, 30 000 steps, headless CLI; single export at the last step. Runs on any WebGPU GPU with no CUDA toolkit (Nerfstudio splatfacto as an alternative trainer).</td><td><b>Stale-splat guard:</b> a splat is reused only if trainer, steps and COLMAP model fingerprint all match; otherwise the export folder is wiped first. Dataset guard: exactly one COLMAP model, images ≥ registered (Brush silently skips missing ones), no stray <code>.ply</code> (Brush would use it as its starting point).</td></tr>
+  <tr><td><b>Splat checks</b></td><td>parse the binary PLY header and memory-map the data</td><td>all 14 3DGS attributes present; ≥ 50 000 splats; byte count matches header (not truncated); positions and opacity finite; non-degenerate extent</td></tr>
+  <tr><td><b>Compress</b></td><td>splat-transform 3.10.3: NaN filter, then <code>.sog</code> (~10x smaller). Fallbacks: GPU → CPU encoding → <code>.spz</code> v3.</td><td><b>Size-targeted:</b> ≤ 50 MB (<code>--max-mb</code>). Over budget: drop spherical-harmonic bands 3 → 2 → 1 → 0, then decimate uniformly to ~10 % under budget (≤ 3 passes); output magic bytes verified.</td></tr>
+  <tr><td><b>Publish + inspect</b></td><td><code>scene.json</code> + compressed splat to <code>work/&lt;name&gt;/web/</code> and the dev server; the raw <code>.ply</code> stays as the source of truth and never enters the web build</td><td><b>Human gate:</b> walk the whole room; <code>--approve --note</code> sets <code>inspected_ok</code>. Bar: ≥ 0.90 registration, no floaters or smeared walls on the walk path, doorways and furniture recognisable.</td></tr>
+</table>
+<p>Stages are skipped when their verified outputs exist, so a failed run resumes where it stopped (<code>--force</code> restarts). <code>--check</code> validates without touching a run's status. The checks only prove outputs are well-formed (a synthetic file passes them too), which is why success is declared only by the human gate.</p>
+
+<h2>5. Web viewer</h2>
+<ul>
+  <li><b>Rendering.</b> React 19 + react-three-fiber 9 over three.js 0.186, with Spark 2.4 rendering Gaussian splats inside a normal three.js scene. Later POI markers, paths and collision helpers are ordinary scene objects. The pixel ratio is capped at 1.5 and MSAA is off, to hold frame rate on laptops and phones.</li>
+  <li><b>Controls.</b> Desktop: click "Enter space" to capture the pointer; mouse look, <code>W A S D</code>/arrows to walk (1.6 m/s), <code>Shift</code> to sprint (3.4 m/s), <code>Q</code>/<code>E</code> to lower or raise the eye, <code>Esc</code> to release. Movement stays on the floor plane whatever the pitch, with optional axis-aligned walk bounds. Touch: drag to look, hold two fingers to walk forward.</li>
+  <li><b>Progressive loading and errors.</b> The splat is streamed with <code>fetch</code> and a byte-accurate progress bar ("x / y MB", then "Preparing the splat…" while decoding). Failures become plain messages: 404, private or missing file (401/403), an HTML page instead of a splat, a CORS/network block, or a file whose magic bytes are not PLY/SPZ/SOG.</li>
+  <li><b>Hosting.</b> The app is a static Vite build on Vercel: 3.7 MB, a single JS bundle of 1.27 MB gzip, hashed assets cached as immutable. The splat lives on a public Hugging Face dataset; requests are redirected to its CDN, which returns <code>Access-Control-Allow-Origin: *</code>. App and data deploy independently, and test fixtures are served only by the dev server, never shipped.</li>
+  <li><b>Why splats over meshes.</b> 3DGS reproduces view-dependent appearance (gloss, soft lighting) and thin or cluttered geometry that photogrammetry meshes blur or break. It needs no dense multi-view stereo, meshing or texture baking. It trains in tens of minutes on one consumer GPU and renders in real time in WebGL2. Its weakness, having no clean surface for collision, is handled by a separate navigation layer (Section 7).</li>
+</ul>
+
+<h2>6. Results</h2>
+<p class="note">Values from the real-capture run (<code>report.json</code>) and measurements of the deployed viewer.</p>
+<table>
+  <tr><th>Metric</th><th>Value</th><th>Metric</th><th>Value</th></tr>
+  <tr><td>Clip length / frames used</td><td><span class="ph">[FRAMES]</span></td><td>Splat count (Brush)</td><td><span class="ph">[SPLAT_COUNT]</span></td></tr>
+  <tr><td>COLMAP registration ratio</td><td><span class="ph">[REG_RATIO]</span></td><td>Web file size (format)</td><td><span class="ph">[FILE_MB]</span></td></tr>
+  <tr><td>Stage timings (frames / SfM / train / compress)</td><td><span class="ph">[STAGE_TIMINGS]</span></td><td>Frame rate (device)</td><td><span class="ph">[FPS]</span></td></tr>
+  <tr><td>Load time, desktop (broadband)</td><td><span class="ph">[LOAD_TIME_DESKTOP]</span></td><td>Load time, phone (4G/Wi-Fi)</td><td><span class="ph">[LOAD_TIME_PHONE]</span></td></tr>
+</table>
+<div class="two">
+  <div><div class="shot"><span class="ph">[SCREENSHOT_1]</span></div><div class="cap">Figure 2. <span class="ph">[SCREENSHOT_1_CAPTION]</span></div></div>
+  <div><div class="shot"><span class="ph">[SCREENSHOT_2]</span></div><div class="cap">Figure 3. <span class="ph">[SCREENSHOT_2_CAPTION]</span></div></div>
+</div>
+<p class="note">Compression on the synthetic test room (105,991 splats, 6.9 MB PLY): <code>.spz</code> 0.86 MB (8x), <code>.sog</code> 0.69 MB (10x), each rendering the same room. These ratios are illustrative, not a prediction for a real capture.</p>
+
+<h2>7. Limitations and next steps</h2>
+<ul>
+  <li><b>No object collision yet.</b> Round 1 clamps movement to an optional rectangle, so walls and furniture can be walked through. Round 2 adds a metre-scaled occupancy grid (prototyped in <code>apps/studio</code>), with floor-plane fitting on COLMAP points to replace manual alignment.</li>
+  <li><b>POIs, search and routing already exist</b> in <code>apps/studio</code>: a zod-validated scene bundle (navigation grid, POIs, quality report), POI search and A* routes, with unreachable targets reported honestly. Round 2 connects them to the Round 1 splat.</li>
+  <li><b>Reconstruction limits.</b> Mirrors, glass and blank walls remain hard, and scale and orientation are set by hand from one known length. Compression is lossy; each real splat is compared against its raw <code>.ply</code> before shipping.</li>
+  <li><b>Round 3.</b> On-site capture through phone pairing (WebRTC pairing and frame-transfer prototypes exist in the studio) and optional AR navigation against the twin.</li>
+</ul>
+
+<h2>8. Open-source credits</h2>
+<table>
+  <tr><th style="width:22%">Tool</th><th>Use in Namma Space</th><th style="width:20%">Licence</th></tr>
+  <tr><td>COLMAP 4.2.1</td><td>SIFT features, matching, structure-from-motion, undistortion</td><td>BSD-3-Clause</td></tr>
+  <tr><td>Brush 0.3.0</td><td>3D Gaussian Splatting training (WebGPU)</td><td>Apache-2.0</td></tr>
+  <tr><td>Nerfstudio (optional)</td><td>alternative splat trainer (splatfacto)</td><td>Apache-2.0</td></tr>
+  <tr><td>FFmpeg / ffprobe</td><td>frame sampling, video probing</td><td>LGPL-2.1+ (GPL builds: GPL-2.0+)</td></tr>
+  <tr><td>OpenCV (opencv-python-headless)</td><td>blur scoring (variance of Laplacian), image checks</td><td>Apache-2.0</td></tr>
+  <tr><td>NumPy</td><td>splat PLY validation</td><td>BSD-3-Clause</td></tr>
+  <tr><td>@playcanvas/splat-transform 3.10.3</td><td>PLY → SOG/SPZ compression, SH reduction, decimation</td><td>MIT</td></tr>
+  <tr><td>Spark (@sparkjsdev/spark) 2.4</td><td>Gaussian splat rendering in three.js</td><td>MIT</td></tr>
+  <tr><td>three.js 0.186</td><td>WebGL scene and camera</td><td>MIT</td></tr>
+  <tr><td>react-three-fiber 9</td><td>React bindings for three.js</td><td>MIT</td></tr>
+  <tr><td>React 19, React DOM</td><td>viewer and studio UI</td><td>MIT</td></tr>
+  <tr><td>Vite, TypeScript, oxlint, ESLint</td><td>build, type checking, linting</td><td>MIT; TypeScript Apache-2.0</td></tr>
+  <tr><td>Node.js</td><td>build tooling, runs splat-transform</td><td>MIT</td></tr>
+  <tr><td>PlayCanvas engine (studio)</td><td>Round 2 viewer prototype</td><td>MIT</td></tr>
+  <tr><td>zod, fflate, idb, ws, qrcode-generator (studio)</td><td>schemas, ZIP export, IndexedDB, dev signalling relay, QR pairing</td><td>MIT; idb ISC</td></tr>
+  <tr><td>Vitest, Playwright (studio)</td><td>unit and browser tests</td><td>MIT; Playwright Apache-2.0</td></tr>
+  <tr><td>Archivo, IBM Plex Mono fonts (studio)</td><td>UI typography</td><td>SIL OFL-1.1</td></tr>
+  <tr><td>GSAP (studio)</td><td>UI motion</td><td>GSAP Standard "no charge" licence (not OSI)</td></tr>
+</table>
+<p class="note">Hosting services (not open source): Vercel (static app), Hugging Face Hub (splat storage and CDN). GLOMAP is not used; COLMAP's incremental mapper is the only SfM backend.</p>
+
+</body>
+</html>

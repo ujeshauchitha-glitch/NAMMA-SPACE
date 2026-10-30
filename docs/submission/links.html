@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Namma Space: Additional Links and Prototypes</title>
+<style>
+  @page { size: A4; margin: 15mm 16mm; }
+  :root { --ink: #16181d; --muted: #555b66; --rule: #d5d9e0; --accent: #1f5fae; --soft: #f3f5f8; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: var(--ink); margin: 0; }
+  h1 { font-size: 17pt; margin: 0 0 2pt; }
+  h2 { font-size: 11.5pt; margin: 12pt 0 4pt; padding-bottom: 2pt; border-bottom: 1.2pt solid var(--accent); color: var(--accent); break-after: avoid; }
+  p { margin: 0 0 5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 3pt 0 6pt; font-size: 9.4pt; }
+  tr { break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 3pt 6pt; border-bottom: 0.6pt solid var(--rule); }
+  th { background: var(--soft); font-weight: 600; }
+  a { color: var(--accent); word-break: break-all; }
+  code, kbd { font-family: Menlo, Consolas, monospace; font-size: 8.8pt; background: var(--soft); padding: 0 3pt; border-radius: 2pt; }
+  kbd { border: 0.6pt solid #b9c0cb; }
+  .ph { background: #ffe94d; padding: 0 2pt; border-radius: 2pt; font-weight: 600; }
+  .meta { color: var(--muted); font-size: 9.4pt; margin-bottom: 6pt; }
+  .meta b { color: var(--ink); }
+  .note { font-size: 8.8pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>Namma Space: Additional Links and Prototypes</h1>
+<div class="meta">
+  <b>Team ID:</b> TM-12354C3F6F2 &nbsp;·&nbsp; <b>Institute:</b> Vellore Institute of Technology &nbsp;·&nbsp; Round 1, Techfest 2026-27, IIT Bombay<br>
+  <b>Members:</b> Nilesh Kumar Srivastava, Ojas Ashish Kulkarni, Ujesha Sivaramakrishnan, <span class="ph">[ASHWIN_FULL_NAME]</span><br>
+  Every link for the submission is collected here. All links are public and need no login or install.
+</div>
+
+<h2>1. Live web viewer</h2>
+<table>
+  <tr><th style="width:30%">What</th><th>Link</th></tr>
+  <tr><td><b>Digital twin walkthrough</b> (real capture)</td><td><a href="https://namma-space-pearl.vercel.app">https://namma-space-pearl.vercel.app</a></td></tr>
+  <tr><td>Captured space</td><td><span class="ph">[CAPTURED_SPACE_NAME]</span>, <span class="ph">[CAPTURE_DATE]</span></td></tr>
+  <tr><td>Viewer smoke test (synthetic room, labelled SYNTHETIC, not a reconstruction)</td><td><a href="https://namma-space-pearl.vercel.app/?scene=scenes/synthetic.json">https://namma-space-pearl.vercel.app/?scene=scenes/synthetic.json</a></td></tr>
+</table>
+<p class="note">Desktop (Chrome, Edge, Firefox, Safari) or phone. Needs WebGL2; no install or account. The splat streams with a progress bar on first load.</p>
+
+<h2>2. Controls guide</h2>
+<table>
+  <tr><th style="width:30%">Action</th><th>Desktop</th><th>Touch (phone / tablet)</th></tr>
+  <tr><td>Start</td><td>Click <b>Enter space</b> (captures the mouse)</td><td>Tap <b>Enter space</b></td></tr>
+  <tr><td>Look around</td><td>Move the mouse</td><td>Drag with one finger</td></tr>
+  <tr><td>Walk</td><td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrow keys</td><td>Hold two fingers to walk forward</td></tr>
+  <tr><td>Sprint</td><td>Hold <kbd>Shift</kbd></td><td>–</td></tr>
+  <tr><td>Lower / raise eye height</td><td><kbd>Q</kbd> / <kbd>E</kbd></td><td>–</td></tr>
+  <tr><td>Release / resume the mouse</td><td><kbd>Esc</kbd> / click the view</td><td>–</td></tr>
+</table>
+
+<h2>3. Demo video</h2>
+<table>
+  <tr><th style="width:30%">What</th><th>Link</th></tr>
+  <tr><td>Round 1 demo (3–5 min): capture SOP, pipeline run, walkthrough</td><td><span class="ph">[DEMO_VIDEO_URL]</span></td></tr>
+</table>
+
+<h2>4. Source code and setup</h2>
+<table>
+  <tr><th style="width:30%">What</th><th>Link</th></tr>
+  <tr><td>Repository, <b>Round 1 branch <code>integration/round1</code></b></td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1</a></td></tr>
+  <tr><td>Setup instructions (README: run the viewer, reconstruct a space)</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/README.md">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/README.md</a></td></tr>
+  <tr><td>Step-by-step Windows guide: fresh clone → compressed splat</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/HANDOFF_UJESHA.md">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/HANDOFF_UJESHA.md</a></td></tr>
+  <tr><td>Capture SOP</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/SOP.md">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/SOP.md</a></td></tr>
+  <tr><td>Reconstruction pipeline (Python)</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/pipeline">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/pipeline</a></td></tr>
+  <tr><td>Web viewer (React + three.js + Spark)</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/viewer">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/viewer</a></td></tr>
+  <tr><td>Sample data (test directory)</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/tests/sample_data">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/tests/sample_data</a></td></tr>
+  <tr><td>Tested features and known limitations</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/STATUS.md">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/blob/integration/round1/docs/STATUS.md</a></td></tr>
+</table>
+
+<h2>5. Data</h2>
+<table>
+  <tr><th style="width:30%">What</th><th>Link</th></tr>
+  <tr><td>Splat dataset (Hugging Face, public)</td><td><a href="https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats">https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats</a></td></tr>
+  <tr><td>Compressed splat loaded by the viewer</td><td><span class="ph">[REAL_SPLAT_URL]</span></td></tr>
+  <tr><td>Synthetic test splat (viewer smoke test only)</td><td><a href="https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/synthetic_room.ply">https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/synthetic_room.ply</a></td></tr>
+</table>
+
+<h2>6. Prototypes for later rounds</h2>
+<table>
+  <tr><th style="width:30%">What</th><th>Link</th></tr>
+  <tr><td>Round 2 studio app: Capture Studio, PlayCanvas viewer with POI search and A* routing, Live Scan phone pairing (dev-only)</td><td><a href="https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/apps/studio">https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/tree/integration/round1/apps/studio</a></td></tr>
+</table>
+
+</body>
+</html>
