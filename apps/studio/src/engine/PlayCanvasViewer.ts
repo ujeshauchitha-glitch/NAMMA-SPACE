@@ -249,17 +249,10 @@ export class PlayCanvasViewer {
   private readonly resize = (): void => {
     const parent = this.canvas.parentElement;
     if (!parent) return;
-    // clientWidth/clientHeight are the layout box (no transform, no scrollbar);
-    // a bitmap that fed back into this measurement used to double on every
-    // ResizeObserver tick (release-gate fix). The unchanged guard breaks any
-    // residual feedback loop and skips pointless GPU surface reallocations.
-    const ratio = window.devicePixelRatio || 1;
-    const width = Math.max(1, Math.floor(parent.clientWidth * ratio));
-    const height = Math.max(1, Math.floor(parent.clientHeight * ratio));
-    if (width === this.canvas.width && height === this.canvas.height) return;
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.app.resizeCanvas(width, height);
+    // resizeCanvas takes CSS pixels and applies device.maxPixelRatio itself (RESOLUTION_AUTO). Passing
+    // device pixels squared the ratio on scaled displays and, fed back through the layout, made the
+    // canvas grow on every ResizeObserver tick. clientWidth/Height are the layout box (no transform).
+    this.app.resizeCanvas(Math.max(1, parent.clientWidth), Math.max(1, parent.clientHeight));
   };
 
   private update(dt: number): void {
