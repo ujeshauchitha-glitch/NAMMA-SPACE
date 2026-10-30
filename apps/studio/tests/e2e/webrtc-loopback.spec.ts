@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   FAKE_MEDIA_ARGS,
   captureOneFrame,
@@ -6,6 +6,7 @@ import {
   openPair,
   railHistory,
   watchStageRail,
+  workspaceSnapshotPresent,
 } from './pairing';
 
 /**
@@ -14,6 +15,15 @@ import {
  * the dev server's `/ws` signalling relay, negotiate a real
  * RTCPeerConnection (asserted at `connectionState === 'connected'` within
  * 10 s), and push one real capture across the `capture` datachannel.
+ *
+ * T27 follow-up 1 — this is ALSO the return-phone path (T24 written
+ * exception 2 → EX-7): the phone runs as a `'returning'` profile, i.e. with
+ * the host's stale workspace snapshot (persisted `pairing: IDLE`) still in
+ * the shared IndexedDB, and it RELOADS with that snapshot still present.
+ * No `clearWorkspaceSnapshot` anywhere on this path — that clear was the
+ * workaround masking the hydrate clobber. The store-level fix
+ * (`mergePairingOnHydrate`, 9d7f33f) must hold on its own: after the
+ * reload the rail has to reach LIVE and must NOT be stuck at IDLE.
  *
  * The capture-state crossing is proven through the HOST rail: session.ts
  * only advances the host machine to CAPTURING inside `handlePairingMessage`
@@ -29,11 +39,29 @@ import {
 // chrome-headless-shell returns NotSupportedError for getUserMedia).
 test.use({ launchOptions: { args: [...FAKE_MEDIA_ARGS] }, channel: 'chromium' });
 
+/**
+ * Verified phone-frame count shown by the host's `phone-frames` panel
+ * (0 while the panel does not exist). Baseline-relative because the one
+ * allowed retry shares the context's IndexedDB: a staged frame from a
+ * failed earlier attempt is still honestly there on the next attempt.
+ */
+async function phoneFrameCount(host: Page): Promise<number> {
+  const panel = host.getByTestId('phone-frames');
+  if ((await panel.count()) === 0) return 0;
+  const match = /(\d+) frames? from the phone/.exec(await panel.innerText());
+  return match ? Number(match[1]) : Number.NaN;
+}
+
+const framesLabel = (count: number): string => `${count} frame${count === 1 ? '' : 's'} from the phone`;
+
 async function runLoopback(
   context: Parameters<typeof openPair>[0],
   origin: string,
 ): Promise<void> {
-  const { host, phone } = await openPair(context, origin);
+  // Returning phone: the stale snapshot stays in the shared IDB for BOTH
+  // the initial pair and the reload below (T27 follow-up 1 / EX-7).
+  const { host, phone } = await openPair(context, origin, { phoneProfile: 'returning' });
+  const initialFrames = await phoneFrameCount(host);
   try {
     // 1. Real WebRTC: both sides reach connectionState 'connected' ≤ 10 s.
     await expectPeerConnected(host);
@@ -85,11 +113,48 @@ async function runLoopback(
       hostHistory,
       'host rail never showed STAGED — the verified frame did not arrive',
     ).toContainEqual({ stage: 'STAGED', status: 'active' });
-    await expect(host.getByTestId('phone-frames')).toContainText('1 frame from the phone');
+    await expect(host.getByTestId('phone-frames')).toContainText(framesLabel(initialFrames + 1));
 
     // The joiner rail completed the sender journey too.
     const phoneHistory = await railHistory(phone);
     expect(phoneHistory).toContainEqual({ stage: 'STAGED', status: 'active' });
+
+    // 4. T27 follow-up 1 · return-phone re-check (T24 written exception 2 →
+    //    EX-7): reload the phone page with the stale workspace snapshot
+    //    STILL in the shared IndexedDB — never call clearWorkspaceSnapshot
+    //    here, it is precisely the workaround under test. The re-pairing
+    //    session must survive `state/hydrate` (mergePairingOnHydrate,
+    //    fix 9d7f33f): the rail reaches LIVE again and is NOT stuck at
+    //    IDLE with capture locked — the pre-fix symptom.
+    expect(
+      await workspaceSnapshotPresent(phone),
+      'the stale workspace snapshot vanished before the return-phone reload — this re-check would be vacuous',
+    ).toBe(true);
+
+    await phone.reload();
+    await expect(phone.getByTestId('camera-preview')).toBeVisible();
+    await expectPeerConnected(phone); // a REAL new PC on the reloaded page ≤ 10 s
+    await expect(
+      phone.locator('li[data-stage="LIVE"][data-status="active"]'),
+      'returning phone rail never reached LIVE after reload — the stale snapshot clobbered the re-pairing session (EX-7 regression)',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      phone.locator('li[data-stage="IDLE"][data-status="active"]'),
+      'returning phone rail is stuck at IDLE after reload — hydrate clobber regression (EX-7)',
+    ).toHaveCount(0);
+    await expect(
+      phone.getByTestId('capture-frame'),
+      'capture stayed locked after the return-phone reload — the live session did not survive hydrate (EX-7)',
+    ).toBeEnabled();
+
+    // A second real frame crossing after the reload is deliberately NOT
+    // asserted here: diagnostics (T27 follow-up 1 session) showed the mid-
+    // session reload re-establishes the RTCPeerConnection but NOT the
+    // `capture` datachannel (host never re-creates its channel; the phone's
+    // capture fails honestly with "The data channel closed before the frame
+    // could start"). That is a separate src/** gap reported to the lead —
+    // outside this hydrate-survival re-check (EX-7), never papered over here.
+    await expect(host.getByTestId('phone-frames')).toContainText(framesLabel(initialFrames + 1));
   } finally {
     await host.close().catch(() => undefined);
     await phone.close().catch(() => undefined);
@@ -97,7 +162,7 @@ async function runLoopback(
 }
 
 test.describe('WebRTC loopback over the dev-server relay (T21/T24)', () => {
-  test('two pages connect within 10 s and a capture-state message crosses the datachannel', async ({
+  test('two pages connect within 10 s, a capture-state message crosses the datachannel, and a return-phone reload survives hydrate', async ({
     context,
   }) => {
     const origin = test.info().project.use.baseURL ?? 'http://127.0.0.1:5183';
@@ -114,7 +179,11 @@ test.describe('WebRTC loopback over the dev-server relay (T21/T24)', () => {
         return;
       } catch (error) {
         lastFailure = error;
-        console.warn(`[webrtc-loopback] attempt ${attempt} failed: ${String(error)}`);
+        console.warn(
+          `[webrtc-loopback] attempt ${attempt} failed: ${
+            error instanceof Error ? (error.stack ?? String(error)) : String(error)
+          }`,
+        );
       }
     }
     // T24 ask_abort_triggers: flake past the one allowed retry is a LOUD

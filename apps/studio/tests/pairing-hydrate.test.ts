@@ -1,5 +1,5 @@
 /**
- * Hydration vs. live pairing session (fix for the EX-2-class stall recorded
+ * Hydration vs. live pairing session (fix for the EX-7-class stall recorded
  * in VALIDATION.md: "returning phone" — a stale workspace snapshot in IndexedDB
  * hydrates `pairing: IDLE` over an in-flight pairing session, so the rail is
  * stuck IDLE and capture is locked forever).
@@ -40,7 +40,7 @@ function idle(): PairingStatus {
 }
 
 describe('mergePairingOnHydrate — no-clobber direction', () => {
-  it('live PAIRING + restored IDLE → keeps the live session (the EX-2 stall)', () => {
+  it('live PAIRING + restored IDLE → keeps the live session (the EX-7 stall)', () => {
     expect(mergePairingOnHydrate(live('PAIRING', { progress: 0.4 }), { state: 'IDLE', updatedAt: 5 }))
       .toEqual(live('PAIRING', { progress: 0.4 }));
   });

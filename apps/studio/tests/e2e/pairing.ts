@@ -130,17 +130,21 @@ export async function railHistory(page: Page): Promise<RailEntry[]> {
 }
 
 /**
- * Real phones arrive with a fresh browser profile. In a single shared e2e
- * context both pages share ONE IndexedDB, and the T9 hydration contract
- * resets `pairing` to the persisted IDLE on every load ("a reloaded tab
- * re-pairs from IDB honestly"). Without this mirror the desktop's snapshot
- * would hydrate on the phone page AFTER its session dispatched PAIRING,
- * desyncing the bridge from the store and stalling the rail at IDLE — an
- * app-level race (reported to lead; src/** is out of T24 scope) that a
- * real first-scan phone never hits because its own IDB is empty.
+ * OPT-IN fresh-phone mirror (T24-era workaround, now scenario-scoped).
  *
- * Deletes ONLY the workspace snapshot record (`kv/workspace-snapshot.v1`);
- * staged-image records are left untouched (the workflow spec needs them).
+ * A real first-scan phone arrives with a fresh browser profile — empty IDB.
+ * In a single shared e2e context both pages share ONE IndexedDB, so specs
+ * whose subject is NOT the hydrate/pairing race use this to mirror that
+ * invariant: delete only the workspace snapshot record
+ * (`kv/workspace-snapshot.v1`) before the load (staged-image records are
+ * left untouched — the workflow spec needs them).
+ *
+ * T27 follow-up 1: this clear was MASKING the app-level "returning phone"
+ * race (desktop snapshot hydrating `pairing: IDLE` over a live session).
+ * The loopback/return-phone path therefore now runs with the snapshot
+ * KEPT (`openPair(…, { phoneProfile: 'returning' })`) — the store-level
+ * fix (`mergePairingOnHydrate`, 9d7f33f) has to hold on its own. Do not
+ * re-add this clear to that path; it is the workaround under test.
  */
 export async function clearWorkspaceSnapshot(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -168,6 +172,35 @@ export async function clearWorkspaceSnapshot(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Read-only precondition probe: does the shared IndexedDB still hold a
+ * `kv/workspace-snapshot.v1` record? Used by the returning-phone path to
+ * PROVE the stale snapshot is present before the phone loads/reloads —
+ * the opposite direction of the workaround (never deletes anything).
+ */
+export async function workspaceSnapshotPresent(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    const known = (await indexedDB.databases()).some((db) => db.name === 'namma-space');
+    if (!known) return false;
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('namma-space');
+      request.onerror = () => reject(request.error ?? new Error('idb open failed'));
+      request.onsuccess = () => resolve(request.result);
+    });
+    if (!db.objectStoreNames.contains('kv')) {
+      db.close();
+      return false;
+    }
+    const present = await new Promise<boolean>((resolve, reject) => {
+      const request = db.transaction('kv', 'readonly').objectStore('kv').count('workspace-snapshot.v1');
+      request.onsuccess = () => resolve(request.result > 0);
+      request.onerror = () => reject(request.error ?? new Error('kv count failed'));
+    });
+    db.close();
+    return present;
+  });
+}
+
 export type PairPages = {
   /** Desktop side — QR host, WebRTC initiator, frame receiver. */
   host: Page;
@@ -181,18 +214,32 @@ export type PairPages = {
  * Open the host on the scan workspace, read its freshly minted session token
  * off the QR card, then open the phone side on `?pair=TOKEN` — both pages in
  * the supplied context (one browser, one origin, one relay).
+ *
+ * `phoneProfile` (T27 follow-up 1):
+ *  - `'fresh'` (default) — mirror a first-scan phone: the shared workspace
+ *    snapshot is cleared before the phone loads (genuinely-fresh-phone
+ *    subjects like camera.spec / scan-leak.spec). Not a hydrate test.
+ *  - `'returning'` — the T24 written-exception-2 / EX-7 re-check: the host's
+ *    stale snapshot (persisted `pairing: IDLE`) is KEPT in the shared IDB,
+ *    so the phone pairs THROUGH hydrate, and `clearWorkspaceSnapshot` is
+ *    never called. A precondition poll asserts the snapshot really exists
+ *    before the phone page opens — no silent fallback to the workaround.
  */
 export async function openPair(
   context: BrowserContext,
   origin: string,
+  options: { phoneProfile?: 'fresh' | 'returning' } = {},
 ): Promise<PairPages> {
-  // Mirror the real-world invariant documented on clearWorkspaceSnapshot:
-  // each side pairs from a profile holding NO workspace snapshot, so the
-  // T9 hydration can never reset a live pairing machine mid-handshake.
-  const probe = await context.newPage();
-  await probe.goto(`${origin}/`, { waitUntil: 'commit' }); // same origin, no full app boot
-  await clearWorkspaceSnapshot(probe);
-  await probe.close();
+  const profile = options.phoneProfile ?? 'fresh';
+
+  if (profile === 'fresh') {
+    // Mirror the fresh-profile invariant documented on clearWorkspaceSnapshot:
+    // a first-scan phone pairs from a profile holding NO workspace snapshot.
+    const probe = await context.newPage();
+    await probe.goto(`${origin}/`, { waitUntil: 'commit' }); // same origin, no full app boot
+    await clearWorkspaceSnapshot(probe);
+    await probe.close();
+  }
 
   const host = await context.newPage();
   await instrumentRtc(host);
@@ -201,8 +248,20 @@ export async function openPair(
   const token = (await host.getByTestId('pair-session').innerText()).trim();
   expect(token).toMatch(TOKEN_PATTERN);
 
-  // The host has written its snapshot by now; the phone must not read it.
-  await clearWorkspaceSnapshot(host);
+  if (profile === 'fresh') {
+    // The host has written its snapshot by now; the phone must not read it.
+    await clearWorkspaceSnapshot(host);
+  } else {
+    // Returning phone: the stale snapshot MUST be there (the host persists
+    // it right after hydration) — assert it, never delete it.
+    await expect
+      .poll(() => workspaceSnapshotPresent(host), {
+        timeout: 10_000,
+        message:
+          'returning-phone precondition failed: the host never wrote the stale workspace snapshot',
+      })
+      .toBe(true);
+  }
 
   const phone = await context.newPage();
   await instrumentRtc(phone);
