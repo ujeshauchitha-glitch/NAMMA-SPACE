@@ -12,9 +12,9 @@ Priority: **P1** = hurts the Round 1 submission, **P2** = needed for Round 2, **
 **Already tried:**
 - `pipeline/clean_splat.py` caps aspect at 8:1 after training. It helps a little.
 - Dropping large or faint splats removed the streaks but darkened the whole room.
-- A 6 fps rerun (`work/classroom_6fps`) is in progress to see whether more views fix it.
+- A 6 fps rerun (`work/classroom_6fps`, 895 of 918 frames placed, reprojection error 0.90 px) is now the viewer scene. It is cleaner near the spawn point (floor smear gone, less fog). At the low view among the desks it is about the same: more frames alone do not fix this. Cost: COLMAP took 4.2 h with exhaustive matching and training 7.9 h on a throttled laptop.
 
-**Task:** train the same dataset (`work/classroom_masked_v2`: images, `sparse/`, `masks/`) with a trainer that supports scale/anisotropy regularisation. Use gsplat's `simple_trainer.py` with `--scale_reg` and the anisotropy/"mcmc" strategy, or another 3DGS trainer with an equivalent. Export a PLY, run it through `clean_splat.py` and splat-transform, then compare against the current `scene.sog` at the same low view among the desks.
+**Task:** train the same dataset (`work/classroom_6fps/dataset_masked`: images, `sparse/`, `masks/`) with a trainer that supports scale/anisotropy regularisation. Use gsplat's `simple_trainer.py` with `--scale_reg` and the anisotropy/"mcmc" strategy, or another 3DGS trainer with an equivalent. Export a PLY, run it through `clean_splat.py` and splat-transform, then compare against the current `scene.sog` at the same low view among the desks.
 **Done when:** you have side-by-side screenshots at 3 fixed viewpoints (low among the desks, the doorway, the spawn point) and a recommendation on which trainer the pipeline should use. If gsplat wins, also deliver a `--trainer gsplat` option in `pipeline/run_pipeline.py`.
 
 ## 2. [P1] No objective quality number
