@@ -5,6 +5,8 @@ export default defineConfig({
   // so tell esbuild to use the automatic JSX runtime for them.
   esbuild: { jsx: 'automatic' },
   test: {
+    maxWorkers: 4,
+    testTimeout: 20_000,
     exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
   },
 });

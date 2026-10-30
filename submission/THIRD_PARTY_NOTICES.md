@@ -197,7 +197,7 @@ Provenance recorded in `logs/round1-rescue/COMMANDS_AND_TESTS.md`, `logs/round1-
 - Search for weight formats (`.pth .pt .onnx .safetensors .ckpt .h5 .tflite .npz` plus >2 MB files outside `node_modules`) returns **no model weights anywhere in the repo**. The only `*.bin` hits are COLMAP sparse-reconstruction outputs under `work/captures/**` (`cameras.bin`, `images.bin`, `points3D.bin`…) — **`work/` is gitignored, never committed, not model weights**, and are runtime artifacts of COLMAP, not third-party data.
 - **No training ever ran** on real photos: `docs/SUBMISSION_ROUND1.md:75` ("Real splat / trained scene — Does not exist"), so no trained checkpoint exists to declare.
 - External references (hosted outside the repo, not distributed by us):
-  - `viewer/public/models/scene.json` → `https://huggingface.co/datasets/REPLACE_HF_USER/namma-space-splats/resolve/main/scene.sog` — **placeholder, not a live asset**.
+  - `viewer/public/models/scene.json` → `https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/synthetic_room.ply` — **defaults to the synthetic room fixture** (`pipeline/make_demo_splat.py`), badged `SYNTHETIC` in the viewer.
   - `viewer/public/scenes/synthetic.json` → `huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/.../synthetic_room.ply` — **our own procedurally generated fixture** (`pipeline/make_demo_splat.py`), labelled `SYNTHETIC` in the UI. No third-party dataset or pretrained weights involved.
 - Conclusion: **no third-party datasets or model weights are included in, or required by, the release.** If a real trained splat is uploaded to Hugging Face before submission, re-run this check (it would still be first-party capture data, but the statement should be re-verified).
 
