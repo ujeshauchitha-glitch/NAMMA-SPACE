@@ -223,10 +223,17 @@ export class PlayCanvasViewer {
   private readonly resize = (): void => {
     const parent = this.canvas.parentElement;
     if (!parent) return;
-    const rect = parent.getBoundingClientRect();
-    this.canvas.width = Math.max(1, Math.floor(rect.width * window.devicePixelRatio));
-    this.canvas.height = Math.max(1, Math.floor(rect.height * window.devicePixelRatio));
-    this.app.resizeCanvas(this.canvas.width, this.canvas.height);
+    // clientWidth/clientHeight are the layout box (no transform, no scrollbar);
+    // a bitmap that fed back into this measurement used to double on every
+    // ResizeObserver tick (release-gate fix). The unchanged guard breaks any
+    // residual feedback loop and skips pointless GPU surface reallocations.
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.floor(parent.clientWidth * ratio));
+    const height = Math.max(1, Math.floor(parent.clientHeight * ratio));
+    if (width === this.canvas.width && height === this.canvas.height) return;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.app.resizeCanvas(width, height);
   };
 
   private update(dt: number): void {

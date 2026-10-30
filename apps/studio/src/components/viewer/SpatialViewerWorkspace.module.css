@@ -134,7 +134,14 @@
   min-height: 360px;
 }
 
+/* Release-gate fix (runaway canvas): the canvas must not contribute to the
+   stage's height. In flow, `height: 100%` resolved against an auto-height box
+   fell back to the bitmap size, which the ResizeObserver then re-measured — the
+   bitmap doubled on every window resize until the browser clamped it and the
+   view went black. Out of flow, the loop cannot form. */
 .stage :global(canvas) {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
