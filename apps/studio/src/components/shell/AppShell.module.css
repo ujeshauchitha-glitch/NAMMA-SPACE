@@ -72,6 +72,37 @@
   text-overflow: ellipsis;
 }
 
+.guideBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: var(--border);
+  border-radius: var(--radius-1);
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  font: 500 11px/1.4 var(--font-sans);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.guideBtn:hover {
+  color: var(--accent-lime);
+  border-color: var(--accent-lime);
+  background: rgba(152, 235, 52, 0.08);
+}
+
+.guideIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  font: 700 10px var(--font-mono);
+}
+
 .session {
   margin-left: auto;
   font: 500 10px/1.35 var(--font-mono);

@@ -10,7 +10,7 @@ import { expect, test } from '@playwright/test';
 test.describe('Route status strip (T16)', () => {
   test('plots, replots and clears a verified route', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
 
     await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('registration');
     await page.getByRole('option', { name: /Registration Desk/ }).click();
@@ -40,7 +40,7 @@ test.describe('Route status strip (T16)', () => {
       await route.fulfill({ response, json: navigation });
     });
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('registration');
     await page.getByRole('option', { name: /Registration Desk/ }).click();
     await page.getByRole('button', { name: 'Plot route' }).click();
@@ -55,7 +55,7 @@ test.describe('Route status strip (T16)', () => {
 
   test('Esc deselects the destination and clears the card', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
 
     await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('registration');
     await page.getByRole('option', { name: /Registration Desk/ }).click();

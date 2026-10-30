@@ -1,0 +1,15 @@
+{
+    "status":  "needs-review",
+    "readiness":  "visual_ready",
+    "warnings":  [
+                     "Synthetic fixture; no navigation grid, so routes are unavailable."
+                 ],
+    "checks":  [
+                   {
+                       "label":  "Marked synthetic",
+                       "status":  "passed",
+                       "detail":  "sceneKind is synthetic-demo.",
+                       "id":  "provenance"
+                   }
+               ]
+}

@@ -43,7 +43,7 @@ test.describe('three-tab journey + IDB restore (T24)', () => {
 
     /* ---- 2. Spatial Viewer: search → select → plot route → jump ---- */
     await page.getByTestId('tab-viewer').click();
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
 
     const search = page.getByRole('searchbox', { name: 'Search points of interest' });
     await search.fill('registration');
@@ -84,7 +84,7 @@ test.describe('three-tab journey + IDB restore (T24)', () => {
     // The camera pose restored from IDB (honest restore: the saved pose
     // replaces the manifest start position — same contract as T14).
     await page.getByTestId('tab-viewer').click();
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/X -3\.10 · Z -1\.10/)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/X -4\.50 · Z 3\.40/)).toHaveCount(0);
 

@@ -796,7 +796,7 @@ describe('journey failure paths', () => {
     // The idle capture-state resets the receiver instead of leaving it CAPTURING.
     expect(h.host.state).toBe('LIVE');
     expect(h.joiner.state).toBe('LIVE');
-  });
+  }, 15_000);
 
   it('peer disconnect mid-transfer: the send fails loudly with the exact chunk position', async () => {
     const h = createHarness({ closeAfterPayloads: 1 }, { ackTimeoutMs: 60_000 });

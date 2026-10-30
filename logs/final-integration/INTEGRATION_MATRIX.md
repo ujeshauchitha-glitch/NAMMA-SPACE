@@ -1,0 +1,15 @@
+# Subsystem Integration Matrix
+
+| Subsystem | Available Implementations | Selected Implementation | Reason & Evidence |
+| :--- | :--- | :--- | :--- |
+| **Workspace Shell & Navigation** | Multiple roots in `ashwinwork` vs `viewer/` | `apps/studio/src/App.tsx` & `AppShell.tsx` | Complete 3-workspace tabbed shell, a11y compliant, unified entry point, verified by `app.spec.ts`. |
+| **Capture Studio** | `ashwinwork` (React 19 + IDB) vs manual script uploads | `apps/studio/src/components/workspace/CaptureStudioWorkspace.tsx` | Multi-image drag/drop, viewpoint grouping, metadata preview, and export. Tested by `capture.spec.ts` & `capture-export.spec.ts`. |
+| **Video Ingestion** | In-browser client prep + `ffmpeg` frame extraction script | `apps/studio/scripts/run_pipeline.py` & `prepare_capture_observations.py` | Validated frame sampling, timestamp indexing, and strict schema compliance. Verified by `tests/test_prepare_capture_observations.py` (22/22 pass). |
+| **Reconstruction Engine** | Nilesh's `run_pipeline.py` vs mock endpoints | `apps/studio/scripts/reconstruct_colmap.py` & `run_pipeline.py` | Authentic COLMAP SfM + Brush 3DGS pipeline with honest preflight hardware checking (`BLK-001` - no fake processing). |
+| **Splat Conversion & SOG** | `ujesha/studio-splat-spike` vs external Hugging Face | `apps/studio/public/scenes/splat-fixture/` (`synthetic_room.sog`) | Local, self-contained 718 KB SOG file. No external network dependencies, no 401 auth issues, verified by `validate_all_scenes.py`. |
+| **Spatial 3D Engine** | PlayCanvas (`ashwinwork`) vs R3F/Spark (`viewer/`) | Enhanced PlayCanvas Viewer with `.sog`/`.ply` gsplat support | Single WebGL context lifecycle, unified POI index, collision-checked A* walking, pointer lock, and mobile compatibility. Tested by 36 Playwright E2E tests. |
+| **POI & Search System** | Ashwin's client-side text search vs hardcoded cards | `apps/studio/src/lib/poiSearch.ts` | Fuzzy token search with keyboard shortcuts (`Cmd+K`), approach points, and selection pulse. Tested by `tests/poi-search.test.ts`. |
+| **Navigation & Pathfinding** | Ashwin's grid A* vs straight-line interpolation | `apps/studio/src/lib/navigation.ts` | Complete 8-directional A* with Euclidean distance heuristic, diagonal corner-cutting prevention, and unreachable fallback. Tested by `tests/navigation.test.ts`. |
+| **Mobile Pairing & Relay** | WebRTC DataChannel + QR handshake in `ashwinwork` | `apps/studio/src/lib/pairing/` | Verified ICE state machine, chunked frame transfer, SHA-256 integrity verification, and QR code pairing. Tested by `tests/pairing-journey.test.ts` (17/17 pass). |
+| **Data Contracts** | Multiple competing JSON schemas | Canonical D1/D2/D3 Zod schemas in `apps/studio/src/types/scene.ts` | Strict schema validation for scene manifests, POIs, navigation grids, and asset integrity hashes. Tested by `validate_all_scenes.py`. |
+| **Deployment** | Root `vercel.json` targeting `apps/studio` | Vercel production build of `apps/studio/dist` | Clean monorepo build, explicit static asset caching, and zero 401/404 failures. |

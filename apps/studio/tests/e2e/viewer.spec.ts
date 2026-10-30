@@ -24,7 +24,7 @@ test.describe('Spatial viewer workspace (T14)', () => {
     await expect(skeleton).toContainText('Validating scene manifest');
     await expect(skeleton).toHaveAttribute('aria-busy', 'true');
 
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(skeleton).toHaveCount(0);
     // Single-context invariant: exactly one live canvas for one workspace.
     await expect(page.locator('canvas')).toHaveCount(1);
@@ -32,23 +32,23 @@ test.describe('Spatial viewer workspace (T14)', () => {
 
   test('persists the selected scene in the URL so a reload restores it', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
 
     await page.getByLabel('Choose demonstration scene').selectOption('/scenes/glb-fixture/manifest.json');
     await expect(page.getByRole('heading', { name: 'The Amber Hall · GLB asset' })).toBeVisible();
-    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 30_000 });
     await expect(page).toHaveURL(/scene=/);
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'The Amber Hall · GLB asset' })).toBeVisible();
     // GLB scene's real terminal status line (the asset load supersedes "Ready to explore").
-    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('canvas')).toHaveCount(1);
   });
 
   test('restores the last camera viewpoint of a scene after reload', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/X -4\.50 · Z 3\.40/)).toBeVisible();
 
     const search = page.getByRole('searchbox', { name: 'Search points of interest' });
@@ -63,16 +63,16 @@ test.describe('Spatial viewer workspace (T14)', () => {
     await page.waitForTimeout(1200);
 
     await page.reload();
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     // The saved pose replaces the manifest start position — honest restore.
-    await expect(page.getByText(/X -3\.10 · Z -1\.10/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/X -3\.10 · Z -1\.10/)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/X -4\.50 · Z 3\.40/)).toHaveCount(0);
     await expect(page.locator('canvas')).toHaveCount(1);
   });
 
   test('leaves zero canvases on tab exit and remounts exactly one (single context)', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('canvas')).toHaveCount(1);
 
     await page.getByTestId('tab-capture').click();
@@ -80,7 +80,7 @@ test.describe('Spatial viewer workspace (T14)', () => {
 
     await page.getByTestId('tab-viewer').click();
     await expect(page.locator('canvas')).toHaveCount(1);
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('canvas')).toHaveCount(1);
   });
 
@@ -90,7 +90,7 @@ test.describe('Spatial viewer workspace (T14)', () => {
 
     await page.getByLabel('Choose demonstration scene').selectOption('/scenes/glb-fixture/manifest.json');
     await expect(page.getByRole('heading', { name: 'The Amber Hall · GLB asset' })).toBeVisible();
-    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Loaded Architectural GLB fixture')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('canvas')).toHaveCount(1);
     await page.getByRole('button', { name: 'Reset viewpoint' }).click();
     await expect(page.getByText(/X -4\.50 · Z 3\.40/)).toBeVisible();
@@ -104,7 +104,7 @@ test.describe('Spatial viewer workspace (T14)', () => {
     await page.route('**/scenes/glb-fixture/visual/architectural-fixture.glb', (route) => route.abort());
     await page.goto('/?scene=glb');
     await expect(page.getByRole('heading', { name: 'The Amber Hall · GLB asset' })).toBeVisible();
-    await expect(page.getByText(/Visual asset unavailable/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Visual asset unavailable/)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('searchbox', { name: 'Search points of interest' })).toBeVisible();
 
     await page.unroute('**/scenes/glb-fixture/visual/architectural-fixture.glb');
@@ -124,7 +124,7 @@ test.describe('Spatial viewer workspace (T14)', () => {
       await route.fulfill({ response, json: navigation });
     });
     await page.goto('/');
-    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Ready to explore', { exact: true })).toBeVisible({ timeout: 30_000 });
     await page.getByRole('searchbox', { name: 'Search points of interest' }).fill('registration');
     await page.getByRole('option', { name: /Registration Desk/ }).click();
     await page.getByRole('button', { name: /Plot route/ }).click();

@@ -473,6 +473,10 @@ export function CaptureStudioWorkspace() {
             {announcement}
           </p>
 
+          <div className={styles.workflowHint}>
+            <strong>Capture Workflow:</strong> 1. Select a Room → 2. Upload images/video → 3. Organize in View Groups → 4. Click <em>Prepare capture</em> → 5. Export ZIP bundle for external GPU reconstruction.
+          </div>
+
           <UploadZone busy={busy} onFiles={(files) => void handleFiles(files)} />
 
           <SelectionToolbar

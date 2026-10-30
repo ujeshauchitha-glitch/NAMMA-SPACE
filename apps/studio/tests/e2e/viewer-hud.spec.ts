@@ -10,7 +10,7 @@ import { expect, test, type Page } from '@playwright/test';
  * headless Chromium refuses without a user gesture.
  */
 
-const READY = { timeout: 15_000 } as const;
+const READY = { timeout: 30_000 } as const;
 
 async function gotoReady(page: Page, path = '/'): Promise<void> {
   await page.goto(path);

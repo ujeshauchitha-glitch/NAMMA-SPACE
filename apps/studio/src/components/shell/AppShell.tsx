@@ -16,10 +16,12 @@ export type AppShellProps = {
   stateLabel: string;
   /** Real connectivity: online → ● LOCAL, offline → ◇ OFFLINE (honest, measured). */
   isOnline: boolean;
+  /** Open onboarding welcome guide */
+  onOpenGuide?: () => void;
   children?: ReactNode;
 };
 
-export function AppShell({ activeWorkspace, onWorkspaceChange, stateLabel, isOnline, children }: AppShellProps) {
+export function AppShell({ activeWorkspace, onWorkspaceChange, stateLabel, isOnline, onOpenGuide, children }: AppShellProps) {
   return (
     <div className={styles.shell}>
       <header className={styles.nav}>
@@ -37,6 +39,19 @@ export function AppShell({ activeWorkspace, onWorkspaceChange, stateLabel, isOnl
           {stateLabel}
         </div>
         <WorkspaceTabs value={activeWorkspace} onChange={onWorkspaceChange} />
+        {onOpenGuide && (
+          <button
+            type="button"
+            className={styles.guideBtn}
+            onClick={onOpenGuide}
+            aria-label="Open Namma Space guide"
+            title="Open Namma Space guide"
+            data-testid="open-guide-button"
+          >
+            <span className={styles.guideIcon}>?</span>
+            <span>Guide</span>
+          </button>
+        )}
         <span className={[styles.session, isOnline ? '' : styles.sessionOffline].filter(Boolean).join(' ')}>
           {isOnline ? '● LOCAL' : '◇ OFFLINE'}
         </span>

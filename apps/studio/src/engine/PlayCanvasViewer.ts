@@ -326,6 +326,7 @@ export class PlayCanvasViewer {
   }
 
   private loadVisualAssets(): void {
+    this.loadSplatAssets();
     const assets = this.manifest.visualAssets.filter((asset) => asset.kind === 'glb' || asset.kind === 'gltf');
     if (assets.length === 0) return;
 
@@ -334,6 +335,35 @@ export class PlayCanvasViewer {
     assets.forEach((assetRef) => {
       void verifyAssetIntegrity(this.manifestUrl, assetRef)
         .then(() => this.attachVisualAsset(assetRef))
+        .catch((error: unknown) => {
+          this.callbacks.onStatus(assetFailureMessage(assetRef, error));
+        });
+    });
+  }
+
+  private loadSplatAssets(): void {
+    const refs = this.manifest.visualAssets.filter((asset) => asset.kind === 'ply' || asset.kind === 'sog');
+    if (refs.length === 0) return;
+
+    refs.forEach((assetRef) => {
+      void verifyAssetIntegrity(this.manifestUrl, assetRef)
+        .then(() => {
+          const label = assetRef.label ?? assetRef.uri;
+          const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
+          const asset = new Asset(label, 'gsplat', { url });
+          asset.once('load', () => {
+            const entity = new Entity(label);
+            entity.addComponent('gsplat', { asset });
+            this.app.root.addChild(entity);
+            this.callbacks.onStatus(`Loaded splat ${label}`);
+          });
+          asset.once('error', (error: unknown) => {
+            this.callbacks.onStatus(`Splat unavailable: ${String(error)}`);
+          });
+          this.app.assets.add(asset);
+          this.loadedAssets.push(asset);
+          this.app.assets.load(asset);
+        })
         .catch((error: unknown) => {
           this.callbacks.onStatus(assetFailureMessage(assetRef, error));
         });

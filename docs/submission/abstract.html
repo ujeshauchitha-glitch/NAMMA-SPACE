@@ -403,10 +403,11 @@
     step, so a visitor on a slow connection always sees that something is happening. If the model cannot be fetched, the
     viewer explains why in plain language, for example that the file is missing, private or blocked by the host, instead
     of showing a blank screen.</p>
-  <p><b>Hosting.</b> The app is a static build on Vercel of about 3.7 MB, whose hashed files browsers cache
-    indefinitely. The model lives in a public Hugging Face dataset, whose CDN allows cross-origin requests from any
-    site. Because the app and the model are hosted separately, publishing a new capture is a file upload, not a
-    deployment.</p>
+  <p><b>Hosting.</b> The studio app and viewer are a static build on Vercel, live at
+    <a href="https://namma-space-studio.vercel.app/?workspace=viewer">namma-space-studio.vercel.app</a>, of about 3.7 MB,
+    whose hashed files browsers cache indefinitely. The splat model lives in a public Hugging Face dataset, whose CDN
+    allows cross-origin requests from any site. Because the app and the model are hosted separately, publishing a new
+    capture is a file upload, not a deployment.</p>
 
   <h2>6. Results</h2>
   <p>Round 1 demonstrates the full software pipeline on a synthetic fixture scene. A real-capture attempt (70
@@ -429,7 +430,7 @@
     </tr>
     <tr>
       <td>Browser E2E (Playwright)</td>
-      <td>28 / 28 passed</td>
+      <td>35 specs: all pass in isolation; 33 pass, 2 flaky, 1 timeout in one software-WebGL run</td>
       <td>Scene validation</td>
       <td>2 / 2 bundles PASS</td>
     </tr>

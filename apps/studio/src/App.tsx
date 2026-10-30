@@ -4,6 +4,8 @@ import { CaptureStudioWorkspace } from './components/workspace/CaptureStudioWork
 import { LiveScanWorkspace } from './components/workspace/LiveScanWorkspace';
 import { SpatialViewerWorkspace } from './components/viewer/SpatialViewerWorkspace';
 import { ToastRegion } from './components/ui/Toast';
+import { WelcomeGuideModal } from './components/shell/WelcomeGuideModal';
+import { shouldShowWelcomeGuide } from './components/shell/welcomeGuideState';
 import { DEFAULT_WORKSPACE, isWorkspaceId, type WorkspaceId } from './components/workspace/workspace';
 import { createAppPersistence } from './state/appPersistence';
 import { createEntityId, useWorkspaceBootstrap } from './state/bootstrap';
@@ -68,6 +70,7 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
 
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(resolveInitialWorkspace);
   const [pairToken] = useState<string | null>(() => readPairToken(window.location.search));
+  const [showGuide, setShowGuide] = useState(() => !pairToken && shouldShowWelcomeGuide());
   const [sceneState, setSceneState] = useState('No scene loaded');
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
@@ -99,6 +102,7 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
         onWorkspaceChange={setActiveWorkspace}
         stateLabel={stateLabel}
         isOnline={isOnline}
+        onOpenGuide={() => setShowGuide(true)}
       >
         {activeWorkspace === 'capture' && <CaptureStudioWorkspace />}
         {activeWorkspace === 'viewer' && <SpatialViewerWorkspace onStateChange={handleSceneState} />}
@@ -107,6 +111,14 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
       <ToastRegion
         toasts={state.toasts}
         onDismiss={(id) => dispatch({ type: 'toast/dismiss', id })}
+      />
+      <WelcomeGuideModal
+        open={showGuide}
+        onClose={() => setShowGuide(false)}
+        onSelectWorkspace={(workspace) => {
+          setActiveWorkspace(workspace);
+          setShowGuide(false);
+        }}
       />
     </>
   );
