@@ -35,9 +35,8 @@ const SCENE_OPTIONS = [
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
   { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
-  // The classroom splat (22 MB) is git-ignored and built locally by pipeline/scene_bundle.py, so it is
-  // only offered in dev builds; a deployed build would 404 on it.
-  ...(import.meta.env.DEV ? [{ value: '/scenes/classroom/manifest.json', label: 'Classroom splat (local capture)' }] : []),
+  // Gaussian splat trained from a smartphone video of a classroom (pipeline/scene_bundle.py).
+  { value: '/scenes/classroom/manifest.json', label: 'Classroom (real capture, Gaussian splat)' },
 ];
 
 function resolveInitialSceneUrl(): string {
@@ -273,6 +272,12 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const selectedPoi = bundle?.pois.find((poi) => poi.id === selectedPoiId) ?? null;
   const results = useMemo(() => searchPois(bundle?.pois ?? [], query), [bundle?.pois, query]);
   const hasGlbVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'glb' || asset.kind === 'gltf') ?? false;
+  const hasSplatVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog') ?? false;
+  const sceneOrigin = bundle?.manifest.sceneKind === 'reconstructed-capture' ? 'reconstructed capture' : 'synthetic';
+  // What the visual layer actually is, so a real capture is never labelled a fixture.
+  const sceneMeta = hasSplatVisual ? `Gaussian splat · ${sceneOrigin}`
+    : hasGlbVisual ? (sceneOrigin === 'synthetic' ? 'GLB · textured mesh fixture' : `GLB · ${sceneOrigin}`)
+    : 'Procedural fixture asset';
   const hasNavigation = bundle?.navigation != null;
   const isSimulated = bundle?.manifest.sceneKind === 'synthetic-demo';
 
@@ -439,7 +444,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                 {bundle && (
                   <Hud
                     sceneLabel={bundle.manifest.displayName}
-                    sceneMeta={hasGlbVisual ? 'GLB · textured mesh fixture' : 'Procedural fixture asset'}
+                    sceneMeta={sceneMeta}
                     isSimulated={isSimulated}
                     position={position}
                     selectedPoiName={selectedPoi?.label ?? null}
