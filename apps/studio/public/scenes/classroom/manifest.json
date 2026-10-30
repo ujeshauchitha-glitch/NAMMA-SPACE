@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 1,
+ "sceneId": "classroom6",
+ "displayName": "Classroom (real capture)",
+ "sceneKind": "reconstructed-capture",
+ "description": "Gaussian splat reconstructed from a smartphone video (COLMAP + Brush).",
+ "coordinateSystem": "right-handed-y-up",
+ "units": "metre",
+ "worldFromReconstruction": [
+  [
+   1,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   1,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   1
+  ]
+ ],
+ "bounds": {
+  "min": [
+   -6.777,
+   0.0,
+   -5.64
+  ],
+  "max": [
+   5.212,
+   2.648,
+   6.597
+  ]
+ },
+ "startPosition": [
+  4.828,
+  1.45,
+  0.355
+ ],
+ "startYawDegrees": 77.01,
+ "visualAssets": [
+  {
+   "kind": "sog",
+   "uri": "visual/scene_v8_world.sog",
+   "label": "Classroom (real capture)",
+   "sha256": "78d6e5f603ee927fe5252d4b8d44df4816ebc0d05ed109fa33634afa938f2337"
+  }
+ ],
+ "collisionAsset": null,
+ "navigationUri": "navigation/grid.json",
+ "semanticUri": "semantic/pois.json",
+ "qualityUri": "quality/report.json",
+ "scaleStatus": "estimated",
+ "provenance": {
+  "pipeline": "pipeline/scene_bundle.py",
+  "pipelineVersion": "0.1.0",
+  "capturedAt": "",
+  "source": "Smartphone video capture",
+  "notes": [
+   "Scale is estimated from an assumed 1.45 m camera height (room height comes out at 2.69 m).",
+   "Reconstruction-to-world transform baked into the splat (splat-transform -r/-s/-t), so worldFromReconstruction is identity."
+  ]
+ }
+}
