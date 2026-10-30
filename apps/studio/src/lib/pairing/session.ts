@@ -434,12 +434,26 @@ export function createPairingSession(options: PairingSessionOptions): PairingSes
   const handleSignalMessage = (message: SignalMessage): void => {
     switch (message.type) {
       case 'peer-joined': {
+        // The relay announces `peer-joined` once per room fill. A room only
+        // fills again after a member's socket closed (page reload, network
+        // blip — PEER_LEFT closes the room at 2→1), so a SECOND announce is
+        // the deterministic rejoin signal: the other side arrived on a new
+        // socket and its old WebRTC state cannot be trusted. EX-7 adjacent:
+        // a reloaded phone re-paired over the live host connection but the
+        // host never re-created the `capture` channel — sends then failed
+        // with "The data channel closed before the frame could start".
+        // Rebuild the whole connection on BOTH roles (fresh pc, fresh
+        // channel, fresh offer) — the proven first-pairing path, never a
+        // renegotiation the remote side could silently miss.
+        const rejoin = ownPeerId !== undefined;
         ownPeerId = message.peerId;
         try {
           const instance = ensurePeer();
           // The host creates the offer — but only now that the room holds
           // two peers (an offer into an empty room is relayed nowhere).
-          if (role === 'initiator') void instance.start().catch(() => undefined);
+          if (role === 'initiator' || rejoin) {
+            void (rejoin ? instance.restart() : instance.start()).catch(() => undefined);
+          }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           emit({ type: 'transfer-error', reason });

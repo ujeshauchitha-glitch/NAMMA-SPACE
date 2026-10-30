@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "createdAt": "2026-10-30T07:55:22.659066+00:00",
+  "createdAt": "2026-10-30T08:39:11.413067+00:00",
   "dist": "dist",
   "artifacts": [
     {
-      "path": "dist/assets/PlayCanvasViewer-BlQdL5Y7.js",
+      "path": "dist/assets/PlayCanvasViewer-BbhGi6Qi.js",
       "bytes": 2032736,
-      "gzipBytes": 521353
+      "gzipBytes": 521352
     },
     {
       "path": "dist/assets/browser-Cgug2DPz.js",
@@ -14,14 +14,14 @@
       "gzipBytes": 4445
     },
     {
-      "path": "dist/assets/index-B3nAonzM.js",
-      "bytes": 448361,
-      "gzipBytes": 139765
-    },
-    {
       "path": "dist/assets/index-BTZn_zDy.css",
       "bytes": 41330,
       "gzipBytes": 8639
+    },
+    {
+      "path": "dist/assets/index-CY1ys4oe.js",
+      "bytes": 448455,
+      "gzipBytes": 139805
     },
     {
       "path": "dist/assets/index-V7xXUF1b.js",
@@ -126,16 +126,16 @@
   ],
   "scopes": {
     "initialJavaScript": {
-      "bytes": 448361,
-      "gzipBytes": 139765
+      "bytes": 41330,
+      "gzipBytes": 8639
     },
     "entryJavaScript": {
-      "path": "dist/assets/index-B3nAonzM.js",
-      "gzipBytes": 139765
+      "path": "dist/assets/index-CY1ys4oe.js",
+      "gzipBytes": 139805
     },
     "lazyViewerJavaScript": {
       "bytes": 2032736,
-      "gzipBytes": 521353
+      "gzipBytes": 521352
     },
     "generatedGlbFixture": {
       "bytes": 13556,
@@ -144,7 +144,7 @@
   },
   "expectations": {
     "entryGzipBudgetBytes": 368640,
-    "entryGzipBytes": 139765,
+    "entryGzipBytes": 139805,
     "entryBudgetMet": true,
     "expectedLazyChunkLibraries": {
       "fflate": [
@@ -155,7 +155,7 @@
         "index-V7xXUF1b.js"
       ],
       "playcanvas": [
-        "PlayCanvasViewer-BlQdL5Y7.js"
+        "PlayCanvasViewer-BbhGi6Qi.js"
       ],
       "qrcode-generator": [
         "qrcode-5IewWFXk.js"
@@ -168,6 +168,6 @@
       "gsap"
     ]
   },
-  "totalBytes": 3391306,
-  "totalGzipBytes": 939346
+  "totalBytes": 3391400,
+  "totalGzipBytes": 939385
 }

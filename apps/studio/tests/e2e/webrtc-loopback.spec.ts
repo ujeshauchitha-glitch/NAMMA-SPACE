@@ -147,14 +147,40 @@ async function runLoopback(
       'capture stayed locked after the return-phone reload — the live session did not survive hydrate (EX-7)',
     ).toBeEnabled();
 
-    // A second real frame crossing after the reload is deliberately NOT
-    // asserted here: diagnostics (T27 follow-up 1 session) showed the mid-
-    // session reload re-establishes the RTCPeerConnection but NOT the
-    // `capture` datachannel (host never re-creates its channel; the phone's
-    // capture fails honestly with "The data channel closed before the frame
-    // could start"). That is a separate src/** gap reported to the lead —
-    // outside this hydrate-survival re-check (EX-7), never papered over here.
-    await expect(host.getByTestId('phone-frames')).toContainText(framesLabel(initialFrames + 1));
+    // 5. EX-7 adjacent observation — RESOLVED: the mid-session reload used to
+    //    re-establish the RTCPeerConnection but NOT the `capture` datachannel
+    //    (the host never re-created it; a post-reload capture failed honestly
+    //    with "The data channel closed before the frame could start"). The
+    //    pairing core now rebuilds the connection on the relay's re-announce
+    //    (src/lib/pairing rejoin), so a SECOND real frame must cross
+    //    end-to-end: capture-state + payload + verified ack on the rebuilt
+    //    channel. `captureOneFrame` waits for the real "Frame acknowledged"
+    //    receipt, and the host panel only increments on a SHA-256-verified
+    //    frame — no timer or local state can fake either signal.
+    //    `window.__dcMessages` is cumulative for the page's whole life, so
+    //    the capture-state check below is BASELINED against the pre-capture
+    //    length — only messages the second capture itself delivered count
+    //    (the first capture already pushed `capturing` long before reload).
+    const dcMessagesBeforeSecondCapture = await host.evaluate(() => window.__dcMessages.length);
+    await captureOneFrame(phone);
+    const captureStatesAfterReload = (await host.evaluate(() => window.__dcMessages ?? []))
+      .slice(dcMessagesBeforeSecondCapture)
+      .map((raw) => {
+        try {
+          return JSON.parse(raw) as { type?: string; status?: string };
+        } catch {
+          return null;
+        }
+      })
+      .filter((message): message is { type: string; status?: string } => message?.type === 'capture-state');
+    expect(
+      captureStatesAfterReload.map((message) => message.status),
+      'the second capture delivered no capture-state:capturing to the host datachannel after the return-phone reload — the rebuilt channel did not carry it (EX-7 adjacent regression)',
+    ).toContain('capturing');
+    await expect(
+      host.getByTestId('phone-frames'),
+      'the host did not stage a SECOND verified frame after the return-phone reload — the rebuilt capture channel did not carry a frame',
+    ).toContainText(framesLabel(initialFrames + 2));
   } finally {
     await host.close().catch(() => undefined);
     await phone.close().catch(() => undefined);

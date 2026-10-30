@@ -13,6 +13,16 @@
  *   3. A second failure is terminal: `ICE_FAILED`. We never loop forever and
  *      never claim connectivity we did not observe.
  *
+ * Rejoin (EX-7 adjacent): the datachannel is created exactly once per
+ * `PeerConnection` (initiator-only `createPc`). When the signalling room
+ * refills after a member's socket closed — e.g. the phone page reloaded —
+ * the session calls {@link PairingPeer.restart}, which tears the connection
+ * down and rebuilds it from scratch (fresh pc, fresh `capture` channel, fresh
+ * offer), because a second offer on the OLD connection cannot re-create the
+ * channel: DCEP OPEN is only sent when a channel first opens, so the remote
+ * side would never see `ondatachannel` and both ends would hold a dead
+ * channel that still claims to be open.
+ *
  * The data channel is labelled `capture`. Inbound JSON frames are
  * `safeParse`d (`capture-state` / `frame-chunk`); malformed input surfaces
  * as `malformed` and is never coerced or thrown through the socket handler.
@@ -102,6 +112,12 @@ export type PairingPeer = {
   readonly stunEngaged: boolean;
   /** Open the connection; the initiator also creates the channel + offer. */
   start(): Promise<void>;
+  /**
+   * Rebuild from scratch (rejoin path): tear down any live connection and
+   * start over — fresh peer connection, fresh `capture` channel (initiator),
+   * fresh offer (initiator); the responder just waits for that offer.
+   */
+  restart(): Promise<void>;
   /** Feed one relayed signalling envelope (SDP or trickle ICE). */
   handleSignal(signal: PeerSignal): Promise<void>;
   /** Push a `capture-state` message; `false` when the channel is not open. */
@@ -279,6 +295,16 @@ export function createPairingPeer(options: PairingPeerOptions): PairingPeer {
       if (!pc) createPc();
       if (role === 'initiator') await sendOffer();
       // The responder waits for the relayed offer — nothing to send yet.
+    },
+
+    async restart(): Promise<void> {
+      if (closed) return;
+      // Full teardown → fresh connection. Reusing the old pc could never
+      // re-create the channel (no second DCEP OPEN on an already-open
+      // channel), and the STUN decision carries over to the rebuild.
+      teardownPc();
+      createPc();
+      if (role === 'initiator') await sendOffer();
     },
 
     async handleSignal(signal: PeerSignal): Promise<void> {
