@@ -11,7 +11,7 @@ import {
   Vec3 as PcVec3,
 } from 'playcanvas';
 import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
-import { findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
+import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveSceneUri } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
@@ -34,6 +34,9 @@ type ViewerOptions = {
 const PLAYER_HEIGHT = 1.65;
 const WALK_SPEED = 1.4; // normal indoor walking pace, m/s
 const LOOK_SPEED = 0.12;
+/** After the mouse rests this long, a view facing an unfilmed direction eases back toward a filmed one. */
+const GUIDE_DELAY_MS = 350;
+const GUIDE_RATE = 2.5; // per second: about 90% of the way back in one second
 
 export class PlayCanvasViewer {
   private readonly app: Application;
@@ -50,6 +53,7 @@ export class PlayCanvasViewer {
   private readonly maxPitch: number;
   private frameTime = 1 / 60;
   private framesSinceResize = 0;
+  private lastLookAt = 0;
   private readonly pois: Poi[];
   private readonly callbacks: ViewerCallbacks;
   private readonly pressedKeys = new Set<string>();
@@ -69,6 +73,7 @@ export class PlayCanvasViewer {
   private readonly onKeyUp = (event: KeyboardEvent) => this.pressedKeys.delete(event.code);
   private readonly onMouseMove = (event: MouseEvent) => {
     if (document.pointerLockElement !== this.canvas) return;
+    this.lastLookAt = performance.now();
     this.yawPivot.rotateLocal(0, -event.movementX * LOOK_SPEED, 0);
     this.pitchPivot.rotateLocal(-event.movementY * LOOK_SPEED, 0, 0);
     const pitch = this.pitchPivot.getLocalEulerAngles().x;
@@ -266,6 +271,7 @@ export class PlayCanvasViewer {
 
   private update(dt: number): void {
     this.adaptResolution(dt);
+    this.guideView(dt);
     const inputX = (this.pressedKeys.has('KeyD') || this.pressedKeys.has('ArrowRight') ? 1 : 0) - (this.pressedKeys.has('KeyA') || this.pressedKeys.has('ArrowLeft') ? 1 : 0);
     const inputZ = (this.pressedKeys.has('KeyS') || this.pressedKeys.has('ArrowDown') ? 1 : 0) - (this.pressedKeys.has('KeyW') || this.pressedKeys.has('ArrowUp') ? 1 : 0);
     if (!inputX && !inputZ) return;
@@ -306,6 +312,21 @@ export class PlayCanvasViewer {
       this.yawPivot.setPosition(x, current[1] - PLAYER_HEIGHT, z);
       this.emitPosition();
     }
+  }
+
+  /**
+   * A splat streaks when seen from a direction the phone never faced, so when the visitor rests the
+   * mouse looking that way, turn them gently back toward the nearest direction filmed from where they stand.
+   */
+  private guideView(dt: number): void {
+    if (!this.navigation || performance.now() - this.lastLookAt < GUIDE_DELAY_MS) return;
+    const forward = this.yawPivot.forward;
+    const heading = Math.atan2(forward.x, forward.z);
+    const target = filmedHeading(this.navigation, worldToCell(this.navigation, this.currentPosition()), heading);
+    if (target === null) return;
+    // Yaw and heading grow together (forward = (-sin yaw, -cos yaw)), so turn yaw by the heading gap.
+    const gap = Math.atan2(Math.sin(target - heading), Math.cos(target - heading));
+    this.yawPivot.rotateLocal(0, (gap * 180 / Math.PI) * (1 - Math.exp(-GUIDE_RATE * dt)), 0);
   }
 
   /** Lower the render resolution when frames are slow (< 30 fps) and raise it back when fast (> 50 fps). */

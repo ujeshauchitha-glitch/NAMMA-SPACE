@@ -47,6 +47,9 @@ export const NavigationSchema = z.object({
   unknown: z.array(z.number().int().nonnegative()).default([]),
   start: z.object({ x: z.number().int().nonnegative(), z: z.number().int().nonnegative() }),
   clearanceMetres: z.number().nonnegative(),
+  /** Captured scenes: per cell, a bitmask of the `viewSectors` compass sectors the phone faced from nearby. */
+  viewSectors: z.number().int().min(1).max(31).optional(),
+  views: z.array(z.number().int().nonnegative()).optional(),
 }).superRefine((grid, context) => {
   const maxIndex = grid.width * grid.height - 1;
   const occupied = new Set<number>();
