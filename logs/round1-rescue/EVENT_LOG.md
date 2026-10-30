@@ -170,3 +170,9 @@
 - Pre-existing observation (not this diff, not a regression): rejoin with half-received frame leaves pendingHeader stale -> one spurious 'out of order' transfer-error on first rebuilt-channel frame; loud, self-recovers.
 - Reviewer's critical-vs-acceptable judgment on the 5 self-reported risks: cut off in transit but verdict clean implies none critical; risks stay recorded in EX-7/EVENT_LOG for the handoff.
 - After the minor fix lands: commit + push the datachannel cycle, then G closure (HANDOFF finalization, STATUS wrap, final push). Sprint ~11h of 12h.
+
+## 2026-10-30 — FINAL RELEASE MISSION START (deadline 2026-10-31)
+- Scope expansion beyond sprint close: 4 mandatory deliverables (abstract PDF <=5pp, PoC + public viewer URL, 3-5min real demo video, reproducible repo w/ non-empty sample data), universal capture (multi-image / video / live) feeding one shared observation contract, deployment, license inventory, Drive folder (human-owned), independent final audit in submission/FINAL_SUBMISSION_AUDIT.md, final READY/READY-WITH-LIMITATIONS/NOT-READY verdict.
+- Wave 1 dispatched (parallel): (R) researcher - universal-capture + fixture-dependency audit + deployment-config inventory (read-only); (D-sample) developer - tests/sample_data + README rewrite + clean-clone verification; (D-lic) developer - submission/THIRD_PARTY_NOTICES.md license inventory (no guessing, source-cited).
+- Wave 2 queued after R returns: multi-image capture hardening, video ingestion (ffmpeg frames -> shared observation format), deployment (route chosen from R's inventory), then abstract PDF, demo video, final audit.
+- Hard rules carried over: no fabricated evidence; synthetic fixtures explicitly labeled; live-preview != live-capture != live-tracking claims; Drive permission changes are HUMAN-owned (prepare checklist only); demo MP4 stays out of git.
