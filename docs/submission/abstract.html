@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Namma Space: Technical Abstract</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 15mm 14mm 15mm;
+    }
+
+    :root {
+      --ink: #16181d;
+      --muted: #555b66;
+      --rule: #d5d9e0;
+      --accent: #1f5fae;
+      --soft: #f3f5f8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 9.8pt;
+      line-height: 1.42;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 17pt;
+      margin: 0 0 2pt;
+      letter-spacing: -0.2pt;
+    }
+
+    h2 {
+      font-size: 11.2pt;
+      margin: 11pt 0 4pt;
+      padding-bottom: 2pt;
+      border-bottom: 1.2pt solid var(--accent);
+      color: var(--accent);
+      break-after: avoid;
+    }
+
+    h3 {
+      font-size: 9.9pt;
+      margin: 6pt 0 1pt;
+      break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 5pt;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 3pt 0 6pt;
+      font-size: 8.9pt;
+    }
+
+    tr {
+      break-inside: avoid;
+    }
+
+    thead,
+    tr:first-child {
+      break-after: avoid;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 2.4pt 5pt;
+      border-bottom: 0.6pt solid var(--rule);
+    }
+
+    th {
+      background: var(--soft);
+      font-weight: 600;
+    }
+
+    code {
+      font-family: Menlo, Consolas, monospace;
+      font-size: 8.5pt;
+      background: var(--soft);
+      padding: 0 2pt;
+      border-radius: 2pt;
+    }
+
+    .ph {
+      background: #ffe94d;
+      padding: 0 2pt;
+      border-radius: 2pt;
+      font-weight: 600;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 9pt;
+      margin-bottom: 6pt;
+    }
+
+    .meta b {
+      color: var(--ink);
+    }
+
+    .summary {
+      background: var(--soft);
+      border-left: 3pt solid var(--accent);
+      padding: 6pt 9pt;
+      margin: 6pt 0 2pt;
+    }
+
+    .fig {
+      margin: 4pt 0 4pt;
+      break-inside: avoid;
+    }
+
+    .cap {
+      font-size: 8.2pt;
+      color: var(--muted);
+      margin-top: 2pt;
+    }
+
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10pt;
+      break-inside: avoid;
+    }
+
+    .shot {
+      border: 1pt dashed #9aa3b0;
+      height: 52mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9pt;
+      color: var(--muted);
+    }
+
+    .note {
+      font-size: 8.6pt;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Namma Space: Smartphone Video to a Walkable Photorealistic Indoor Twin</h1>
+  <div class="meta">
+    <b>Team ID:</b> TM-12354C3F6F2 &nbsp;·&nbsp; <b>Institute:</b> Vellore Institute of Technology &nbsp;·&nbsp;
+    <b>Round 1 Technical Abstract</b>, Techfest 2026-27, IIT Bombay<br>
+    <b>Members:</b> Nilesh Kumar Srivastava, Ojas Ashish Kulkarni, Ujesha Sivaramakrishnan, Ashwin Dandotiya<br>
+    All links, including the live viewer, repository, dataset and demo video, are in
+    <i>Additional_Links_and_Prototypes.pdf</i>.
+  </div>
+
+  <div class="summary">
+    <b>Summary.</b> Namma Space turns a few minutes of ordinary phone video into a photorealistic 3D copy of an indoor
+    space that anyone can walk through in a web browser. One person films each room by following a short capture
+    procedure. Our pipeline then extracts sharp frames, recovers the camera path with COLMAP, trains a 3D Gaussian
+    Splatting model with Brush and compresses it to a web-sized file. The result streams from a content delivery network
+    into a lightweight viewer built on three.js and Spark, where visitors move with the keyboard and mouse or by touch
+    on a phone. Every stage checks its own output before the next one starts, and a person walks the finished model
+    before we publish it.
+  </div>
+
+  <h2>1. Problem and scope</h2>
+  <p>Imagine arriving at a large store, an exhibition hall or a festival venue for the first time. A floor plan tells
+    you where the rooms are, but not what they look like, where the entrance you want actually is, or whether the stall
+    you are looking for is behind that pillar. Photo tours show what a place looks like but cannot be explored freely.
+    What a visitor really wants is to walk the space before they arrive.</p>
+  <p>Our answer is a photorealistic digital twin that a non-expert can create with a phone and that anyone can explore
+    in a browser with nothing to install. Round 1 delivers this core loop: capture a space, reconstruct it faithfully
+    and roam it freely. We designed the capture procedure and the automated checks so that quality comes from following
+    the process, not from manual 3D modelling. The repository already contains groundwork for the later rounds. A
+    separate studio app holds a scene format with points of interest, search, and route planning over a walkable grid,
+    which Round 2 will attach to the Round 1 model. Round 3 adds on-site capture by pairing a phone with the studio,
+    plus optional AR navigation.</p>
+
+  <h2>2. System architecture</h2>
+  <p>We split the system into an offline reconstruction pipeline and a purely static web side. Reconstruction needs a
+    GPU and takes a while, so it runs once per capture on a single workstation. Viewing must be instant and work on any
+    device, so the web side has no server code at all: the app and the model are plain files served from fast,
+    cache-friendly hosts. This separation lets us update the model without redeploying the app, and the reverse.</p>
+  <div class="fig">
+    <svg viewBox="0 0 760 210" width="100%" xmlns="http://www.w3.org/2000/svg"
+      font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1f5fae" />
+        </marker>
+      </defs>
+      <style>
+        .box {
+          fill: #f3f5f8;
+          stroke: #1f5fae;
+          stroke-width: 1.2;
+        }
+
+        .web {
+          fill: #eaf3ea;
+          stroke: #2f7d32;
+          stroke-width: 1.2;
+        }
+
+        .t {
+          font-size: 11.5px;
+          font-weight: 700;
+          fill: #16181d;
+        }
+
+        .s {
+          font-size: 9.6px;
+          fill: #555b66;
+        }
+
+        .ln {
+          stroke: #1f5fae;
+          stroke-width: 1.4;
+          fill: none;
+          marker-end: url(#a);
+        }
+
+        .lbl {
+          font-size: 9.6px;
+          font-weight: 700;
+          fill: #1f5fae;
+          letter-spacing: 0.6px;
+        }
+      </style>
+      <text x="8" y="14" class="lbl">OFFLINE RECONSTRUCTION PIPELINE (one GPU workstation)</text>
+      <rect class="box" x="8" y="24" width="112" height="66" rx="6" />
+      <text x="64" y="46" text-anchor="middle" class="t">Phone video</text>
+      <text x="64" y="61" text-anchor="middle" class="s">one clip per room</text>
+      <text x="64" y="74" text-anchor="middle" class="s">filmed to the SOP</text>
+      <rect class="box" x="140" y="24" width="128" height="66" rx="6" />
+      <text x="204" y="46" text-anchor="middle" class="t">Frames + blur filter</text>
+      <text x="204" y="61" text-anchor="middle" class="s">ffmpeg sampling</text>
+      <text x="204" y="74" text-anchor="middle" class="s">OpenCV sharpness filter</text>
+      <rect class="box" x="288" y="24" width="128" height="66" rx="6" />
+      <text x="352" y="46" text-anchor="middle" class="t">Camera poses</text>
+      <text x="352" y="61" text-anchor="middle" class="s">COLMAP</text>
+      <text x="352" y="74" text-anchor="middle" class="s">structure-from-motion</text>
+      <rect class="box" x="436" y="24" width="128" height="66" rx="6" />
+      <text x="500" y="46" text-anchor="middle" class="t">3D Gaussian Splatting</text>
+      <text x="500" y="61" text-anchor="middle" class="s">Brush training</text>
+      <text x="500" y="74" text-anchor="middle" class="s">full-quality splat.ply</text>
+      <rect class="box" x="584" y="24" width="168" height="66" rx="6" />
+      <text x="668" y="46" text-anchor="middle" class="t">Compression</text>
+      <text x="668" y="61" text-anchor="middle" class="s">splat-transform, SOG or SPZ</text>
+      <text x="668" y="74" text-anchor="middle" class="s">50 MB budget</text>
+      <path class="ln" d="M120 57 H138" />
+      <path class="ln" d="M268 57 H286" />
+      <path class="ln" d="M416 57 H434" />
+      <path class="ln" d="M564 57 H582" />
+      <text x="380" y="106" text-anchor="middle" class="s">Every stage checks its output and records it in report.json;
+        a person signs off the result before publishing.</text>
+      <text x="8" y="134" class="lbl">STATIC DELIVERY (no server code, nothing to install)</text>
+      <rect class="web" x="584" y="144" width="168" height="58" rx="6" />
+      <text x="668" y="166" text-anchor="middle" class="t">Hugging Face CDN</text>
+      <text x="668" y="181" text-anchor="middle" class="s">public dataset, open CORS</text>
+      <rect class="web" x="300" y="144" width="250" height="58" rx="6" />
+      <text x="425" y="166" text-anchor="middle" class="t">Viewer: React, three.js, Spark</text>
+      <text x="425" y="181" text-anchor="middle" class="s">streamed loading with progress</text>
+      <text x="425" y="194" text-anchor="middle" class="s">static build hosted on Vercel</text>
+      <rect class="web" x="40" y="144" width="200" height="58" rx="6" />
+      <text x="140" y="166" text-anchor="middle" class="t">Any WebGL2 browser</text>
+      <text x="140" y="181" text-anchor="middle" class="s">desktop, laptop or phone</text>
+      <path class="ln" d="M668 90 V142" />
+      <path class="ln" d="M584 173 H552" />
+      <path class="ln" d="M300 173 H242" />
+      <text x="568" y="167" text-anchor="middle" class="s">splat</text>
+    </svg>
+    <div class="cap">Figure 1. End-to-end architecture. Heavy work runs offline on one workstation; the web side is two
+      static origins, the app on Vercel and the model on a CORS-enabled CDN.</div>
+  </div>
+  <p>The pipeline is one Python command-line tool with resumable stages. Each run keeps a single report file that
+    records stage timings, every check result and the run's status, so anyone can see exactly how a model was produced.
+    The viewer reads a small scene file holding the model's address, starting position, scale and orientation, so
+    publishing a new capture never requires a code change.</p>
+  <p><b>Hardware.</b> Only one step needs an NVIDIA GPU: COLMAP's feature extraction and matching, for which we use its
+    CUDA build. COLMAP can also run these steps on the CPU, more slowly. Brush trains through WebGPU, so the training
+    step runs on any recent GPU from NVIDIA, AMD, Intel or Apple. Viewing needs only a browser with WebGL2.</p>
+
+  <h2>3. Capture procedure (SOP)</h2>
+  <p>Reconstruction quality is decided at capture time. A blurred or badly lit video cannot be repaired later, so we
+    wrote the procedure around the assumptions the algorithms make: a single unchanging camera, a static scene, and
+    every surface seen many times from different positions. Each rule below exists to protect one of those assumptions.
+  </p>
+  <table>
+    <tr>
+      <th style="width:31%">Rule</th>
+      <th>Why it matters</th>
+    </tr>
+    <tr>
+      <td><b>Fix the camera:</b> lock exposure and focus, use the 1x lens without zoom, turn stabilisation and HDR off,
+        and change nothing mid-clip</td>
+      <td>Structure-from-motion models one camera with fixed optics. Zoom, digital stabilisation and focus hunting
+        quietly change that camera and bend straight walls. Changing brightness confuses feature matching and bakes
+        flicker into the model's colours.</td>
+    </tr>
+    <tr>
+      <td><b>Move slowly:</b> walk at about 0.5 m/s, pan no faster than about 20° per second, never spin in place</td>
+      <td>Motion blur is the most common reason a reconstruction fails. At our sampling rate of 3 frames per second,
+        this pace puts consecutive frames about 17 cm apart, which gives dense overlap with little blur.</td>
+    </tr>
+    <tr>
+      <td><b>Cover everything twice:</b> walk the perimeter facing slightly into the wall, make two passes through the
+        middle, pan slowly at corners, arc around large furniture, cross doorways slowly in both directions and finish
+        where you started</td>
+      <td>Each surface needs to appear in at least three frames from different positions to be placed accurately in 3D
+        and coloured correctly from every angle. Returning to the start closes the loop so accumulated drift can be
+        corrected, and two-way doorway crossings keep adjoining rooms connected.</td>
+    </tr>
+    <tr>
+      <td><b>Light it evenly:</b> all lights on, curtains open, no direct sun beams and no flash</td>
+      <td>Consistent lighting gives consistent colour across views. Blown highlights and moving flash shadows end up
+        permanently painted into the model.</td>
+    </tr>
+    <tr>
+      <td><b>Avoid what cannot be reconstructed:</b> mirrors, glass, windows, plain white walls and people walking
+        through</td>
+      <td>Reflections, transparency and movement break the static-scene assumption and leave floating artefacts. Blank
+        walls give the feature matcher nothing to hold on to, so we keep edges, switches or posters in frame.</td>
+    </tr>
+    <tr>
+      <td><b>Film long enough:</b> at least 31 seconds per room, ideally 60 to 120, in landscape at 1080p or 4K and 30
+        fps</td>
+      <td>We need at least 80 sharp frames. At 3 frames per second, 31 seconds yields 93 frames, and discarding the
+        blurriest 15 % leaves exactly 80. The pipeline applies this rule to the clip's real length before doing any work
+        and tells the user the minimum.</td>
+    </tr>
+  </table>
+  <p>Before leaving the site, the person filming spends a minute scrubbing through the video for blurred or dark
+    sections and checks that the loop is closed and every doorway was crossed both ways. The SOP also lists common
+    failure modes with their fixes, and explains how to set real-world scale from one known length such as a doorway.
+  </p>
+
+  <h2>4. Pipeline design</h2>
+  <p>We built the pipeline to fail early and loudly rather than produce a poor model quietly. Each stage checks its own
+    output, and a run moves forward only when those checks pass. When a stage stops, its message tells the operator what
+    to change, usually in the capture rather than in the settings. Finished stages are kept, so a failed run resumes
+    from the point where it stopped.</p>
+  <h3>Validation</h3>
+  <p>Before any processing, the pipeline confirms that every tool is installed and that the video can produce a usable
+    model: high enough resolution, and long enough to yield 80 sharp frames at the chosen sampling rate. Running the
+    same check that extraction later relies on means a clip that passes validation will not fail for lack of frames
+    twenty minutes later.</p>
+  <h3>Frame extraction</h3>
+  <p>We sample the video at 3 frames per second, which matches the walking pace in the SOP, and scale frames to at most
+    1,600 pixels on the long side. OpenCV then scores each frame's sharpness using the variance of its Laplacian, and we
+    discard the blurriest 15 %. Removing a fixed share adapts to each video's overall sharpness, so we need no
+    hand-tuned threshold.</p>
+  <h3>Camera poses</h3>
+  <p>COLMAP finds SIFT features in every frame, matches them between neighbouring frames, which suits video walked in
+    order, and solves for every camera's position along with a sparse point cloud. It treats the whole clip as one
+    camera with fixed optics, which is what the capture rules guarantee. We accept the result only if at least 60 % of
+    frames are placed and the point cloud is dense enough. We flag fewer than 90 % placed frames, a high reprojection
+    error or a room that splits into separate pieces, and our acceptance bar for publishing is 90 %. The frames are then
+    undistorted for training.</p>
+  <h3>Splat training</h3>
+  <p>Brush trains a 3D Gaussian Splatting model for 30,000 steps and writes one full-quality file at the end. Before
+    training, we confirm the dataset contains exactly one camera solution and every image COLMAP placed. Brush would
+    otherwise train silently on fewer views, or start from a leftover model file in the folder. A trained model is
+    reused only if the trainer, the step count and the camera solution are all unchanged, so a changed setting always
+    produces a fresh model. Afterwards, we verify the file has every attribute a splat needs, is not truncated, contains
+    no invalid values and has at least 50,000 splats.</p>
+  <h3>Compression</h3>
+  <p>A raw splat of a room can run to hundreds of megabytes, far too much for a phone on mobile data. We convert it with
+    splat-transform to the SOG format against a 50 MB budget. On our synthetic test room, SOG was about ten times
+    smaller than the raw file. If the file is still too large, we first remove the higher-order colour detail that
+    models subtle view-dependent shading, and only then thin out splats evenly. If SOG encoding fails on a machine, we
+    retry on the CPU and finally fall back to the SPZ format, so this stage does not depend on one encoder. The
+    full-quality file stays on the workstation as the master copy.</p>
+  <h3>Publishing and sign-off</h3>
+  <p>The pipeline prepares the compressed model and its scene file for the local viewer, where the operator aligns
+    scale, orientation and starting point and then walks the whole room. Automated checks prove a file is well formed.
+    Whether it looks right is a human judgement, so a run is marked successful only when that person approves it with a
+    short note. Our bar is at least 90 % of frames placed, no floating blobs or smeared walls along the walking path,
+    and recognisable doorways and furniture.</p>
+
+  <h2>5. Web viewer</h2>
+  <p>We render Gaussian splats rather than a textured mesh because splats reproduce what makes a room look real: soft
+    lighting, glossy surfaces that change with viewpoint, and thin or cluttered objects that photogrammetry meshes tend
+    to blur or break. They also need no dense multi-view reconstruction, meshing or texture baking. The trade-off is
+    that a splat has no clean surface for collision, which we handle with a separate navigation layer (Section 7).</p>
+  <p>The viewer is a React app using react-three-fiber over three.js, with Spark drawing the splats inside an ordinary
+    three.js scene. Keeping a standard scene graph means points of interest, route lines and collision helpers in later
+    rounds are simply more objects in the same scene.</p>
+  <p><b>Controls.</b> On a computer, the visitor clicks once to enter the space, looks around with the mouse and walks
+    with W, A, S and D or the arrow keys. Shift is a sprint, Q and E lower or raise the eye height, and Escape releases
+    the mouse. Movement stays level with the floor wherever the visitor looks, and an optional boundary keeps them
+    inside the room. On a phone or tablet, dragging one finger looks around and holding two fingers walks forward.</p>
+  <p><b>Loading.</b> The model streams in with a progress bar that shows megabytes received and then a short decoding
+    step, so a visitor on a slow connection always sees that something is happening. If the model cannot be fetched, the
+    viewer explains why in plain language, for example that the file is missing, private or blocked by the host, instead
+    of showing a blank screen.</p>
+  <p><b>Hosting.</b> The app is a static build on Vercel of about 3.7 MB, whose hashed files browsers cache
+    indefinitely. The model lives in a public Hugging Face dataset, whose CDN allows cross-origin requests from any
+    site. Because the app and the model are hosted separately, publishing a new capture is a file upload, not a
+    deployment.</p>
+
+  <h2>6. Results</h2>
+  <p>Round 1 demonstrates the full software pipeline on a synthetic fixture scene. A real-capture attempt (70
+    WhatsApp-compressed photos of a room) registered 57 % of frames — below our 60 % acceptance bar — because of
+    insufficient overlap at doorway transitions and low-resolution source images. The pipeline correctly refused to
+    proceed, validating that the quality gates work as designed. The table below reports the software verification
+    results.</p>
+  <table>
+    <tr>
+      <th>Metric</th>
+      <th>Value</th>
+      <th>Metric</th>
+      <th>Value</th>
+    </tr>
+    <tr>
+      <td>Unit tests (Vitest)</td>
+      <td>679 / 679 passed (36 files)</td>
+      <td>Python tests (pytest)</td>
+      <td>78 / 78 passed</td>
+    </tr>
+    <tr>
+      <td>Browser E2E (Playwright)</td>
+      <td>28 / 28 passed</td>
+      <td>Scene validation</td>
+      <td>2 / 2 bundles PASS</td>
+    </tr>
+    <tr>
+      <td>TypeScript typecheck</td>
+      <td>0 errors</td>
+      <td>ESLint</td>
+      <td>0 errors</td>
+    </tr>
+    <tr>
+      <td>Production build (gzip)</td>
+      <td>142 KB entry, 523 KB viewer (lazy)</td>
+      <td>Synthetic splat fixture</td>
+      <td>~106,000 splats, SOG format</td>
+    </tr>
+  </table>
+  <div class="two">
+    <div>
+      <div class="shot" style="font-style:italic">Capture Studio: multi-image upload, room/view-group organisation, ZIP
+        export with integrity hashes</div>
+      <div class="cap">Figure 2. The Capture Studio workspace with image thumbnails, room rail, and export controls.
+      </div>
+    </div>
+    <div>
+      <div class="shot" style="font-style:italic">Spatial Viewer: synthetic fixture with WASD navigation, POI search, A*
+        routing, and scene selector</div>
+      <div class="cap">Figure 3. First-person walkthrough of the synthetic fixture scene with HUD overlay.</div>
+    </div>
+  </div>
+  <p class="note">The synthetic fixture validates the entire viewer pipeline. Real-capture reconstruction requires a
+    re-shoot with native-resolution video following the documented SOP (see docs/CAPTURE_DAY.md).</p>
+
+  <h2>7. Limitations and next steps</h2>
+  <p><b>Collision and navigation.</b> In Round 1 the visitor is kept inside an optional rectangle, so walls and
+    furniture can be walked through. For Round 2 we will add a walkable grid in real-world metres, already prototyped in
+    the studio app, and fit the floor plane to COLMAP's point cloud so that alignment no longer needs a manual step.</p>
+  <p><b>Points of interest and routing.</b> The studio app already defines a validated scene bundle that combines a
+    navigation grid, points of interest and a quality report, together with point-of-interest search and shortest-path
+    routing on the grid. Round 2 connects these to the Round 1 model in a shared coordinate frame.</p>
+  <p><b>Reconstruction limits.</b> Mirrors, glass and blank walls remain difficult, and scale and orientation are
+    currently set by hand from one known length. Compression is lossy, so we compare each published model against its
+    full-quality master before release.</p>
+  <p><b>Scaling to larger venues (plan).</b> Our design for a building-sized venue such as IIT Bombay's Lecture Hall
+    Complex is to treat each room or corridor segment as its own capture. Each one follows the same SOP and is processed
+    independently, so captures can be spread across several workstations. Doorway crossings filmed in both directions
+    give neighbouring captures shared views, which we would use to register them into one coordinate frame. At our
+    estimated 30 to 50 minutes of processing per room, a floor of about twenty spaces needs roughly 10 to 17 GPU-hours,
+    which several machines can complete overnight. For a space that size we would switch COLMAP from sequential matching
+    to vocabulary-tree matching so revisited areas are recognised, and stream the model as spatially tiled,
+    level-of-detail chunks so the browser loads only the area near the visitor. None of this is built yet. Round 1
+    targets one room at a time.</p>
+  <p><b>Round 3.</b> On-site capture by pairing a phone with the studio, building on the pairing and frame-transfer
+    prototypes already in the repository, and optional AR navigation against the twin.</p>
+
+  <h2>8. Open-source credits</h2>
+  <table>
+    <tr>
+      <th style="width:24%">Tool and version</th>
+      <th>Use in Namma Space</th>
+      <th style="width:22%">Licence</th>
+    </tr>
+    <tr>
+      <td>COLMAP 4.2.1</td>
+      <td>feature extraction, matching, structure-from-motion, undistortion</td>
+      <td>BSD-3-Clause</td>
+    </tr>
+    <tr>
+      <td>Brush 0.3.0</td>
+      <td>3D Gaussian Splatting training</td>
+      <td>Apache-2.0</td>
+    </tr>
+    <tr>
+      <td>FFmpeg and ffprobe</td>
+      <td>frame sampling, video inspection</td>
+      <td>LGPL-2.1+ (GPL-2.0+ for GPL builds)</td>
+    </tr>
+    <tr>
+      <td>OpenCV (opencv-python-headless)</td>
+      <td>frame sharpness scoring, image checks</td>
+      <td>Apache-2.0</td>
+    </tr>
+    <tr>
+      <td>NumPy</td>
+      <td>splat file validation</td>
+      <td>BSD-3-Clause</td>
+    </tr>
+    <tr>
+      <td>@playcanvas/splat-transform 3.10.3</td>
+      <td>conversion to SOG and SPZ, colour-detail reduction, decimation</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>Spark (@sparkjsdev/spark) 2.4</td>
+      <td>Gaussian splat rendering in three.js</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>three.js 0.186</td>
+      <td>WebGL scene and camera</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>react-three-fiber 9</td>
+      <td>React bindings for three.js</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>React 19 and React DOM</td>
+      <td>viewer and studio interface</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>Vite 7 and 8, TypeScript 5.9 and 6, oxlint, ESLint</td>
+      <td>build, type checking, linting</td>
+      <td>MIT (TypeScript: Apache-2.0)</td>
+    </tr>
+    <tr>
+      <td>Node.js 22+</td>
+      <td>build tooling, runs splat-transform</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>PlayCanvas engine 2</td>
+      <td>studio viewer prototype for Round 2</td>
+      <td>MIT</td>
+    </tr>
+    <tr>
+      <td>zod 4, fflate, idb, ws, qrcode-generator</td>
+      <td>studio schemas, bundle export, browser storage, development pairing relay, QR codes</td>
+      <td>MIT (idb: ISC)</td>
+    </tr>
+    <tr>
+      <td>Vitest 5, Playwright</td>
+      <td>studio unit and browser tests</td>
+      <td>MIT (Playwright: Apache-2.0)</td>
+    </tr>
+    <tr>
+      <td>Archivo and IBM Plex Mono</td>
+      <td>studio typography</td>
+      <td>SIL OFL-1.1</td>
+    </tr>
+    <tr>
+      <td>GSAP 3</td>
+      <td>studio interface animation</td>
+      <td>GSAP Standard no-charge licence (not OSI-approved)</td>
+    </tr>
+  </table>
+  <p class="note">Hosting services, not open source: Vercel for the web app and Hugging Face Hub for model storage and
+    delivery.</p>
+
+</body>
+
+</html>

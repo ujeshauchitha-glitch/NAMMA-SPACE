@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd viewer && npm ci",
-  "buildCommand": "cd viewer && npm run build",
-  "outputDirectory": "viewer/dist",
+  "installCommand": "cd apps/studio && npm ci",
+  "buildCommand": "cd apps/studio && npm run build",
+  "outputDirectory": "apps/studio/dist",
   "framework": null,
   "headers": [
     {
@@ -10,7 +10,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
-      "source": "/models/(.*)",
+      "source": "/scenes/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }]
     }
   ]

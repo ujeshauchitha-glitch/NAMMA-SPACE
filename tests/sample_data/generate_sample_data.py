@@ -63,6 +63,15 @@ FONT: dict[str, tuple[str, ...]] = {
     "8": ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
     "9": ("01110", "10001", "10001", "01111", "00001", "00010", "01100"),
     " ": ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    "M": ("10001", "11011", "10101", "10001", "10001", "10001", "10001"),
+    "G": ("01110", "10001", "10000", "10011", "10001", "10001", "01110"),
+    "P": ("11110", "10001", "10001", "11110", "10000", "10000", "10000"),
+    "D": ("11100", "10010", "10001", "10001", "10001", "10010", "11100"),
+    "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+    "O": ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
+    "B": ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
+    "U": ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
+    "W": ("10001", "10001", "10001", "10101", "10101", "11011", "10001"),
 }
 
 
@@ -154,8 +163,10 @@ def sha256_bytes(data: bytes) -> str:
 def build_bundle_zip(images: list[Path]) -> Path:
     """Build the studio prepared-capture ZIP (contract: exportBundle.ts)."""
     entries = []
+    image_data: list[bytes] = []
     for index, image in enumerate(images, start=1):
         data = image.read_bytes()
+        image_data.append(data)
         entries.append({
             "id": f"img-{index:02d}",
             "viewGroupId": "vg-1" if index <= 4 else "vg-2",
@@ -200,11 +211,12 @@ def build_bundle_zip(images: list[Path]) -> Path:
         info = zipfile.ZipInfo("manifest.json", date_time=ZIP_DATE_TIME)
         info.compress_type = zipfile.ZIP_DEFLATED
         archive.writestr(info, json.dumps(manifest, indent=2) + "\n")
-        for entry in entries:
+        for entry, data in zip(entries, image_data):
             info = zipfile.ZipInfo(entry["file"], date_time=ZIP_DATE_TIME)
             info.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(info, (HERE / "images" / Path(entry["file"]).name).read_bytes())
+            archive.writestr(info, data)
     return target
+
 
 
 def main() -> int:
