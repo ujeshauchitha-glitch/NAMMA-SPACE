@@ -6,7 +6,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   height: 100%;
-  min-height: 0;
+  min-height: calc(100vh - 88px);
   box-sizing: border-box;
 }
 
@@ -16,6 +16,7 @@
   gap: var(--space-3);
   min-width: 0;
   min-height: 0;
+  height: 100%;
 }
 
 .stageHeader {
@@ -78,7 +79,7 @@
 .viewport {
   display: grid;
   grid-template-rows: auto 1fr;
-  min-height: 420px;
+  min-height: 520px;
   height: 100%;
   border: var(--border-strong);
   box-shadow: var(--inner-plate);
@@ -93,6 +94,12 @@
   min-height: 44px;
   padding: 0 var(--space-3);
   border-bottom: var(--border);
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .toolbarTitle {
@@ -430,4 +437,52 @@
   margin: 0;
   font: 500 12px/1.5 var(--font-mono);
   color: var(--text-dim);
+}
+
+/* Fullscreen presentation mode: completely fills screen edge-to-edge */
+.viewer.fullscreenMode,
+.viewer:fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 99999 !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr !important;
+  background: var(--scene-clear, #000) !important;
+}
+
+.viewer.fullscreenMode .stageHeader,
+.viewer.fullscreenMode .rail,
+.viewer:fullscreen .stageHeader,
+.viewer:fullscreen .rail {
+  display: none !important;
+}
+
+.viewer.fullscreenMode .stageColumn,
+.viewer:fullscreen .stageColumn {
+  height: 100vh !important;
+  grid-template-rows: 1fr !important;
+  gap: 0 !important;
+}
+
+.viewer.fullscreenMode .viewport,
+.viewer:fullscreen .viewport {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  grid-template-rows: auto 1fr !important;
+}
+
+.viewer.fullscreenMode .toolbar,
+.viewer:fullscreen .toolbar {
+  background: rgba(18, 20, 24, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 50;
 }

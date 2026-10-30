@@ -183,13 +183,14 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <span className={styles.stepTag}>TEST 1</span>
                   <div>
                     <strong>Walkthrough & First-Person Controls (Tab 02):</strong>
-                    <p>Switch between the 3 verified demonstration scenes from the header dropdown:</p>
+                    <p>Switch between the 4 verified demonstration scenes from the header dropdown:</p>
                     <ul>
-                      <li><code>Procedural fixture</code>: Synthetic architectural box room.</li>
+                      <li><code>Captured Workshop Room (70 Photos)</code>: Genuine real digital twin reconstructed from 70 smartphone photos with 3D point cloud & camera frustums!</li>
+                      <li><code>Procedural fixture</code>: Synthetic architectural box room with navigation.</li>
                       <li><code>Generated GLB fixture</code>: Mesh model with collision bounds.</li>
                       <li><code>Synthetic Splat fixture (SOG)</code>: 718 KB 3D Gaussian Splat model.</li>
                     </ul>
-                    <p>Click the viewport to lock mouse look. Walk with <code>W A S D</code>. Press <code>Esc</code> to release mouse.</p>
+                    <p>Click <strong>Full Screen</strong> (or press <kbd>F</kbd>) for an immersive edge-to-edge view. Click the scene to lock mouse look. Walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. Press <kbd>Esc</kbd> to release.</p>
                   </div>
                 </div>
 

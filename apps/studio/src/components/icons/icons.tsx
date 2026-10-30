@@ -152,6 +152,16 @@ export const Pause = (props: IconProps) =>
 export const Signal = (props: IconProps) =>
   Icon(props, <path d="M2.5 13.5v-3M6.5 13.5v-6M10.5 13.5v-9M14.5 13.5v-12" />);
 
+export const Maximize = (props: IconProps) =>
+  Icon(props, <>
+    <path d="M2.5 6V2.5H6M13.5 6V2.5H10M2.5 10v3.5H6M13.5 10v3.5H10" />
+  </>);
+
+export const Minimize = (props: IconProps) =>
+  Icon(props, <>
+    <path d="M6 2.5v3.5H2.5M10 2.5v3.5h3.5M6 13.5V10H2.5M10 13.5V10h3.5" />
+  </>);
+
 /* ---------- POI categories (icon + text, never color-only) ---------- */
 
 export const Room = (props: IconProps) =>

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "washbasin-sink",
+    "label": "Washbasin / Sink Area",
+    "category": "service",
+    "position": [-1.8, 1.1, -1.0],
+    "approachPoint": [-1.2, 1.6, -0.6],
+    "aliases": ["sink", "washbasin", "yellow shelf"],
+    "description": "Wall-mounted sink with yellow shelf against the corrugated metal wall.",
+    "confidence": 0.95,
+    "source": "observed"
+  },
+  {
+    "id": "luggage-corner",
+    "label": "Suitcase / Luggage Corner",
+    "category": "furniture",
+    "position": [1.2, 0.4, 1.5],
+    "approachPoint": [0.6, 1.6, 1.0],
+    "aliases": ["suitcase", "luggage", "bags"],
+    "description": "Open travel luggage resting on the concrete floor.",
+    "confidence": 0.92,
+    "source": "observed"
+  },
+  {
+    "id": "workshop-entrance",
+    "label": "Workshop Entrance",
+    "category": "landmark",
+    "position": [0.0, 1.5, 3.0],
+    "approachPoint": [0.0, 1.6, 2.2],
+    "aliases": ["door", "entrance", "entryway"],
+    "description": "Main doorway entering into the metal workshop room.",
+    "confidence": 0.97,
+    "source": "observed"
+  }
+]

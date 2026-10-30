@@ -17,9 +17,11 @@ You can evaluate the complete user experience right now in your browser with zer
 2. **Review the Interactive Onboarding**: The 5-step journey will guide you. Click **`? Guide`** in the top navigation bar anytime to reopen it.
 3. **Explore 3D Digital Twins (Tab `02 Spatial Viewer`)**:
    - In the top header bar, use the **Scene** dropdown to switch between:
-     - `Procedural fixture`: Synthetic architectural room.
+     - `Captured Workshop Room (70 Photos)`: **Real digital twin** reconstructed from genuine smartphone photos (`work/captures/room`) with true camera frustums and 3D point cloud! Open directly: [**?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
+     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh.
      - `Generated GLB fixture`: Textured 3D mesh model with collision boundary.
      - `Synthetic Splat fixture (SOG)`: 718 KB 3D Gaussian Splat model.
+   - **Full Screen Mode**: Click the **`Full Screen`** button in the toolbar / HUD or press **`F`** to view the digital twin edge-to-edge in true full screen!
    - **Controls**: Click the 3D viewport to lock mouse look. Walk with **`W` `A` `S` `D`**. Press **`Esc`** to release the mouse.
    - **POI Search**: Press **`Cmd+K`** (or click *Search points of interest* in the right rail). Search for `Registration` or `Information`.
    - **A\* Pathfinding**: Click a destination and click **`Plot route`**. A collision-safe 3D walking tape is calculated through obstacles.

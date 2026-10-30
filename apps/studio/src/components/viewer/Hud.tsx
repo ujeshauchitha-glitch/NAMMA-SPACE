@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Vec3 } from '../../types/scene';
 import { Button } from '../ui/Button';
 import { StatusPill } from '../ui/StatusPill';
-import { Jump, Reset } from '../icons/icons';
+import { Jump, Maximize, Minimize, Reset } from '../icons/icons';
 import { CompassRose } from './CompassRose';
 import { LIVE_ALT_THROTTLE_MS, throttleDecision } from './hudMath';
 import styles from './Hud.module.css';
@@ -40,6 +40,10 @@ export type HudProps = {
   onReset: () => void;
   /** Live yaw source for the compass needle; omitted freezes it at north. */
   getYaw?: () => number | null;
+  /** Whether the viewer is currently presented in full-screen mode. */
+  isFullscreen?: boolean;
+  /** Toggle fullscreen presentation. */
+  onToggleFullscreen?: () => void;
 };
 
 /**
@@ -111,6 +115,8 @@ export function Hud({
   onEnterWalkthrough,
   onReset,
   getYaw,
+  isFullscreen,
+  onToggleFullscreen,
 }: HudProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(isWalkthroughActive);
@@ -168,7 +174,7 @@ export function Hud({
           <kbd>A</kbd>
           <kbd>S</kbd>
           <kbd>D</kbd>
-          <span className={styles.hintMeta}>move · click scene for mouse look · Esc exits walkthrough</span>
+          <span className={styles.hintMeta}>move · click scene for mouse look · Esc exits walkthrough · F fullscreen</span>
         </span>
       </div>
 
@@ -192,6 +198,18 @@ export function Hud({
           >
             <Reset />
           </Button>
+          {onToggleFullscreen && (
+            <Button
+              variant="icon"
+              data-hud-fullscreen
+              disabled={!isViewerReady}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}
+              onClick={onToggleFullscreen}
+            >
+              {isFullscreen ? <Minimize /> : <Maximize />}
+            </Button>
+          )}
         </span>
       </div>
 

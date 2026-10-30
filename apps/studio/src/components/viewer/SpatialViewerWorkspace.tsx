@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ViewerCanvas } from '../ViewerCanvas';
 import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
+import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
 import { findRoute, measureRouteMetres, searchPois, worldToCell, type GridCell } from '../../lib/navigation';
 import type { SceneBundle, Vec3 } from '../../types/scene';
@@ -30,6 +31,7 @@ import styles from './SpatialViewerWorkspace.module.css';
 
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
 const SCENE_OPTIONS = [
+  { value: '/scenes/real-room/manifest.json', label: 'Captured Workshop Room (70 Photos)' },
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
   { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
@@ -37,8 +39,10 @@ const SCENE_OPTIONS = [
 
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
-  if (requestedScene === 'glb') return SCENE_OPTIONS[1].value;
-  if (requestedScene === 'splat') return SCENE_OPTIONS[2].value;
+  if (requestedScene === 'real' || requestedScene === 'room') return '/scenes/real-room/manifest.json';
+  if (requestedScene === 'glb') return '/scenes/glb-fixture/manifest.json';
+  if (requestedScene === 'splat') return '/scenes/splat-fixture/manifest.json';
+  if (requestedScene === 'fixture') return '/scenes/fixture/manifest.json';
   if (requestedScene?.startsWith('/scenes/')) return requestedScene;
   return DEFAULT_SCENE_URL;
 }
@@ -65,8 +69,52 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [sceneUrl, setSceneUrl] = useState(resolveInitialSceneUrl);
   // T16 · last plot outcome for the route strip (§5.16) — idle until plotted.
   const [routeState, setRouteState] = useState<RouteState>({ status: 'idle' });
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fullscreen') === 'true';
+  });
   const viewerRef = useRef<PlayCanvasViewer | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (viewerContainerRef.current?.requestFullscreen) {
+          await viewerContainerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        } else {
+          setIsFullscreen((prev) => !prev);
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch {
+      setIsFullscreen((prev) => !prev);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement !== null);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'f' && !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+        if (document.pointerLockElement !== null) return;
+        event.preventDefault();
+        void toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggleFullscreen]);
 
   // T14 · pose persistence (T9 store, keyed by scene URL).
   const { state, dispatch, hydrated } = useWorkspaceStore();
@@ -320,7 +368,10 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   return (
     <WorkspacePanel id="viewer">
-      <div className={styles.viewer}>
+      <div
+        ref={viewerContainerRef}
+        className={`${styles.viewer} ${isFullscreen ? styles.fullscreenMode : ''}`}
+      >
         <div className={styles.stageColumn}>
           <header className={styles.stageHeader}>
             <div>
@@ -349,7 +400,16 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               <div className={styles.toolbar}>
                 <div className={styles.toolbarTitle}>
                   <span className={styles.liveMarker} aria-hidden="true" />
-                  Live spatial view
+                  Live spatial view {isFullscreen && '· Full Screen (Press F or Esc to exit)'}
+                </div>
+                <div className={styles.toolbarActions}>
+                  <Button
+                    variant="quiet"
+                    onClick={() => void toggleFullscreen()}
+                    trailingIcon={isFullscreen ? <Minimize /> : <Maximize />}
+                  >
+                    {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+                  </Button>
                 </div>
               </div>
               <div
@@ -382,6 +442,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     isWalkthroughActive={isWalkthroughActive}
                     hintVisible={hintVisible}
                     isViewerReady={isViewerReady}
+                    isFullscreen={isFullscreen}
+                    onToggleFullscreen={toggleFullscreen}
                     onEnterWalkthrough={() => viewerRef.current?.enterWalkthrough()}
                     onReset={() => viewerRef.current?.reset()}
                     getYaw={getYaw}
