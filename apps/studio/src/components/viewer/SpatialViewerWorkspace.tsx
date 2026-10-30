@@ -35,6 +35,9 @@ const SCENE_OPTIONS = [
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
   { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
+  // The classroom splat (22 MB) is git-ignored and built locally by pipeline/scene_bundle.py, so it is
+  // only offered in dev builds; a deployed build would 404 on it.
+  ...(import.meta.env.DEV ? [{ value: '/scenes/classroom/manifest.json', label: 'Classroom splat (local capture)' }] : []),
 ];
 
 function resolveInitialSceneUrl(): string {
@@ -43,6 +46,7 @@ function resolveInitialSceneUrl(): string {
   if (requestedScene === 'glb') return '/scenes/glb-fixture/manifest.json';
   if (requestedScene === 'splat') return '/scenes/splat-fixture/manifest.json';
   if (requestedScene === 'fixture') return '/scenes/fixture/manifest.json';
+  if (requestedScene === 'classroom') return '/scenes/classroom/manifest.json';
   if (requestedScene?.startsWith('/scenes/')) return requestedScene;
   return DEFAULT_SCENE_URL;
 }
