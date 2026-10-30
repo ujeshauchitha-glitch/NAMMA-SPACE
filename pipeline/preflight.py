@@ -8,9 +8,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common import PipelineError, find_tool
+import compress
+from common import MIN_USABLE_FRAMES, PipelineError, find_tool, list_images, min_duration_s, usable_frames
 
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
 
 # Limits come from docs/SOP.md. Errors block the run; warnings are recorded.
@@ -48,6 +48,15 @@ def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
     else:
         row("ns-train", bool(find_tool("ns-train", False)), "pip install nerfstudio (CUDA PyTorch env; see docs/TRAINING.md)")
         row("ns-export", bool(find_tool("ns-export", False)), "installed with nerfstudio")
+    node = find_tool("node", False)
+    node_major = 0
+    if node:
+        v = subprocess.run([node, "--version"], capture_output=True, text=True).stdout.strip()  # e.g. v22.11.0
+        node_major = int(v.lstrip("v").split(".")[0]) if v.lstrip("v")[:1].isdigit() else 0
+    row(f"node >= 22 ({'v' + str(node_major) if node else 'missing'})", node_major >= 22,
+        "winget install OpenJS.NodeJS.LTS" if win else "install Node.js 22 LTS")
+    row("splat-transform", compress.SPLAT_TRANSFORM_CLI.is_file(),
+        "run scripts/setup_tools.ps1" if win else "run scripts/setup_tools.sh")
     for mod in ("cv2", "numpy"):
         try:
             __import__(mod)
@@ -89,7 +98,7 @@ def probe_video(video: Path) -> dict:
             "duration": float(j.get("format", {}).get("duration") or 0)}
 
 
-def validate_video(video: Path, work: Path) -> tuple[dict, list[Issue]]:
+def validate_video(video: Path, work: Path, sample_fps: float) -> tuple[dict, list[Issue]]:
     issues: list[Issue] = []
     if not video.exists():
         raise PipelineError(f"Input not found: {video}")
@@ -103,6 +112,11 @@ def validate_video(video: Path, work: Path) -> tuple[dict, list[Issue]]:
         issues.append(Issue("error", f"only {info['duration']:.0f}s of video; a room needs at least {MIN_DURATION_S}s following the SOP path."))
     elif info["duration"] < WARN_DURATION_S:
         issues.append(Issue("warn", f"{info['duration']:.0f}s is short; coverage may be thin."))
+    expected = usable_frames(info["duration"], sample_fps)
+    info["expected_usable_frames"] = expected
+    if info["duration"] >= MIN_DURATION_S and expected < MIN_USABLE_FRAMES:
+        issues.append(Issue("error", f"{info['duration']:.0f}s at --fps {sample_fps:g} gives ~{expected} usable frames after blur "
+                                     f"removal; need {MIN_USABLE_FRAMES}. Film at least {min_duration_s(sample_fps)}s or raise --fps."))
     if info["duration"] > MAX_DURATION_S:
         issues.append(Issue("error", f"{info['duration']:.0f}s is too long for one run; split per room (limit {MAX_DURATION_S}s)."))
     if info["fps"] and info["fps"] < MIN_FPS:
@@ -115,7 +129,11 @@ def validate_photos(folder: Path, work: Path) -> tuple[dict, list[Issue]]:
     import cv2
 
     issues: list[Issue] = []
-    files = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXT)
+    files = list_images(folder)
+    heic = [p.name for p in folder.iterdir() if p.suffix.lower() in {".heic", ".heif"}]
+    if heic:
+        issues.append(Issue("warn", f"{len(heic)} HEIC/HEIF files ignored (COLMAP cannot read them), e.g. {heic[:3]}. "
+                                    "Export as JPG, or set iPhone Camera > Formats > Most Compatible."))
     if len(files) < MIN_PHOTOS:
         issues.append(Issue("error", f"{len(files)} photos found, need at least {MIN_PHOTOS}."))
     sizes: dict[tuple[int, int], int] = {}

@@ -1,0 +1,34 @@
+.stub {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: var(--space-4);
+}
+
+/* In-layout variant: `.layout` already owns padding + min-height. */
+.stubBare {
+  padding: 0;
+  min-height: 0;
+}
+
+/* §6.2: Live Scan splits into the camera area + a 400 px pairing rail. */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  min-height: 60vh;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

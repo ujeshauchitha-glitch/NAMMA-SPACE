@@ -18,6 +18,13 @@ if [ ! -x tools/brush/brush_app ]; then
   chmod +x tools/brush/brush_app
 fi
 
+# splat-transform (web compression stage) needs Node.js >= 22.
+if [ ! -f tools/splat-transform/.complete ]; then
+  rm -rf tools/splat-transform
+  npm install --prefix tools/splat-transform --no-audit --no-fund @playcanvas/splat-transform@3.10.3
+  touch tools/splat-transform/.complete
+fi
+
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install opencv-python-headless numpy

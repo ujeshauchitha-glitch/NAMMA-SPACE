@@ -1,0 +1,44 @@
+/* Upload zone (§8.6): label + hidden input, dashed draft border, drag-over
+   cobalt wash. Height reserves the box so ingest never shifts layout. */
+.zone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-2);
+  background: var(--surface-1);
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--dur-fast, 140ms) var(--ease-out), border-color 140ms;
+}
+
+.zone:hover {
+  background: var(--surface-inset);
+}
+
+.zone:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.zoneDragging {
+  border-color: var(--accent-cobalt);
+  background: var(--accent-cobalt-wash);
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+}
+
+.title {
+  font: 600 13px/1.35 var(--font-ui);
+  color: var(--text);
+}
+
+.hint {
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-dim);
+}

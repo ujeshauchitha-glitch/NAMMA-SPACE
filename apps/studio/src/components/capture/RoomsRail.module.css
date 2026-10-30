@@ -1,0 +1,119 @@
+/* Rooms rail (§5.4): 40px rows, selected = lime wash + 2px lime left rule. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border);
+  border-radius: var(--radius-2);
+  background: var(--surface-inset);
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.empty {
+  color: var(--text-muted);
+  font: var(--text-body);
+  max-width: 30ch;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.rowButton {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--text);
+  font: 600 13px/1.3 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowButton:hover {
+  background: var(--surface-inset);
+}
+
+.rowSelected {
+  background: var(--accent-lime-wash);
+  border-left-color: var(--accent-lime);
+}
+
+.rowIcon {
+  color: var(--text-muted);
+}
+
+.rowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowCount {
+  font: 450 11px/1.4 var(--font-mono);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowDelete {
+  width: 32px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.rowDelete:hover {
+  background: var(--surface-inset);
+  color: var(--error);
+}

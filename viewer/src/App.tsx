@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { DEFAULT_CONFIG, loadConfig, type SceneConfig } from './config'
 import { FirstPersonControls } from './FirstPersonControls'
 import { SplatScene } from './SplatScene'
+import type { LoadProgress } from './loadSplat'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -13,6 +14,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [locked, setLocked] = useState(false)
   const [started, setStarted] = useState(false)
+  const [bytes, setBytes] = useState<LoadProgress>({ loaded: 0, total: null })
 
   useEffect(() => {
     loadConfig().then(setConfig)
@@ -26,6 +28,8 @@ export default function App() {
     setStatus(s)
     if (message) setError(message)
   }, [])
+
+  const onBytes = useCallback((p: LoadProgress) => setBytes(p), [])
 
   const spawn = useMemo(() => new THREE.Vector3(...(config?.spawn ?? DEFAULT_CONFIG.spawn)), [config])
 
@@ -45,7 +49,7 @@ export default function App() {
           dpr={[1, 1.5]}
           onClick={() => started && !locked && document.querySelector('canvas')?.requestPointerLock?.()}
         >
-          <SplatScene config={config} onProgress={onProgress} />
+          <SplatScene config={config} onProgress={onProgress} onBytes={onBytes} />
           <FirstPersonControls
             spawn={spawn}
             yaw={config.spawnYaw}
@@ -58,14 +62,14 @@ export default function App() {
       )}
 
       {config?.synthetic && <div className="progress error">SYNTHETIC TEST FIXTURE — not a reconstruction</div>}
-      {status === 'loading' && config && !config.synthetic && <div className="progress">Loading space…</div>}
+      {status === 'loading' && config && <LoadingCard progress={bytes} />}
 
       {status === 'error' && (
         <div className="overlay">
           <div className="card">
             <h1>Couldn't load the space</h1>
             <p className="error">{error}</p>
-            <p>No real capture is installed yet. Run the pipeline (see README) or pass <kbd>?splat=URL</kbd>.</p>
+            <p>Check that the splat URL in <kbd>scene.json</kbd> is uploaded and public, or pass <kbd>?splat=URL</kbd>.</p>
           </div>
         </div>
       )}
@@ -94,5 +98,33 @@ export default function App() {
         </>
       )}
     </>
+  )
+}
+
+const MB = 1e6
+
+function LoadingCard({ progress }: { progress: LoadProgress }) {
+  const { loaded, total } = progress
+  const fraction = total ? Math.min(loaded / total, 1) : null
+  // Download done but Spark still decoding: say so, or a full bar looks frozen.
+  const decoding = total !== null && loaded >= total
+  return (
+    <div className="overlay">
+      <div className="card loading">
+        <h1>Loading space…</h1>
+        <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100}
+          aria-valuenow={fraction === null ? undefined : Math.round(fraction * 100)}>
+          <div className={fraction === null ? 'fill indeterminate' : 'fill'}
+            style={fraction === null ? undefined : { width: `${fraction * 100}%` }} />
+        </div>
+        <p>
+          {decoding
+            ? 'Preparing the splat…'
+            : total
+              ? `${(loaded / MB).toFixed(1)} / ${(total / MB).toFixed(1)} MB`
+              : `${(loaded / MB).toFixed(1)} MB`}
+        </p>
+      </div>
+    </div>
   )
 }

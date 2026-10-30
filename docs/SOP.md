@@ -55,7 +55,8 @@ One video per room or one per floor, named `<space>_<room>.mp4`, plus an optiona
 | Frame extraction | ffmpeg + OpenCV | 3 fps, 1600 px, blurriest 15% dropped (Laplacian variance) | seconds |
 | Structure-from-motion | COLMAP | SIFT features, sequential matching, incremental mapping, undistortion | ~5-15 min for ~500 frames |
 | Splat training | Brush (WebGPU) | 30k steps 3D Gaussian Splatting | ~15-30 min |
-| Publish | script | splat + `scene.json` into the viewer | seconds |
+| Compress | splat-transform 3.10.3 | `.ply` → `.sog` (fallback `.spz`) under 50 MB: drops SH bands, then decimates only if still too big | ~1 min |
+| Publish | script | compressed splat + `scene.json` into `work/<name>/web/` and `viewer/dev-assets/models/` for local inspection; the raw `.ply` never goes into the viewer | seconds |
 
 *Times are estimates; measured values go in the abstract after the first full run.*
 
@@ -64,9 +65,9 @@ Run `python pipeline/run_pipeline.py clip.mp4 --out work/<name> --check` right a
 
 | Stage | Blocks the run if | Recorded as a warning if |
 |---|---|---|
-| Input video | short side < 720 px; < 20 s; > 900 s; < 10 GB free disk; unreadable file | < 30 s; < 24 fps |
+| Input video | short side < 720 px; < 20 s; too short to give 80 usable frames at `--fps` (31 s at the default 3 fps); > 900 s; < 10 GB free disk; unreadable file | < 30 s; < 24 fps |
 | Input photos | < 40 photos; unreadable files | mixed resolutions |
-| Frames | < 80 usable frames after blur removal | |
+| Frames | video: < 80 usable frames after blur removal; photos: < 40 images | |
 | COLMAP | no model; < 60% of frames registered; < 2000 sparse points | 60-90% registered; reprojection error > 1.5 px; more than one disconnected model |
 | Splat file | missing/empty; not a binary PLY; missing 3DGS attributes; truncated; NaN values; < 50,000 splats | |
 

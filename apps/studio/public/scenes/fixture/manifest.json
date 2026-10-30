@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "sceneId": "fixture-exhibition-hall",
+  "displayName": "The Amber Hall",
+  "sceneKind": "synthetic-demo",
+  "description": "A compact synthetic indoor environment for validating the Namma Space viewer, POI index and route planner.",
+  "coordinateSystem": "right-handed-y-up",
+  "units": "metre",
+  "worldFromReconstruction": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+  "bounds": { "min": [-6, 0, -4.5], "max": [6, 3, 4.5] },
+  "startPosition": [-4.5, 1.65, 3.4],
+  "startYawDegrees": 0,
+  "visualAssets": [{ "kind": "procedural", "uri": "procedural://amber-hall", "label": "Fixture primitives" }],
+  "collisionAsset": null,
+  "navigationUri": "navigation/nav-data.json",
+  "semanticUri": "semantic/pois.json",
+  "qualityUri": "quality/report.json",
+  "provenance": {
+    "pipeline": "fixture-procedural",
+    "pipelineVersion": "0.1.0",
+    "capturedAt": "2026-10-24T00:00:00Z",
+    "source": "Namma Space synthetic demonstration",
+    "notes": ["This is not a smartphone reconstruction.", "Replace the procedural visual asset with a captured scene bundle through the same contract."]
+  }
+}

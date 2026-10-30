@@ -20,6 +20,19 @@ All viewer testing so far used the **SYNTHETIC** fixture, not a real reconstruct
 
 Note: the splat checks cannot tell a real reconstruction from a synthetic file; only the human inspection gate can.
 
+## Added 2026-10-28 (integration/round1), tested only with stubs on macOS
+| Change | How verified |
+|---|---|
+| Frame-count rule shared by `--check` and extraction | unit run with a stubbed ffprobe: 25 s and 30 s rejected at 3 fps, 31 s and 45 s accepted |
+| Photo input copies only images, any extension case | unit run on a folder with .JPG/.jpeg/.png/.HEIC/.txt |
+| Splat reuse only on matching trainer/steps/COLMAP model; dataset checks before Brush | unit run with a fake `brush_app` (sparse/ and sparse/0/, stray .ply, missing images, several models) |
+| `--check` keeps the run status | ran against a report in awaiting-inspection state |
+| Compress stage (`pipeline/compress.py`) | unit run with a fake splat-transform CLI: SH reduction, decimation, GPU→CPU and SOG→SPZ fallbacks. **The real splat-transform was not run** (its WebGPU binary needs macOS 26) |
+| Viewer: progress bar, clear errors, dev-only `dev-assets/` | in the browser pane: fixture loads; 401, 404/HTML page and non-splat files give clear messages; fixture absent from `dist/` |
+| `scripts/setup_tools.ps1` rewrite | **not run** (no Windows/PowerShell here) |
+
+Brush 0.3.0 CLI flags and its COLMAP loading (any `cameras.bin`, so `sparse/` and `sparse/0/` both work) were checked against the v0.3.0 source, not by running it.
+
 ## Not yet tested (written, never run on real data)
 - `pipeline/run_pipeline.py` stages on real footage: frame extraction + blur removal, COLMAP mapping, `model_analyzer` output parsing (the parse fails closed if the format differs), Brush training, publish
 - Nerfstudio trainer path; `scripts/setup_tools.sh` (Linux)

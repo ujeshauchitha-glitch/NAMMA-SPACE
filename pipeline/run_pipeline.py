@@ -10,7 +10,9 @@ Stages (each is skipped if its output exists; use --force to redo):
   frames    ffmpeg sampling + blurry-frame removal
   sfm       COLMAP features, matching, mapping, undistortion + registration checks
   train     Brush (default) or Nerfstudio splatfacto + splat file checks
-  publish   copy the splat and scene.json into viewer/public/models
+  compress  .ply -> .sog (or .spz) under --max-mb with splat-transform; always re-run
+  publish   compressed splat + scene.json into work/<name>/web/ and viewer/dev-assets/models/ (dev server only).
+            The raw .ply is never copied into the viewer.
 
 report.json status:
   failed                                       a blocking check failed
@@ -30,11 +32,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks  # noqa: E402
+import compress  # noqa: E402
 import preflight  # noqa: E402
-from common import (AWAITING_INSPECTION, FAILED, INSPECTED_OK, ROOT, PipelineError, Report, Timer,  # noqa: E402
-                    find_tool, run)
-
-MIN_USABLE_FRAMES = 80
+from common import (AWAITING_INSPECTION, BLUR_DROP, FAILED, INSPECTED_OK, MIN_USABLE_FRAMES, ROOT,  # noqa: E402
+                    PipelineError, Report, Timer, find_tool, list_images, run)
 
 
 # ---------------------------------------------------------------- frames
@@ -49,7 +50,7 @@ def extract_frames(video: Path, out: Path, fps: float, width: int, log: Path) ->
     return drop_blurry(frames)
 
 
-def drop_blurry(frames: Path, drop: float = 0.15) -> int:
+def drop_blurry(frames: Path, drop: float = BLUR_DROP) -> int:
     """Remove the blurriest fraction by variance of the Laplacian; returns the number kept."""
     import cv2
 
@@ -69,11 +70,23 @@ def drop_blurry(frames: Path, drop: float = 0.15) -> int:
     return kept
 
 
+def copy_photos(src: Path, frames: Path) -> int:
+    """Copy only the image files from `src` (COLMAP would trip over videos, .HEIC, sidecars)."""
+    frames.mkdir(parents=True, exist_ok=True)
+    images = list_images(src)
+    for f in images:
+        if not (frames / f.name).exists():
+            shutil.copy2(f, frames / f.name)
+    skipped = sum(1 for p in src.iterdir() if p.is_file()) - len(images)
+    print(f"frames: copied {len(images)} photos" + (f" (ignored {skipped} non-image files)" if skipped else ""))
+    return len(list_images(frames))
+
+
 # ---------------------------------------------------------------- sfm
 def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
     colmap = find_tool("colmap")
     db, images, sparse, dataset = work / "colmap.db", work / "frames", work / "sparse", work / "dataset"
-    total = len(list(images.glob("*.jpg"))) + len(list(images.glob("*.png")))
+    total = len(list_images(images))
     if (dataset / "sparse").exists():
         print("sfm: already done")
         return dataset
@@ -104,9 +117,36 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
 
 
 # ---------------------------------------------------------------- train
+def check_dataset(dataset: Path, report: Report) -> None:
+    """Fail with a clear message if Brush would mis-read the undistorted COLMAP dataset.
+
+    Brush 0.3 (brush-dataset/src/formats/colmap.rs, mod.rs) takes the first cameras.bin/.txt it finds
+    anywhere in the folder, so sparse/ and sparse/0/ both work; it silently skips images it cannot find,
+    and uses any single .ply in the folder as the initial splat.
+    """
+    cams = [p for p in dataset.rglob("cameras.*") if p.suffix in (".bin", ".txt")]
+    if not cams:
+        raise PipelineError(f"No COLMAP model in {dataset} (expected sparse/cameras.bin or sparse/0/cameras.bin). "
+                            f"Re-run with --force so COLMAP undistortion runs again.")
+    if len(cams) > 1:
+        raise PipelineError(f"{len(cams)} COLMAP models in {dataset} ({[str(c.parent) for c in cams]}); Brush would pick "
+                            "one at random. Re-run with --force.")
+    images = list_images(dataset / "images")
+    registered = report.data.get("sfm", {}).get("registered_images")
+    if not images or (registered and len(images) < registered):
+        raise PipelineError(f"{dataset / 'images'} has {len(images)} images but COLMAP registered {registered}; Brush "
+                            "would silently train on fewer views. Re-run with --force.")
+    stray = sorted(dataset.rglob("*.ply"))
+    if stray:
+        raise PipelineError(f"Found {[str(p) for p in stray]} inside the dataset; Brush would start from it instead of "
+                            "the COLMAP points. Delete it (or re-run with --force).")
+
+
 def train_brush(dataset: Path, export: Path, steps: int, log: Path) -> None:
-    run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps),
-         "--export-path", str(export), "--export-every", str(steps)], log, "Brush training")
+    # Flags checked against Brush v0.3.0 source (brush-cli, brush-process/src/config.rs). A positional source
+    # runs headless; export_every == total_steps writes exactly one file, at the last step.
+    run([find_tool("brush_app"), str(dataset), "--total-steps", str(steps), "--export-path", str(export),
+         "--export-every", str(steps), "--export-name", "splat.ply"], log, "Brush training")
 
 
 def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None:
@@ -126,34 +166,65 @@ def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None
 TRAINERS = {"brush": train_brush, "nerfstudio": train_nerfstudio}
 
 
-def train(dataset: Path, work: Path, steps: int, trainer: str, log: Path) -> Path:
+def train_fingerprint(dataset: Path, trainer: str, steps: int) -> dict:
+    """What a trained splat depends on. A splat is reused only if all of this is unchanged."""
+    model = sorted(p for p in dataset.rglob("images.*") if p.suffix in (".bin", ".txt"))
+    stat = model[0].stat() if model else None
+    return {"trainer": trainer, "steps": steps,
+            "model": str(model[0]) if model else None,
+            "model_size": stat.st_size if stat else None, "model_mtime": stat.st_mtime if stat else None}
+
+
+def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path) -> Path:
     export = work / f"splat_{trainer}"
-    plys = sorted(export.glob("*.ply")) if export.exists() else []
-    if plys:
-        print("train: already done")
-        return plys[-1]
-    export.mkdir(parents=True, exist_ok=True)
+    want = train_fingerprint(dataset, trainer, steps)
+    done = report.data.get("train_output", {})
+    if done.get("fingerprint") == want and Path(done.get("ply", "")).is_file() \
+            and Path(done["ply"]).stat().st_size == done.get("bytes"):
+        print(f"train: reusing {done['ply']} (same COLMAP model, trainer and steps)")
+        return Path(done["ply"])
+    # Anything else in the export folder is stale (other steps, trainer run, or an interrupted run): never reuse it.
+    report.data.pop("train_output", None)
+    shutil.rmtree(export, ignore_errors=True)
+    export.mkdir(parents=True)
+    check_dataset(dataset, report)
     TRAINERS[trainer](dataset, export, steps, log)
-    plys = sorted(export.glob("*.ply"), key=lambda p: p.stat().st_mtime)
+    plys = sorted(export.rglob("*.ply"), key=lambda p: p.stat().st_mtime)
     if not plys:
         raise PipelineError(f"{trainer} finished but wrote no .ply into {export}. See {log}")
-    return plys[-1]
+    ply = plys[-1]
+    report.data["train_output"] = {"ply": str(ply), "bytes": ply.stat().st_size, "fingerprint": want}
+    report.save()
+    return ply
 
 
 # ---------------------------------------------------------------- publish
-def publish(splat: Path, title: str, report: Report) -> None:
-    models = ROOT / "viewer" / "public" / "models"
-    models.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(splat, models / "scene.ply")
+DEV_MODELS = ROOT / "viewer" / "dev-assets" / "models"  # git-ignored; served by `npm run dev` only
+
+
+def publish(web_splat: Path, title: str, report: Report) -> None:
+    """Write scene.json next to the compressed splat and copy both to the dev server for inspection.
+
+    Production never reads these: viewer/public/models/scene.json points at the uploaded copy on external storage.
+    """
     centre = report.data.get("splat", {}).get("centre", [0, 0, 0])
-    cfg = {"title": title, "splat": "models/scene.ply",
+    cfg = {"title": title, "splat": f"dev-assets/models/{web_splat.name}",
            "spawn": [0, 0, 0], "spawnYaw": 0, "eyeHeight": 1.6, "rotation": [3.141592653589793, 0, 0], "scale": 1,
            "_note": f"AUTO-GENERATED, UNALIGNED. Model centre {centre}. Set spawn/scale/rotation by hand; see docs/SOP.md."}
-    (models / "scene.json").write_text(json.dumps(cfg, indent=2))
-    print(f"publish: {splat.name} -> viewer/public/models/scene.ply (scene.json needs manual alignment)")
+    (web_splat.parent / "scene.json").write_text(json.dumps(cfg, indent=2))
+    shutil.rmtree(DEV_MODELS, ignore_errors=True)
+    DEV_MODELS.mkdir(parents=True)
+    shutil.copy2(web_splat, DEV_MODELS / web_splat.name)
+    shutil.copy2(web_splat.parent / "scene.json", DEV_MODELS / "scene.json")
+    print(f"publish: {web_splat} -> viewer/dev-assets/models/ (scene.json needs manual alignment)\n"
+          f"  inspect: cd viewer; npm run dev  ->  http://localhost:5173/?scene=dev-assets/models/scene.json")
 
 
 # ---------------------------------------------------------------- commands
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def cmd_doctor(trainer: str, gpu: bool) -> int:
     print(f"Dependency check (trainer={trainer}):")
     return 0 if preflight.print_doctor(preflight.doctor(trainer, gpu)) else 1
@@ -165,7 +236,7 @@ def cmd_approve(work: Path, note: str) -> int:
         print(f"Cannot approve: status is {report.data.get('status')!r}, expected {AWAITING_INSPECTION!r}.")
         return 1
     report.data["status"] = INSPECTED_OK
-    report.data["inspection"] = {"note": note, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    report.data["inspection"] = {"note": note, "at": now()}
     report.save()
     print(f"{work}: marked {INSPECTED_OK}.")
     return 0
@@ -183,6 +254,7 @@ def main() -> int:
     ap.add_argument("--trainer", choices=sorted(TRAINERS), default="brush",
                     help="brush: single exe, any WebGPU GPU. nerfstudio: needs CUDA PyTorch (Linux/WSL2)")
     ap.add_argument("--title", default="Namma Space")
+    ap.add_argument("--max-mb", type=float, default=compress.DEFAULT_MAX_MB, help="size budget for the web splat")
     ap.add_argument("--cpu", action="store_true", help="disable COLMAP GPU (use with the no-CUDA build)")
     ap.add_argument("--force", action="store_true", help="delete previous outputs in --out and start over")
     ap.add_argument("--check", action="store_true", help="validate dependencies and input, then stop")
@@ -208,9 +280,11 @@ def main() -> int:
     (work / "logs").mkdir(exist_ok=True)
     log = work / "logs" / "pipeline.log"
     report = Report.load(work)
-    report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer,
-                       params={"fps": a.fps, "width": a.width, "steps": a.steps})
-    report.save()
+    # --check only validates: it records its result under last_check and never touches the run's status.
+    if not a.check:
+        report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer,
+                           params={"fps": a.fps, "width": a.width, "steps": a.steps})
+        report.save()
 
     try:
         print("== dependencies")
@@ -221,11 +295,15 @@ def main() -> int:
         is_dir = a.input.is_dir()
         if not a.input.exists():
             raise PipelineError(f"Input not found: {a.input}")
-        info, issues = (preflight.validate_photos if is_dir else preflight.validate_video)(a.input, work)
+        if is_dir:
+            info, issues = preflight.validate_photos(a.input, work)
+        else:
+            info, issues = preflight.validate_video(a.input, work, a.fps)
         report.data["input_info"] = info
         for k in [k for k in report.data.get("checks", {}) if k.startswith("input:")]:
             del report.data["checks"][k]  # drop stale input checks from a previous run
-        report.data.pop("error", None)
+        if not a.check:
+            report.data.pop("error", None)
         if not issues:
             print("  [PASS] input looks usable")
         for n, i in enumerate(issues):
@@ -233,42 +311,54 @@ def main() -> int:
         if any(i.level == "error" for i in issues):
             raise PipelineError("Input failed validation (see above). Fix the capture, not the thresholds.")
         if a.check:
+            report.data["last_check"] = {"ok": True, "input": str(a.input), "at": now()}
+            report.save()
             print("\nOK: dependencies and input look usable. Nothing was processed (--check).")
             return 0
 
         matcher = a.matcher or ("exhaustive" if is_dir else "sequential")
         with Timer() as t:
             if is_dir:
-                shutil.copytree(a.input, work / "frames", dirs_exist_ok=True)
-                n = len(list((work / "frames").iterdir()))
+                n = copy_photos(a.input, work / "frames")
             else:
                 n = extract_frames(a.input, work, a.fps, a.width, log)
         report.stage("frames", t.seconds, kept=n)
-        if n < MIN_USABLE_FRAMES:
-            raise PipelineError(f"Only {n} usable frames (need {MIN_USABLE_FRAMES}). Film longer or raise --fps.")
+        min_frames = preflight.MIN_PHOTOS if is_dir else MIN_USABLE_FRAMES
+        if n < min_frames:
+            raise PipelineError(f"Only {n} usable frames (need {min_frames}). Film longer or raise --fps.")
 
         with Timer() as t:
             dataset = sfm(work, matcher, not a.cpu, report, log)
         report.stage("sfm", t.seconds)
 
         with Timer() as t:
-            splat = train(dataset, work, a.steps, a.trainer, log)
+            splat = train(dataset, work, a.steps, a.trainer, report, log)
         report.stage("train", t.seconds, steps=a.steps)
 
         print("== output checks")
         if not checks.check_splat(report, splat):
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
 
-        publish(splat, a.title, report)
+        print("== compress for the web")
+        with Timer() as t:
+            web_splat = compress.compress(splat, work, report, log, a.max_mb)
+        report.stage("compress", t.seconds, mb=report.data["web_splat"]["mb"])
+
+        publish(web_splat, a.title, report)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
-        print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks: {splat}\n"
-              "Next: align scene.json, run `npm run dev` in viewer/, walk the whole room, then\n"
+        print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
+              f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n"
+              "Next: align viewer/dev-assets/models/scene.json, run `npm run dev` in viewer/, open\n"
+              "  http://localhost:5173/?scene=dev-assets/models/scene.json, walk the whole room, then\n"
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
     except PipelineError as e:
-        report.data["status"] = FAILED
-        report.data["error"] = str(e)
+        if a.check:
+            report.data["last_check"] = {"ok": False, "input": str(a.input), "at": now(), "error": str(e)}
+        else:
+            report.data["status"] = FAILED
+            report.data["error"] = str(e)
         report.save()
         print(f"\nFAILED: {e}\nReport: {report.path}", file=sys.stderr)
         return 1

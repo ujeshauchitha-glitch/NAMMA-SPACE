@@ -1,0 +1,84 @@
+/* POI combobox (§5.14) — moved out of SpatialViewerWorkspace.module.css at T16. */
+
+.searchWrap {
+  display: block;
+}
+
+.poiList {
+  display: grid;
+  margin: var(--space-3) 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border-top: var(--border);
+}
+
+.poiRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2);
+  border: 0;
+  border-bottom: var(--border);
+  background: none;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.poiRow:hover {
+  background: var(--surface-inset);
+}
+
+/* Keyboard highlight (§5.14) — shape + colour, never colour alone. */
+.poiRowActive {
+  box-shadow: inset var(--rule-signal) 0 0 0 var(--accent-lime);
+  background: var(--surface-inset);
+}
+
+.poiRowSelected {
+  background: var(--accent-lime-wash);
+  border-left: var(--border-active);
+  padding-left: 6px;
+}
+
+.poiIcon {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+.poiCopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.poiCopy strong,
+.poiCopy small {
+  display: block;
+}
+
+.poiCopy strong {
+  font: 600 13px/1.35 var(--font-ui);
+}
+
+.poiCopy small {
+  margin-top: 2px;
+  font: 500 10px/1.35 var(--font-mono);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.poiArrow {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+/* Neutral empty state (§5.14) — never red; rendered outside the listbox. */
+.poiEmpty {
+  margin: var(--space-3) 0;
+  padding: var(--space-4) var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-body);
+}

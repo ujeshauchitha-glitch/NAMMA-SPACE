@@ -17,6 +17,36 @@ FAILED = "failed"
 AWAITING_INSPECTION = "automated_checks_passed_awaiting_inspection"
 INSPECTED_OK = "inspected_ok"
 
+# Image types COLMAP reads. Matched case-insensitively (phones write .JPG).
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
+
+
+def list_images(folder: Path) -> list[Path]:
+    """Image files directly inside `folder`, any extension case; everything else is ignored."""
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXT)
+
+
+# Frame budget for video input. Validation and extraction both use usable_frames(), so a clip that
+# passes --check cannot fail the frame-count check after extraction.
+MIN_USABLE_FRAMES = 80
+BLUR_DROP = 0.15  # fraction of sampled frames removed as the blurriest
+
+
+def usable_frames(duration_s: float, fps: float) -> int:
+    """Frames left after sampling at `fps` and dropping the blurriest BLUR_DROP fraction."""
+    sampled = int(duration_s * fps)
+    return sampled - int(sampled * BLUR_DROP)
+
+
+def min_duration_s(fps: float) -> int:
+    """Shortest clip, in whole seconds, that yields MIN_USABLE_FRAMES at `fps`."""
+    d = 1
+    while usable_frames(d, fps) < MIN_USABLE_FRAMES:
+        d += 1
+    return d
+
 
 class PipelineError(RuntimeError):
     """A stage failed in a way the user can act on. The message says what to do."""

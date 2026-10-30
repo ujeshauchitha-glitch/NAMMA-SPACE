@@ -4,7 +4,7 @@ Not a reconstruction: it only exists so the web viewer can be verified without a
 Output uses the standard 3DGS PLY layout and the COLMAP convention (Y down), matching the
 real pipeline's output, so the viewer's default rotation applies unchanged.
 
-    python pipeline/make_demo_splat.py viewer/public/models/demo.ply
+    python pipeline/make_demo_splat.py viewer/dev-assets/fixtures/SYNTHETIC/synthetic_room.ply
 """
 import struct
 import sys

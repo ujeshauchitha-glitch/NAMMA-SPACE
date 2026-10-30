@@ -1,7 +1,8 @@
 // Scene config comes from public/models/scene.json so a new capture needs no code change.
+// Production splats live on external storage (scene.json holds an absolute URL); dev-assets/ is dev-only.
 export interface SceneConfig {
   title: string
-  /** Splat file relative to the site root (.spz, .ply, .splat, .ksplat). */
+  /** Splat URL: absolute (external storage) or relative to the site root. .sog, .spz or .ply. */
   splat: string
   /** Camera spawn position in world units (metres after scale is applied). */
   spawn: [number, number, number]
@@ -21,7 +22,7 @@ export interface SceneConfig {
 
 export const DEFAULT_CONFIG: SceneConfig = {
   title: 'Namma Space',
-  splat: 'models/scene.spz',
+  splat: 'models/scene.sog',
   spawn: [0, 0, 0],
   spawnYaw: 0,
   eyeHeight: 1.6,
@@ -36,7 +37,7 @@ export async function loadConfig(): Promise<SceneConfig> {
   try {
     // ?scene=<path to a scene.json> selects a config; the default is the real capture.
     const scene = params.get('scene') ?? 'models/scene.json'
-    const res = await fetch(`${base}${scene}`)
+    const res = await fetch(/^(https?:)?\/\//.test(scene) ? scene : `${base}${scene}`)
     if (res.ok) cfg = { ...DEFAULT_CONFIG, ...(await res.json()) }
   } catch {
     // fall back to defaults
