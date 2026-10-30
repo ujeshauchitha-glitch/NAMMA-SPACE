@@ -68,6 +68,27 @@ export function inflateNavigationGrid(grid: NavigationGrid, radiusMetres = grid.
   };
 }
 
+/**
+ * Heading (radians, atan2(x, z) of the view direction) to turn toward when the visitor faces a direction
+ * nobody filmed from this cell, or null when the current heading is fine or the cell has no view data.
+ */
+export function filmedHeading(grid: NavigationGrid, cell: GridCell, heading: number): number | null {
+  const sectors = grid.viewSectors;
+  if (!sectors || !grid.views || !isInside(grid, cell)) return null;
+  const mask = grid.views[cell.z * grid.width + cell.x] ?? 0;
+  if (!mask) return null;
+  const size = (2 * Math.PI) / sectors;
+  const filmed = (k: number) => ((mask >> (((k % sectors) + sectors) % sectors)) & 1) === 1;
+  const current = Math.floor((((heading % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / size);
+  if (filmed(current)) return null;
+  // Nearest edge of a filmed sector on either side.
+  for (let step = 1; step < sectors; step += 1) {
+    if (filmed(current + step)) return (current + step) * size;
+    if (filmed(current - step)) return (current - step + 1) * size;
+  }
+  return null;
+}
+
 export function worldToCell(grid: NavigationGrid, position: Vec3): GridCell {
   return {
     x: Math.floor((position[0] - grid.origin.x) / grid.cellSize),

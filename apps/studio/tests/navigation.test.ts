@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRoute, inflateNavigationGrid, measureRouteMetres, searchPois, worldToCell } from '../src/lib/navigation';
+import { filmedHeading, findRoute, inflateNavigationGrid, measureRouteMetres, searchPois, worldToCell } from '../src/lib/navigation';
 import type { NavigationGrid, Poi } from '../src/types/scene';
 
 const grid: NavigationGrid = {
@@ -261,5 +261,26 @@ describe('A* optimality against a Dijkstra reference (D1)', () => {
     const disconnected: NavigationGrid = { ...meta, width: 3, height: 3, blocked: [1, 3, 4, 5, 7] };
     expect(dijkstraCost(disconnected, { x: 0, z: 0 }, { x: 2, z: 2 })).toBeNull();
     expect(findRoute(disconnected, { x: 0, z: 0 }, { x: 2, z: 2 })).toMatchObject({ ok: false, reason: 'unreachable' });
+  });
+});
+
+describe('filmed view directions', () => {
+  // 8 sectors of 45 degrees; the only cell with data was filmed facing sector 0 (headings 0-45 degrees).
+  const views: NavigationGrid = { ...grid, viewSectors: 8, views: [0b1, ...new Array(48).fill(0)] };
+  const deg = (d: number) => (d * Math.PI) / 180;
+
+  it('leaves a filmed heading alone', () => {
+    expect(filmedHeading(views, { x: 0, z: 0 }, deg(20))).toBeNull();
+    expect(filmedHeading(views, { x: 0, z: 0 }, deg(380))).toBeNull();
+  });
+
+  it('turns an unfilmed heading toward the nearest filmed edge', () => {
+    expect(filmedHeading(views, { x: 0, z: 0 }, deg(100))).toBeCloseTo(deg(45));
+    expect(filmedHeading(views, { x: 0, z: 0 }, deg(-60))).toBeCloseTo(deg(360));
+  });
+
+  it('does nothing where the grid has no view data', () => {
+    expect(filmedHeading(views, { x: 1, z: 0 }, deg(180))).toBeNull();
+    expect(filmedHeading(grid, { x: 0, z: 0 }, deg(180))).toBeNull();
   });
 });
