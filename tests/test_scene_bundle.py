@@ -12,7 +12,7 @@ from test_coverage import write_model  # noqa: E402
 
 def test_bundle_scale_walls_and_start(tmp_path):
     # 4 x 2.6 x 6 m box, cameras at 1.4 m: the guess (1.45 m camera height) is within 4% of the truth.
-    model = write_model(tmp_path / "m", 0.3)
+    model = write_model(tmp_path / "m", 0.3, n_cams=96)  # dense enough for MIN_VIEW_FRAMES per direction
     splat = tmp_path / "scene.sog"
     splat.write_bytes(b"not a real splat")
     stats = scene_bundle.build(model, splat, tmp_path / "bundle", "Synthetic")
@@ -36,3 +36,8 @@ def test_bundle_scale_walls_and_start(tmp_path):
     assert occ[0, 0] and occ[-1, -1]
     start_y = manifest["startPosition"][1]
     assert start_y == pytest.approx(scene_bundle.ASSUMED_CAMERA_HEIGHT_M)
+    # Every walkable cell near the camera ring knows which way the phone faced; occupied cells carry none.
+    views = np.array(grid["views"]).reshape(grid["height"], grid["width"])
+    assert grid["viewSectors"] == scene_bundle.VIEW_SECTORS
+    assert views[s["z"], s["x"]] > 0 and not views[occ].any()
+    assert views.max() < 1 << grid["viewSectors"]

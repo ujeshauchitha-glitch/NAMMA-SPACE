@@ -13,6 +13,10 @@ Walls. The navigation grid marks a cell blocked when SfM points sit between knee
 in it (desks, walls), widened by the player's clearance. Cells the camera walked through are always
 free, since the person filming walked there. Cells far from the filmed path are "unknown": the
 splat is unreliable there, so the viewer does not walk into them.
+
+Views. For each walkable cell the grid also lists which way the phone faced from nearby (a bitmask of
+VIEW_SECTORS compass sectors). The viewer turns the visitor gently back when they look in a direction
+nobody filmed from there, since that is where the splat streaks.
 """
 from __future__ import annotations
 
@@ -35,9 +39,13 @@ CLEARANCE_M = 0.25              # player radius: blocked cells are widened by th
 OBSTACLE_BAND_M = (0.25, 1.9)   # points in this height band block walking (floor and ceiling do not)
 MIN_POINTS = 2                  # points per cell to count as an obstacle (single points are noise)
 # Beyond this distance from the filmed path cells are "unknown". A splat is only sharp near the views
-# it was trained from: at 1.5 m visitors reached spots that looked like smeared paint, so keep it tight.
-FILMED_RADIUS_M = 0.75
+# it was trained from: at 1.5 m visitors reached spots that looked like smeared paint, and at 0.75 m the
+# low views between desks still streaked, so keep it tight.
+FILMED_RADIUS_M = 0.5
 WALKED_RADIUS_M = 0.2           # cells this close to a camera position are always free
+VIEW_SECTORS = 16               # compass sectors (22.5 degrees) for the per-cell filmed directions
+VIEW_RADIUS_M = 1.0             # a camera within this distance counts as a view from the cell
+MIN_VIEW_FRAMES = 3             # frames a sector needs to count as filmed (one or two glances still streak)
 
 
 def estimate_scale(P: np.ndarray, C: np.ndarray) -> tuple[float, float, float]:
@@ -56,8 +64,23 @@ def _disk(r: int) -> np.ndarray:
     return x * x + y * y <= r * r
 
 
-def navigation_grid(W: np.ndarray, Cw: np.ndarray, lo: np.ndarray, hi: np.ndarray, start: np.ndarray) -> dict:
-    """W, Cw: points and camera centres in world metres (floor at y=0)."""
+def view_masks(Cw: np.ndarray, Fw: np.ndarray, lo: np.ndarray, w: int, h: int) -> np.ndarray:
+    """Per cell, a bitmask of the compass sectors at least MIN_VIEW_FRAMES cameras within VIEW_RADIUS_M
+    faced. Sector k covers headings atan2(x, z) in [k, k+1) * 360 / VIEW_SECTORS degrees."""
+    heading = np.arctan2(Fw[:, 0], Fw[:, 2]) % (2 * math.pi)
+    sector = np.minimum((heading / (2 * math.pi) * VIEW_SECTORS).astype(int), VIEW_SECTORS - 1)
+    xs = lo[0] + (np.arange(w) + 0.5) * CELL_M
+    zs = lo[2] + (np.arange(h) + 0.5) * CELL_M
+    counts = np.zeros((VIEW_SECTORS, h, w), np.int32)
+    for c, k in zip(Cw, sector):
+        d2 = (xs[None, :] - c[0]) ** 2 + (zs[:, None] - c[2]) ** 2
+        counts[k][d2 <= VIEW_RADIUS_M ** 2] += 1
+    return ((counts >= MIN_VIEW_FRAMES) * (1 << np.arange(VIEW_SECTORS))[:, None, None]).sum(0)
+
+
+def navigation_grid(W: np.ndarray, Cw: np.ndarray, lo: np.ndarray, hi: np.ndarray, start: np.ndarray,
+                    Fw: np.ndarray | None = None) -> dict:
+    """W, Cw: points and camera centres in world metres (floor at y=0); Fw: camera forward directions."""
     from scipy import ndimage
 
     w = int(math.ceil((hi[0] - lo[0]) / CELL_M))
@@ -90,11 +113,16 @@ def navigation_grid(W: np.ndarray, Cw: np.ndarray, lo: np.ndarray, hi: np.ndarra
     unknown = ~filmed & ~blocked
     sx, sz = cells(start[None, [0, 2]])[0]
     flat = lambda m: np.flatnonzero(m.ravel()).tolist()  # index = z * width + x
-    return {"version": 1, "coordinateSystem": "x-z-grid",
+    grid = {"version": 1, "coordinateSystem": "x-z-grid",
             "origin": {"x": round(float(lo[0]), 3), "z": round(float(lo[2]), 3)},
             "cellSize": CELL_M, "width": w, "height": h,
             "blocked": flat(blocked), "unknown": flat(unknown),
             "start": {"x": int(sx), "z": int(sz)}, "clearanceMetres": CLEARANCE_M}
+    if Fw is not None:
+        views = view_masks(Cw, Fw, lo, w, h)
+        views[blocked | unknown] = 0
+        grid.update(viewSectors=VIEW_SECTORS, views=views.ravel().tolist())
+    return grid
 
 
 def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None = None) -> dict:
@@ -115,7 +143,7 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
     align = viewer_alignment(centres, axes)
     start = Cw[align["spawn_image_index"]].copy()
     start[1] = ASSUMED_CAMERA_HEIGHT_M  # eye at the height the views were filmed from: sharpest there
-    nav = navigation_grid(W, Cw, lo, hi, start)
+    nav = navigation_grid(W, Cw, lo, hi, start, axes[:, 0] @ R.T)
 
     out.mkdir(parents=True, exist_ok=True)
     for d in ("visual", "navigation", "semantic", "quality"):
