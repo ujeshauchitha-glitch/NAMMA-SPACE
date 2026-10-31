@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "sceneId": "captured-workshop-room",
   "displayName": "Captured Workshop Room \u00b7 70 Photos",
-  "sceneKind": "captured-environment",
+  "sceneKind": "reconstructed-capture",
   "description": "Sparse 3D reconstruction generated from 70 smartphone photos in work/captures/room.",
   "coordinateSystem": "right-handed-y-up",
   "units": "metre",

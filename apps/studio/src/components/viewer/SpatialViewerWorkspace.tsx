@@ -32,14 +32,16 @@ import styles from './SpatialViewerWorkspace.module.css';
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
 const SCENE_OPTIONS = [
   { value: '/scenes/real-room/manifest.json', label: 'Captured Workshop Room (70 Photos)' },
+  { value: '/scenes/nerfstudio-poster/manifest.json', label: 'Nerfstudio Benchmark · Poster (226 Cameras)' },
+  { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
-  { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
 ];
 
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
   if (requestedScene === 'real' || requestedScene === 'room') return '/scenes/real-room/manifest.json';
+  if (requestedScene === 'nerfstudio' || requestedScene === 'poster') return '/scenes/nerfstudio-poster/manifest.json';
   if (requestedScene === 'glb') return '/scenes/glb-fixture/manifest.json';
   if (requestedScene === 'splat') return '/scenes/splat-fixture/manifest.json';
   if (requestedScene === 'fixture') return '/scenes/fixture/manifest.json';

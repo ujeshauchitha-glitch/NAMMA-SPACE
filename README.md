@@ -18,9 +18,10 @@ You can evaluate the complete user experience right now in your browser with zer
 3. **Explore 3D Digital Twins (Tab `02 Spatial Viewer`)**:
    - In the top header bar, use the **Scene** dropdown to switch between:
      - `Captured Workshop Room (70 Photos)`: **Real digital twin** reconstructed from genuine smartphone photos (`work/captures/room`) with true camera frustums and 3D point cloud! Open directly: [**?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
-     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh.
-     - `Generated GLB fixture`: Textured 3D mesh model with collision boundary.
-     - `Synthetic Splat fixture (SOG)`: 718 KB 3D Gaussian Splat model.
+     - `Nerfstudio Benchmark · Poster (226 Cameras)`: **Real multi-view reconstruction** generated from the official Nerfstudio benchmark dataset (226 calibrated camera poses, 12,977 3D points, SOG splat, and orbital camera constellation)! Open directly: [**?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
+     - `Synthetic Splat fixture (SOG)`: 3D Gaussian Splat model rendered via PlayCanvas WebGL. Open directly: [**?scene=splat**](https://namma-space-studio.vercel.app/?scene=splat)
+     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh. Open directly: [**?scene=fixture**](https://namma-space-studio.vercel.app/?scene=fixture)
+     - `Generated GLB fixture`: Textured 3D mesh model with collision boundary. Open directly: [**?scene=glb**](https://namma-space-studio.vercel.app/?scene=glb)
    - **Full Screen Mode**: Click the **`Full Screen`** button in the toolbar / HUD or press **`F`** to view the digital twin edge-to-edge in true full screen!
    - **Controls**: Click the 3D viewport to lock mouse look. Walk with **`W` `A` `S` `D`**. Press **`Esc`** to release the mouse.
    - **POI Search**: Press **`Cmd+K`** (or click *Search points of interest* in the right rail). Search for `Registration` or `Information`.
@@ -240,6 +241,27 @@ When capturing a room with a smartphone, photogrammetry algorithms mathematicall
 
 ---
 
+## 🎨 Nerfstudio Benchmark Integration & Multi-View Renders
+
+To demonstrate universal capture generalization across diverse real environments beyond our local captures, Namma Space integrates with official **Nerfstudio** datasets (such as the standard `poster` benchmark):
+
+- **Data Source**: Official Nerfstudio benchmark capture with 226 registered camera poses (`transforms.json` & COLMAP sparse calibration).
+- **Point Cloud & Trajectory**: 12,977 calibrated 3D points rendered as volumetric octahedra alongside a 226-camera orbital trajectory dome.
+- **Gaussian Splatting & Web Delivery**: Converted to 3D Gaussian Splats (`.ply`) and compressed into a 95 KB Supercompressed Optical Gaussian (`.sog`) bundle via `@playcanvas/splat-transform`.
+- **High-Resolution Renders**: Pre-rendered camera trajectories and snapshots generated directly with `splat-transform` rasterization for immediate inspection and demo playback.
+- **Interactive Walkthrough**: Accessible directly in the viewer via the scene dropdown or [**?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio).
+
+To regenerate or convert custom Nerfstudio datasets into Namma Space scene bundles:
+```bash
+# Ingest and build a Nerfstudio digital twin bundle
+python3 apps/studio/scripts/build_nerfstudio_twin.py
+
+# Validate scene compliance
+npm --prefix apps/studio run validate:scenes
+```
+
+---
+
 ## 🧪 Comprehensive Test & Quality Verification
 
 All tests across TypeScript, Vitest, Python, and Playwright E2E are 100% passing:
@@ -250,7 +272,7 @@ All tests across TypeScript, Vitest, Python, and Playwright E2E are 100% passing
 | **ESLint** | Code quality & style rules | `cd apps/studio && npm run lint` | **PASSED** (0 errors) |
 | **Vitest Unit & Integration** | Reducers, stores, pairing, A* | `cd apps/studio && npm test` | **PASSED** (679 / 679 tests) |
 | **Python Test Suite** | Observation preprocessing & schemas | `uv run --with pytest python -m pytest tests -q` | **PASSED** (78 / 78 tests) |
-| **Scene Bundle Validator** | Manifest, nav-grid & asset hashes | `cd apps/studio && npm run validate:scenes` | **PASSED** (3 / 3 scenes) |
+| **Scene Bundle Validator** | Manifest, nav-grid & asset hashes | `cd apps/studio && npm run validate:scenes` | **PASSED** (5 / 5 scenes) |
 | **Bundle Chunk Budget** | Entry gzip & heavy library chunking | `python3 apps/studio/scripts/check_chunks.py` | **PASSED** (all budgets met) |
 | **Playwright Browser E2E** | Full end-to-end user journeys | `cd apps/studio && npm run test:e2e` | **PASSED** (37 / 37 tests) |
 | **Full Quality Gate** | 10 automated quality tiers | `python3 apps/studio/scripts/quality_gate.py` | **10 / 10 PASSED** |

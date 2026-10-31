@@ -35,3 +35,5 @@ target/
 
 # raw capture working data (large binaries, never commit)
 # (work/ above covers work/captures/room/)
+.env*
+.playwright-mcp/

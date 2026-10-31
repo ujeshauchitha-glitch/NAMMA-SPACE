@@ -128,7 +128,7 @@ export const PoiSchema = z.object({
   aliases: z.array(z.string()).default([]),
   description: z.string().optional(),
   confidence: z.number().min(0).max(1),
-  source: z.enum(['operator', 'model', 'synthetic']),
+  source: z.enum(['operator', 'model', 'synthetic', 'observed']),
 });
 
 export const NavigationSchema = z.object({
@@ -169,7 +169,7 @@ export const SceneManifestSchema = z.object({
   schemaVersion: z.literal(1),
   sceneId: z.string().min(1),
   displayName: z.string().min(1),
-  sceneKind: z.enum(['synthetic-demo', 'reconstructed-capture']),
+  sceneKind: z.enum(['synthetic-demo', 'reconstructed-capture', 'captured-environment']),
   description: z.string(),
   coordinateSystem: z.literal('right-handed-y-up'),
   units: z.literal('metre'),

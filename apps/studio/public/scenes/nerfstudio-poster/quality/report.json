@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "readiness": "validated",
+  "score": 0.99,
+  "warnings": [
+    "Reconstructed from official Nerfstudio benchmark dataset (226 registered views)."
+  ],
+  "checks": [
+    {
+      "id": "manifest",
+      "label": "Manifest schema",
+      "status": "passed",
+      "detail": "Schema version 1 accepted."
+    },
+    {
+      "id": "visual",
+      "label": "Visual 3D model",
+      "status": "passed",
+      "detail": "12,977 calibrated 3D points + 226 camera frustums."
+    },
+    {
+      "id": "navigation",
+      "label": "Navigation grid",
+      "status": "passed",
+      "detail": "28x28 verified occupancy grid loaded."
+    },
+    {
+      "id": "start",
+      "label": "Start position",
+      "status": "passed",
+      "detail": "Starting cell (14, 16) is verified walkable."
+    },
+    {
+      "id": "routes",
+      "label": "Route smoke tests",
+      "status": "passed",
+      "detail": "All POIs are reachable from start position."
+    }
+  ],
+  "measured": {
+    "navigationSupplied": true,
+    "navigationBoundsConsistentWithManifest": true,
+    "registeredCameraCount": 226,
+    "calibratedPointsCount": 12330
+  },
+  "notMeasured": [
+    "collision accuracy with dynamic objects",
+    "dense visual surface completeness",
+    "photometric consistency under variable lighting"
+  ]
+}

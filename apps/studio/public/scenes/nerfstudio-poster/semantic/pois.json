@@ -1,0 +1,73 @@
+[
+  {
+    "id": "poster-center",
+    "label": "Exhibition Poster Display",
+    "category": "landmark",
+    "position": [
+      0.0,
+      1.2,
+      -0.5
+    ],
+    "approachPoint": [
+      0.0,
+      1.6,
+      0.8
+    ],
+    "aliases": [
+      "poster",
+      "main exhibit",
+      "artwork",
+      "stand"
+    ],
+    "description": "High-detail scientific poster display calibrated from 226 viewpoint observations.",
+    "confidence": 0.99,
+    "source": "operator"
+  },
+  {
+    "id": "camera-cluster-orbit",
+    "label": "Multi-View Camera Rig Trajectory",
+    "category": "service",
+    "position": [
+      -1.5,
+      1.4,
+      1.2
+    ],
+    "approachPoint": [
+      -0.8,
+      1.6,
+      1.5
+    ],
+    "aliases": [
+      "trajectory",
+      "cameras",
+      "rig",
+      "path"
+    ],
+    "description": "Spatial constellation of 226 calibrated camera positions forming an orbital acquisition dome.",
+    "confidence": 0.97,
+    "source": "operator"
+  },
+  {
+    "id": "observation-viewpoint",
+    "label": "Optimal Viewing Station",
+    "category": "room",
+    "position": [
+      1.8,
+      1.2,
+      0.2
+    ],
+    "approachPoint": [
+      1.2,
+      1.6,
+      0.5
+    ],
+    "aliases": [
+      "viewpoint",
+      "perspective",
+      "station"
+    ],
+    "description": "Walkable vantage point overlooking the dense reconstruction field.",
+    "confidence": 0.95,
+    "source": "operator"
+  }
+]

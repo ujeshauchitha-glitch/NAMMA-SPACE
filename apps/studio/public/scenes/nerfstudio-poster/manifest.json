@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "sceneId": "nerfstudio-poster-capture",
+  "displayName": "Nerfstudio Benchmark \u00b7 Poster (226 Cameras)",
+  "sceneKind": "reconstructed-capture",
+  "description": "High-fidelity spatial reconstruction generated from the official Nerfstudio 'poster' capture dataset (226 registered cameras, 12,977 3D points).",
+  "coordinateSystem": "right-handed-y-up",
+  "units": "metre",
+  "worldFromReconstruction": [
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "bounds": {
+    "min": [
+      -7.0,
+      0.0,
+      -7.0
+    ],
+    "max": [
+      7.0,
+      3.5,
+      7.0
+    ]
+  },
+  "startPosition": [
+    0.0,
+    1.6,
+    1.0
+  ],
+  "startYawDegrees": 0,
+  "visualAssets": [
+    {
+      "kind": "glb",
+      "uri": "visual/poster_twin.glb",
+      "label": "Nerfstudio Poster 3D Environment (226 Cameras)",
+      "sha256": "dbe727774b63eea95eb0b983239db96c38f89e131047a22510135bb6a940690a"
+    },
+    {
+      "kind": "sog",
+      "uri": "visual/poster.sog",
+      "label": "Nerfstudio Poster 3D Gaussian Splat",
+      "sha256": "2422a1c6f8c1f22ad0d0dcef0a9ec2ad238db8e4cc74f53e2fecc9af99e859ff"
+    }
+  ],
+  "collisionAsset": null,
+  "navigationUri": "navigation/nav-data.json",
+  "semanticUri": "semantic/pois.json",
+  "qualityUri": "quality/report.json",
+  "provenance": {
+    "pipeline": "nerfstudio-colmap-to-twin",
+    "pipelineVersion": "0.1.0",
+    "capturedAt": "2024-04-09T19:59:47Z",
+    "source": "226 registered camera photos from official Nerfstudio benchmark dataset (poster)",
+    "notes": [
+      "Reconstructed from official Nerfstudio benchmark capture with verified poses and sparse points.",
+      "Demonstrates multi-view camera constellation and interactive spatial navigation."
+    ]
+  }
+}
