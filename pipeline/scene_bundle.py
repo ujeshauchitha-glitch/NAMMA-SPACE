@@ -140,6 +140,10 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
     lo = np.percentile(W, 1, axis=0)
     hi = np.percentile(W, 99, axis=0)
     lo[1], hi[1] = 0.0, max(float(hi[1]), 2.2)
+    # The grid must hold every camera position (the start is one): on a partial reconstruction the walked path
+    # can stick out past the 1st/99th percentile of the points.
+    lo[[0, 2]] = np.minimum(lo[[0, 2]], Cw[:, [0, 2]].min(0) - CELL_M)
+    hi[[0, 2]] = np.maximum(hi[[0, 2]], Cw[:, [0, 2]].max(0) + CELL_M)
     align = viewer_alignment(centres, axes)
     start = Cw[align["spawn_image_index"]].copy()
     start[1] = ASSUMED_CAMERA_HEIGHT_M  # eye at the height the views were filmed from: sharpest there
