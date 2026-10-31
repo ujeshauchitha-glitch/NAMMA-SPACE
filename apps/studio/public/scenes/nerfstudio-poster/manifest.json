@@ -46,8 +46,8 @@
   },
   "startPosition": [
     0.0,
-    1.6,
-    1.0
+    1.55,
+    2.0
   ],
   "startYawDegrees": 0,
   "visualAssets": [
@@ -55,13 +55,13 @@
       "kind": "glb",
       "uri": "visual/poster_twin.glb",
       "label": "Nerfstudio Poster 3D Environment (226 Cameras)",
-      "sha256": "dbe727774b63eea95eb0b983239db96c38f89e131047a22510135bb6a940690a"
+      "sha256": "043b7a19c13e90457a3879b925d952dbe2d7c108ae2a65b3c2e0afb320b310af"
     },
     {
       "kind": "sog",
       "uri": "visual/poster.sog",
       "label": "Nerfstudio Poster 3D Gaussian Splat",
-      "sha256": "2422a1c6f8c1f22ad0d0dcef0a9ec2ad238db8e4cc74f53e2fecc9af99e859ff"
+      "sha256": "d6a24a5e9fa85712332871c4f11c5211a1a27cf328cc08e574f58741a791a6f5"
     }
   ],
   "collisionAsset": null,

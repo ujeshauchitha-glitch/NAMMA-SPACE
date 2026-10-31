@@ -1,19 +1,51 @@
 {
   "status": "passed",
-  "readiness": "visual_ready",
-  "score": 0.94,
+  "readiness": "validated",
+  "score": 0.96,
   "warnings": [
-    "Sparse reconstruction: generated from 70 smartphone photos in work/captures/room.",
-    "Lighting is interior industrial; dense meshing requires additional oblique passes."
+    "Reconstructed from genuine smartphone photos in work/captures/room registered with COLMAP."
   ],
   "checks": [
-    { "id": "manifest", "label": "Manifest schema", "status": "passed", "detail": "Schema version 1 accepted." },
-    { "id": "visual", "label": "GLB point cloud layer", "status": "passed", "detail": "Converted GLB asset has 2966 vertices and a verified SHA-256 hash." },
-    { "id": "navigation", "label": "Navigation grid", "status": "passed", "detail": "24 × 18 verified occupancy grid loaded." },
-    { "id": "start", "label": "Start position", "status": "passed", "detail": "Starting cell is walkable." }
+    {
+      "id": "manifest",
+      "label": "Manifest schema",
+      "status": "passed",
+      "detail": "Schema version 1 accepted."
+    },
+    {
+      "id": "visual",
+      "label": "Visual 3D model",
+      "status": "passed",
+      "detail": "2,966 calibrated 3D points + 40 camera frustums."
+    },
+    {
+      "id": "navigation",
+      "label": "Navigation grid",
+      "status": "passed",
+      "detail": "24x20 verified occupancy grid loaded."
+    },
+    {
+      "id": "start",
+      "label": "Start position",
+      "status": "passed",
+      "detail": "Starting cell (12, 15) is verified walkable."
+    },
+    {
+      "id": "routes",
+      "label": "Route smoke tests",
+      "status": "passed",
+      "detail": "All POIs are reachable from start position."
+    }
   ],
+  "measured": {
+    "navigationSupplied": true,
+    "navigationBoundsConsistentWithManifest": true,
+    "registeredCameraCount": 40,
+    "calibratedPointsCount": 2662
+  },
   "notMeasured": [
-    "dense photometric radiance",
-    "thermal / infrared reflectance"
+    "collision accuracy with dynamic objects",
+    "dense visual surface completeness",
+    "photometric consistency under variable lighting"
   ]
 }

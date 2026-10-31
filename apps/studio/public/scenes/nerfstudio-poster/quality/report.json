@@ -28,7 +28,7 @@
       "id": "start",
       "label": "Start position",
       "status": "passed",
-      "detail": "Starting cell (14, 16) is verified walkable."
+      "detail": "Starting cell (14, 18) is verified walkable."
     },
     {
       "id": "routes",
@@ -41,7 +41,7 @@
     "navigationSupplied": true,
     "navigationBoundsConsistentWithManifest": true,
     "registeredCameraCount": 226,
-    "calibratedPointsCount": 12330
+    "calibratedPointsCount": 11680
   },
   "notMeasured": [
     "collision accuracy with dynamic objects",

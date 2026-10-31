@@ -315,13 +315,25 @@ export class PlayCanvasViewer {
   }
 
   private buildLighting(): void {
-    const light = new Entity('key-light');
-    light.addComponent('light', { type: 'directional', color: new Color(1, 0.82, 0.61), intensity: 1.8, castShadows: true });
-    light.setEulerAngles(55, 25, 0);
-    this.app.root.addChild(light);
+    // Ambient studio light ensures all surfaces, shadows, and architectural details remain clearly visible
+    this.app.scene.ambientLight = new Color(0.42, 0.44, 0.46);
+
+    // Key directional light from above
+    const key = new Entity('key-light');
+    key.addComponent('light', { type: 'directional', color: new Color(1, 0.92, 0.82), intensity: 1.5, castShadows: false });
+    key.setEulerAngles(45, 30, 0);
+    this.app.root.addChild(key);
+
+    // Front fill light illuminating objects facing the viewer
+    const front = new Entity('front-light');
+    front.addComponent('light', { type: 'directional', color: new Color(0.85, 0.90, 0.98), intensity: 1.2, castShadows: false });
+    front.setEulerAngles(35, 180, 0);
+    this.app.root.addChild(front);
+
+    // Omni light for room ambient volume
     const fill = new Entity('fill-light');
-    fill.addComponent('light', { type: 'omni', color: new Color(0.32, 0.48, 0.55), intensity: 4, range: 16 });
-    fill.setPosition(0, 3, 1);
+    fill.addComponent('light', { type: 'omni', color: new Color(0.45, 0.50, 0.58), intensity: 3.5, range: 24 });
+    fill.setPosition(0, 2.8, 0);
     this.app.root.addChild(fill);
   }
 

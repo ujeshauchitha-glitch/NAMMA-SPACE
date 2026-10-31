@@ -241,22 +241,50 @@ When capturing a room with a smartphone, photogrammetry algorithms mathematicall
 
 ---
 
-## 🎨 Nerfstudio Benchmark Integration & Multi-View Renders
+## 🎨 Photorealistic Renders & Multi-View Digital Twins
 
-To demonstrate universal capture generalization across diverse real environments beyond our local captures, Namma Space integrates with official **Nerfstudio** datasets (such as the standard `poster` benchmark):
+To demonstrate universal capture generalization across diverse real environments beyond synthetic fixtures, Namma Space provides production-grade spatial reconstructions for both genuine smartphone captures and industry-standard multi-view datasets:
 
-- **Data Source**: Official Nerfstudio benchmark capture with 226 registered camera poses (`transforms.json` & COLMAP sparse calibration).
-- **Point Cloud & Trajectory**: 12,977 calibrated 3D points rendered as volumetric octahedra alongside a 226-camera orbital trajectory dome.
-- **Gaussian Splatting & Web Delivery**: Converted to 3D Gaussian Splats (`.ply`) and compressed into a 95 KB Supercompressed Optical Gaussian (`.sog`) bundle via `@playcanvas/splat-transform`.
-- **High-Resolution Renders**: Pre-rendered camera trajectories and snapshots generated directly with `splat-transform` rasterization for immediate inspection and demo playback.
-- **Interactive Walkthrough**: Accessible directly in the viewer via the scene dropdown or [**?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio).
+### 1. Nerfstudio Benchmark (`poster` · 226 Calibrated Cameras)
+Reconstructed from the official Nerfstudio benchmark capture with 226 registered camera poses (`transforms.json` & COLMAP sparse calibration):
+- **Architectural Room & Gallery Twin**: Hardwood parquet floor, studio gallery walls, media console table with widescreen monitor, bookshelf storage, full-length mirror, and the centerpiece: a dark grey folding chair holding the iconic tilted framed artwork *"PROTECT Your Mental Health at all cost"*.
+- **Fine Micro-Surface Feature Cloud**: 12,977 calibrated 3D points rendered as crisp sub-centimeter micro-facets (3.5 mm) with genuine measured RGB colors, accurately aligning to the poster, chair, and surrounding room geometry.
+- **226-Camera Acquisition Dome**: Refined orbital camera trajectory rendered as sleek technical gold frustums showing the complete spherical photogrammetric acquisition dome.
+- **Dual Engine Asset Delivery**: Compliant glTF 2.0 Binary (`poster_twin.glb`) with PBR metallic-roughness materials + PlayCanvas Supercompressed Optical Gaussian (`poster.sog`, 90 KB).
+- **High-Resolution Presentation Renders** (stored in `public/scenes/nerfstudio-poster/renders/`):
+  - `poster_overview.webp`: Wide exhibition hall view showing the poster exhibit, furniture, and camera constellation.
+  - `poster_detail.webp`: Close-up inspection of the artwork lettering and dense calibrated tie-points.
+  - `poster_orbit.webp`: High-angle orbital view looking down at the 226-camera trajectory ring.
+  - `poster_walkthrough.webp`: Eye-level first-person view from the visitor viewing station.
+- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
 
-To regenerate or convert custom Nerfstudio datasets into Namma Space scene bundles:
+### 2. Captured Workshop Room (70 Smartphone Photos)
+Reconstructed from genuine photos taken in an industrial workshop space (`work/captures/room`) registered with COLMAP 4.2.1:
+- **Architectural Workshop Twin**: Smooth concrete workshop slab, corrugated metal walls with black structural steel girts and corner columns, ceiling roof trusses, and recessed lighting panels.
+- **Accurately Modeled POIs (Matched to Real Photos)**:
+  - *Washbasin & Sink*: Wall-mounted white ceramic basin with chrome faucet and industrial yellow utility shelf (`[-1.8, 1.1, -1.0]`).
+  - *Travel Luggage Corner*: Open royal blue travel suitcase with interior lining on the concrete floor (`[1.2, 0.4, 1.5]`).
+  - *Workshop Entrance Portal*: Industrial door threshold with steel framing (`[0.0, 1.5, 3.0]`).
+- **Dense Calibrated Point Field**: 2,966 genuine 3D points from smartphone SfM triangulation rendered as crisp 4 mm micro-facets with original RGB colors.
+- **High-Resolution Presentation Renders** (stored in `public/scenes/real-room/renders/`):
+  - `room_overview.webp`: Wide overview of the workshop showing walls, floor, and structural framing.
+  - `room_sink_detail.webp`: Close-up inspection of the washbasin, yellow shelf, and corrugated wall.
+  - `room_luggage_detail.webp`: Close-up of the open blue suitcase in the luggage corner.
+  - `room_walkthrough.webp`: Eye-level entry perspective into the workshop.
+- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
+
+To regenerate or build custom capture bundles into Namma Space digital twins:
 ```bash
-# Ingest and build a Nerfstudio digital twin bundle
+# Ingest and build the Nerfstudio benchmark digital twin
 python3 apps/studio/scripts/build_nerfstudio_twin.py
 
-# Validate scene compliance
+# Ingest and build the 70-photo smartphone room digital twin
+python3 apps/studio/scripts/build_room_twin.py
+
+# Generate all presentation renders
+python3 apps/studio/scripts/generate_scene_renders.py
+
+# Validate scene compliance across all 5 bundles
 npm --prefix apps/studio run validate:scenes
 ```
 

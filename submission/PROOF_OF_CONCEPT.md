@@ -50,3 +50,4 @@
 3. Switch between demonstration scenes using the dropdown.
 4. Click viewport to lock mouse look, test WASD walkthrough, press `F` for fullscreen, and press `Esc` to unlock.
 5. Search for `Washbasin` or `Poster` via `Cmd+K` and verify pathfinding route plot.
+

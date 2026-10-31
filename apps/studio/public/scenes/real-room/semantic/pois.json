@@ -10,8 +10,8 @@
     ],
     "approachPoint": [
       -1.2,
-      1.6,
-      -0.6
+      1.65,
+      0.2
     ],
     "aliases": [
       "sink",
@@ -32,9 +32,9 @@
       1.5
     ],
     "approachPoint": [
-      0.6,
-      1.6,
-      1.0
+      0.5,
+      1.65,
+      0.6
     ],
     "aliases": [
       "suitcase",
@@ -56,16 +56,17 @@
     ],
     "approachPoint": [
       0.0,
-      1.6,
-      2.2
+      1.65,
+      2.0
     ],
     "aliases": [
-      "door",
       "entrance",
-      "entryway"
+      "door",
+      "entry",
+      "threshold"
     ],
-    "description": "Main doorway entering into the metal workshop room.",
-    "confidence": 0.97,
+    "description": "Industrial door threshold leading into the reconstructed workshop.",
+    "confidence": 0.98,
     "source": "operator"
   }
 ]
