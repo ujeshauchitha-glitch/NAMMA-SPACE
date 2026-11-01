@@ -1,318 +1,109 @@
 # Namma Space
 
-> **Turn physical spaces into navigable digital environments.**
-> Unified Product Integration · Release Branch: `finalashwinintegration`
-> Live Interactive Frontend & 3D Viewer Demo: [**https://namma-space-studio.vercel.app**](https://namma-space-studio.vercel.app)
+Smartphone video of an indoor space becomes a photorealistic 3D digital twin that anyone can walk through in a browser.
+Techfest 2026-27, IIT Bombay, Round 1. Team TM-12354C3F6F2, Vellore Institute of Technology.
 
-> [!NOTE]
-> **Vercel Demo Notice**: The deployed public link is an **interactive showcase of the frontend, Capture Studio, and 3D spatial viewer**. It runs with pre-computed demonstration environments (procedural room, architectural GLB mesh, and synthetic SOG 3D Gaussian Splat). Because static hosts like Vercel have **no GPUs** (250MB limit, 15-60s execution timeout), real photogrammetry and 3DGS training cannot run in the browser. To reconstruct your own space from photographs or video, run the local GPU pipeline step-by-step as documented below.
+**Live site: <https://namma-space-pearl.vercel.app>.** It opens on our classroom, reconstructed from one phone video. Mirror: <https://ujeshauchitha-glitch.github.io/NAMMA-SPACE/>.
 
----
+Click **Enter walkthrough** on the live site, then use the controls below. Nothing needs installing.
 
-## ⚡ Quick Start for Judges (2-Minute Interactive Browser Demo)
+| Action | Keys and mouse |
+|---|---|
+| Look around | mouse, after clicking the view |
+| Walk | `W` `A` `S` `D` or arrow keys |
+| Full screen | `F` |
+| Release the mouse | `Esc` |
+| Find a place | `Ctrl+K` / `Cmd+K`, or the search box |
 
-You can evaluate the complete user experience right now in your browser with zero installation:
+## What is in this repository
 
-1. **Open the live application**: [**https://namma-space-studio.vercel.app**](https://namma-space-studio.vercel.app)
-2. **Review the Interactive Onboarding**: The 5-step journey will guide you. Click **`? Guide`** in the top navigation bar anytime to reopen it.
-3. **Explore 3D Digital Twins (Tab `02 Spatial Viewer`)**:
-   - In the top header bar, use the **Scene** dropdown to switch between:
-     - `Captured Workshop Room (70 Photos)`: **Real digital twin** reconstructed from genuine smartphone photos (`work/captures/room`) with true camera frustums and 3D point cloud! Open directly: [**?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
-     - `Nerfstudio Benchmark · Poster (226 Cameras)`: **Real multi-view reconstruction** generated from the official Nerfstudio benchmark dataset (226 calibrated camera poses, 12,977 3D points, SOG splat, and orbital camera constellation)! Open directly: [**?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
-     - `Synthetic Splat fixture (SOG)`: 3D Gaussian Splat model rendered via PlayCanvas WebGL. Open directly: [**?scene=splat**](https://namma-space-studio.vercel.app/?scene=splat)
-     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh. Open directly: [**?scene=fixture**](https://namma-space-studio.vercel.app/?scene=fixture)
-     - `Generated GLB fixture`: Textured 3D mesh model with collision boundary. Open directly: [**?scene=glb**](https://namma-space-studio.vercel.app/?scene=glb)
-   - **Full Screen Mode**: Click the **`Full Screen`** button in the toolbar / HUD or press **`F`** to view the digital twin edge-to-edge in true full screen!
-   - **Controls**: Click the 3D viewport to lock mouse look. Walk with **`W` `A` `S` `D`**. Press **`Esc`** to release the mouse.
-   - **POI Search**: Press **`Cmd+K`** (or click *Search points of interest* in the right rail). Search for `Registration` or `Information`.
-   - **A\* Pathfinding**: Click a destination and click **`Plot route`**. A collision-safe 3D walking tape is calculated through obstacles.
-   - **Camera Fly-Through**: Click **`Jump to view`** to smoothly fly the camera to that destination.
-4. **Create & Prepare Captures (Tab `01 Capture Studio`)**:
-   - Click tab **`01 Capture Studio`** (or open [`?workspace=capture`](https://namma-space-studio.vercel.app/?workspace=capture)).
-   - Click **`+ Add room`** to create a space (e.g. `Office Hall`).
-   - Drag and drop room photos into the staging area.
-   - Click photo thumbnails to assign viewpoint tags (`FRONT`, `BACK`, `LEFT`, `RIGHT`).
-   - Click **`Export bundle`** in the right Inspector to download a signed, validated `capture-bundle.zip`.
+| Folder | Contents |
+|---|---|
+| `pipeline/` | Reconstruction pipeline (Python): video to frames, COLMAP camera poses, Brush Gaussian-splat training, cleanup, compression and a scene bundle for the web app |
+| `apps/studio/` | **The web app on the live site**: React + PlayCanvas viewer with walkthrough and collision, place search, route planning, and Capture Studio for preparing photo captures |
+| `scripts/` | One-time tool setup (`setup_tools.ps1` for Windows, `setup_tools.sh` for Linux, untested) |
+| `tests/sample_data/` | A 36 s clip of our real classroom capture, plus small synthetic inputs, with run instructions |
+| `docs/` | Capture SOP, Windows step-by-step guide, status and open issues |
+| `docs/submission/` | Round 1 Technical Abstract and links PDFs, with their HTML sources |
+| `viewer/` | Our earlier Spark-based viewer, kept for reference; the live site uses `apps/studio/` |
 
----
+## Scenes on the live site
 
-## 🖥️ How to Run the GPU 3D Reconstruction Pipeline Locally (Step-by-Step)
+| Scene | Source |
+|---|---|
+| **Classroom** (default) | our phone video, reconstructed with this pipeline into a Gaussian splat |
+| Workshop room | our 70 phone photos; sparse COLMAP model |
+| Apartment | external benchmark dataset: Meta's Eyeful Tower "apartment" (MIT licence), splat trained by us with Brush |
+| Synthetic and procedural fixtures | generated test scenes, labelled as such |
 
-To turn real smartphone photos or video into a photorealistic 3D digital twin, follow these step-by-step instructions on a machine with GPU compute (or CPU for testing):
+## Run the web app locally
 
-### 1. Hardware & System Prerequisites
-- **OS**: Windows 10/11, Ubuntu 22.04+ (or WSL2), or macOS (Apple Silicon).
-- **GPU**: NVIDIA GPU (RTX series recommended with Vulkan/CUDA support) for fast 3D Gaussian Splatting via Brush. On macOS, COLMAP feature extraction runs on CPU.
-- **Tools**: Python 3.13+, Node.js 20+, FFmpeg, and COLMAP 4.2+.
-
----
-
-### 2. Step 1: Bootstrap the Environment and Tools
-
-#### On Windows (PowerShell):
-```powershell
-# 1. Clone repository and switch to release branch
-git clone https://github.com/ujeshauchitha-glitch/NAMMA-SPACE.git
-cd NAMMA-SPACE
-git checkout finalashwinintegration
-
-# 2. Run tool bootstrap script (downloads COLMAP, Brush, splat-transform, sets up venv)
-.\scripts\setup_tools.ps1
-
-# 3. Verify tool dependencies
-.venv\Scripts\python pipeline/run_pipeline.py --doctor
-```
-
-#### On Linux / Ubuntu / WSL2:
-```bash
-# 1. Clone repository and switch to release branch
-git clone https://github.com/ujeshauchitha-glitch/NAMMA-SPACE.git
-cd NAMMA-SPACE
-git checkout finalashwinintegration
-
-# 2. Run automated Linux setup script
-chmod +x scripts/setup_tools.sh
-./scripts/setup_tools.sh
-
-# 3. Verify tool dependencies
-.venv/bin/python pipeline/run_pipeline.py --doctor
-```
-
-#### On macOS (Apple Silicon):
-```bash
-# 1. Install CLI prerequisites via Homebrew
-brew install ffmpeg colmap node
-
-# 2. Create Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install opencv-python-headless numpy
-
-# 3. Install splat-transform
-npm install --prefix tools/splat-transform @playcanvas/splat-transform@3.10.3
-
-# 4. Check dependencies (on Mac, COLMAP runs in CPU mode)
-python pipeline/run_pipeline.py --doctor --cpu
-```
-
----
-
-### 3. Step 2: Prepare Your Input Data
-
-You can use a video or photos of a room:
-- **Option A (Smartphone Video)**: Record a slow 4K/1080p 60fps walkthrough video walking around the perimeter of the room (e.g. `my_room.mp4`).
-- **Option B (Photos)**: Take 60 to 120+ photos with 70–80% overlap between adjacent shots and put them into a folder `my_photos/`.
-- **Option C (Built-in Sample Data)**: The repository comes with a verified synthetic test video ready to test immediately:
-  `tests/sample_data/synthetic_clip.mp4`
-
----
-
-### 4. Step 3: Run the 3D Reconstruction Pipeline
-
-Run the automated pipeline to extract frames, solve camera poses with COLMAP, train 3D Gaussian Splats, and compress the model:
+Needs Node.js 22 or newer.
 
 ```bash
-# For a video input:
-python pipeline/run_pipeline.py my_room.mp4 --out work/my_room --title "My Room"
-
-# Or on macOS / machines without an NVIDIA GPU (runs COLMAP in CPU mode):
-python pipeline/run_pipeline.py my_room.mp4 --out work/my_room --title "My Room" --cpu
-```
-
-#### What happens during this run:
-1. **Frame Extraction**: FFmpeg extracts sharp frames at 2 fps.
-2. **Blur Detection**: Laplacian variance checks discard motion-blurred frames.
-3. **Structure-from-Motion (COLMAP)**: Extracts SIFT features, matches keypoints across frames, and computes exact 3D camera poses.
-4. **3D Gaussian Splatting (Brush)**: Optimizes 3D Gaussians to represent the room photorealistically.
-5. **SOG Compression**: Uses `@playcanvas/splat-transform` to compress the raw `.ply` into a web-streamable `.sog` file (< 50 MB).
-
-Output files generated in `work/my_room/web/`:
-- `scene.sog`: Compressed 3D Gaussian Splat.
-- `scene.json`: Camera spawn coordinates, bounding box, and scale.
-
----
-
-### 5. Step 4: Generate Navigation Grid & POIs
-
-To make the digital twin navigable with A* pathfinding and searchable points of interest:
-
-```bash
-# 1. Copy the generated web files to the viewer's scenes folder
-mkdir -p apps/studio/public/scenes/my_room
-cp work/my_room/web/scene.sog apps/studio/public/scenes/my_room/
-cp work/my_room/web/scene.json apps/studio/public/scenes/my_room/manifest.json
-
-# 2. Generate the 2D walkable grid and POIs
-python3 apps/studio/scripts/make_nav_grid.py apps/studio/public/scenes/my_room
-python3 apps/studio/scripts/make_pois.py apps/studio/public/scenes/my_room
-```
-
----
-
-### 6. Step 5: Explore Your New Digital Twin in the Local Viewer
-
-Start the local viewer to explore your custom reconstructed space:
-
-```bash
-# 1. Install frontend dependencies (if not already done)
 cd apps/studio
 npm ci
-
-# 2. Launch the local dev server
-npm run dev
+npm run dev      # http://localhost:5173
+npm test         # unit tests
+npm run build    # production build in apps/studio/dist
 ```
 
-Open your browser to:
-[**http://localhost:5173/?scene=/scenes/my_room/manifest.json**](http://localhost:5173/?scene=/scenes/my_room/manifest.json)
+## Reconstruct a space
 
-You can now:
-- Walk through your physical room digitally using **`W` `A` `S` `D`** and mouse look.
-- Search for destinations with **`Cmd+K`**.
-- Plot walking routes with collision avoidance.
+Reconstruction runs on one Windows PC with an NVIDIA GPU. Only COLMAP's feature extraction and matching need NVIDIA (its CUDA build); Brush trains through WebGPU on any recent GPU. Plan for at least 25 GB of free disk.
 
----
+**1. Install the tools once** (COLMAP, Brush, splat-transform, ffmpeg, Node.js and a Python virtual environment, all into this folder):
 
-## 🏗️ System Architecture: Browser Platform vs. GPU Worker
-
-```
-                                  NAMMA SPACE UNIFIED ARCHITECTURE
-                                  
-     [ 01 CAPTURE STUDIO ]                 [ SHARED OBSERVATION CONTRACT ]
-  Photographs (drag-and-drop) ──┐                        │
-  Smartphone Video (.mp4/.mov) ─┼──► Ingestion & Checks ─┴──► capture-bundle.zip
-  Live Scan (WebRTC / QR) ──────┘    (SHA-256, Viewpoints)            │
-                                                                       ▼
-                                                          [ RECONSTRUCTION ENGINE ]
-                                                          (Local CLI / External GPU)
-                                                          COLMAP SfM ──► Poses
-                                                          Brush 3DGS ──► .sog / .ply
-                                                          Mesh Engine ──► .glb
-                                                          Nav Engine  ──► nav-data.json
-                                                          POI Engine  ──► poi-index.json
-                                                                       │
-                                                                       ▼
-     [ 02 SPATIAL VIEWER ]                 [ SHARED SCENE CONTRACT (D1-D3) ]
-  PlayCanvas Unified Renderer ◄────── Manifest, Integrity Hashes, Assets, Grid
-  ├─ Procedural & GLB Meshes
-  ├─ 3D Gaussian Splats (SOG)
-  ├─ First-person Controls (WASD)
-  ├─ Collision A* Pathfinding
-  └─ POI Search (Cmd+K) & Jump
+```powershell
+git clone https://github.com/ujeshauchitha-glitch/NAMMA-SPACE
+cd NAMMA-SPACE
+powershell -ExecutionPolicy Bypass -File scripts\setup_tools.ps1
+.venv\Scripts\python pipeline\run_pipeline.py --doctor
 ```
 
----
+Every `--doctor` line should say `OK`. To mask people out of the training frames, also run `.venv\Scripts\pip install ultralytics`.
 
-## 📹 Direct Video Upload Architecture (Cloud Production Topology)
+**2. Film the space** by following the [capture SOP](docs/SOP.md): one continuous landscape video per room, at least 31 s and ideally 60 to 120 s, at walking pace, with exposure and focus locked.
 
-If scaling to an automated cloud service where users upload a video and receive a twin automatically:
+**3. Run the pipeline:**
 
-```
-[User Uploads Video in Browser]
-             │ (.mp4 / .mov)
-             ▼
-[Cloud Storage Bucket (AWS S3 / Cloudflare R2 / GCS)]
-             │ Webhook trigger
-             ▼
-[GPU Worker Instance (Modal Labs / RunPod / AWS EC2 with NVIDIA RTX/A10G)]
-             │ 1. FFmpeg frame extraction & blur filter
-             │ 2. COLMAP camera pose estimation
-             │ 3. Brush 3D Gaussian Splat training
-             │ 4. SOG compression & nav grid synthesis
-             ▼
-[Public Scene URL (`/scenes/<room>/manifest.json`)]
-             │ Auto-notification
-             ▼
-[Spatial Viewer Displays Navigable 3D Twin]
+```powershell
+.venv\Scripts\python pipeline\run_pipeline.py C:\captures\room.mp4 --out work\room --check
+.venv\Scripts\python pipeline\run_pipeline.py C:\captures\room.mp4 --out work\room --title "My room" --mask-people
 ```
 
----
+The first command only validates the video. The second runs every stage:
 
-## 📸 Photogrammetry Rules: How to Capture Photos or Video
+1. sample frames and drop blurred ones;
+2. solve camera poses with COLMAP, retrying with exhaustive matching if too few frames are placed;
+3. map coverage and write a re-film list;
+4. optionally mask people;
+5. train the splat with Brush;
+6. clean it up;
+7. check it;
+8. compress it to `.sog` under 50 MB;
+9. build the scene bundle.
 
-When capturing a room with a smartphone, photogrammetry algorithms mathematically require specific conditions:
+Each stage records its results in `work\room\report.json`.
 
-| Rule | Requirement | Why It Is Mandatory |
-| :--- | :--- | :--- |
-| **1. Image Density** | **60 to 120+ photos** (or continuous 4K 60fps video) | COLMAP needs dozens of overlapping camera ray intersections to triangulate depth. A handful of photos (e.g. 5 shots) leaves 95% of room surfaces unobserved. |
-| **2. High Overlap** | **70% to 80% overlap** between consecutive frames | Every point in the room must appear in at least 3–4 adjacent photos for feature matching (SIFT) to link frames. |
-| **3. Zero Motion Blur** | Hold phone steady or walk slowly | Blurry pixels destroy high-frequency edge gradients, causing feature detection to fail completely. |
-| **4. Completely Static Room** | **No moving people, pets, or swinging objects** | Structure-from-Motion assumes a rigid, static physical world. A person moving through the shot creates phantom tie-points that warp or corrupt the camera poses. |
-| **5. Room Anchors on Flat Walls** | Frame corners, switchboards, doors, furniture | Plain, uniform walls (such as blank corrugated metal or plain painted drywall) have zero texture points. Framing corners, floor seams, and furniture provides strong visual anchors. |
+**4. View it.** Copy `work\room\bundle\` to `apps\studio\public\scenes\room\`, start the app (`npm run dev` in `apps/studio`) and open `http://localhost:5173/?scene=/scenes/room/manifest.json`. Walk the whole room. If it looks right, record your sign-off:
 
----
-
-## 🎨 Photorealistic Renders & Multi-View Digital Twins
-
-To demonstrate universal capture generalization across diverse real environments beyond synthetic fixtures, Namma Space provides production-grade spatial reconstructions for both genuine smartphone captures and industry-standard multi-view datasets:
-
-### 1. Nerfstudio Benchmark (`poster` · 226 Calibrated Cameras)
-Reconstructed from the official Nerfstudio benchmark capture with 226 registered camera poses (`transforms.json` & COLMAP sparse calibration):
-- **Architectural Room & Gallery Twin**: Hardwood parquet floor, studio gallery walls, media console table with widescreen monitor, bookshelf storage, full-length mirror, and the centerpiece: a dark grey folding chair holding the iconic tilted framed artwork *"PROTECT Your Mental Health at all cost"*.
-- **Fine Micro-Surface Feature Cloud**: 12,977 calibrated 3D points rendered as crisp sub-centimeter micro-facets (3.5 mm) with genuine measured RGB colors, accurately aligning to the poster, chair, and surrounding room geometry.
-- **226-Camera Acquisition Dome**: Refined orbital camera trajectory rendered as sleek technical gold frustums showing the complete spherical photogrammetric acquisition dome.
-- **Dual Engine Asset Delivery**: Compliant glTF 2.0 Binary (`poster_twin.glb`) with PBR metallic-roughness materials + PlayCanvas Supercompressed Optical Gaussian (`poster.sog`, 90 KB).
-- **High-Resolution Presentation Renders** (stored in `public/scenes/nerfstudio-poster/renders/`):
-  - `poster_overview.webp`: Wide exhibition hall view showing the poster exhibit, furniture, and camera constellation.
-  - `poster_detail.webp`: Close-up inspection of the artwork lettering and dense calibrated tie-points.
-  - `poster_orbit.webp`: High-angle orbital view looking down at the 226-camera trajectory ring.
-  - `poster_walkthrough.webp`: Eye-level first-person view from the visitor viewing station.
-- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
-
-### 2. Captured Workshop Room (70 Smartphone Photos)
-Reconstructed from genuine photos taken in an industrial workshop space (`work/captures/room`) registered with COLMAP 4.2.1:
-- **Architectural Workshop Twin**: Smooth concrete workshop slab, corrugated metal walls with black structural steel girts and corner columns, ceiling roof trusses, and recessed lighting panels.
-- **Accurately Modeled POIs (Matched to Real Photos)**:
-  - *Washbasin & Sink*: Wall-mounted white ceramic basin with chrome faucet and industrial yellow utility shelf (`[-1.8, 1.1, -1.0]`).
-  - *Travel Luggage Corner*: Open royal blue travel suitcase with interior lining on the concrete floor (`[1.2, 0.4, 1.5]`).
-  - *Workshop Entrance Portal*: Industrial door threshold with steel framing (`[0.0, 1.5, 3.0]`).
-- **Dense Calibrated Point Field**: 2,966 genuine 3D points from smartphone SfM triangulation rendered as crisp 4 mm micro-facets with original RGB colors.
-- **High-Resolution Presentation Renders** (stored in `public/scenes/real-room/renders/`):
-  - `room_overview.webp`: Wide overview of the workshop showing walls, floor, and structural framing.
-  - `room_sink_detail.webp`: Close-up inspection of the washbasin, yellow shelf, and corrugated wall.
-  - `room_luggage_detail.webp`: Close-up of the open blue suitcase in the luggage corner.
-  - `room_walkthrough.webp`: Eye-level entry perspective into the workshop.
-- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
-
-To regenerate or build custom capture bundles into Namma Space digital twins:
-```bash
-# Ingest and build the Nerfstudio benchmark digital twin
-python3 apps/studio/scripts/build_nerfstudio_twin.py
-
-# Ingest and build the 70-photo smartphone room digital twin
-python3 apps/studio/scripts/build_room_twin.py
-
-# Generate all presentation renders
-python3 apps/studio/scripts/generate_scene_renders.py
-
-# Validate scene compliance across all 5 bundles
-npm --prefix apps/studio run validate:scenes
+```powershell
+.venv\Scripts\python pipeline\run_pipeline.py --approve work\room --note "what you checked"
 ```
 
----
+A fuller walkthrough, including troubleshooting, is in [docs/HANDOFF_UJESHA.md](docs/HANDOFF_UJESHA.md).
 
-## 🧪 Comprehensive Test & Quality Verification
+## Sample data
 
-All tests across TypeScript, Vitest, Python, and Playwright E2E are 100% passing:
+[`tests/sample_data/`](tests/sample_data/README.md) holds `capture_short.mp4`, a 36 s, 1280×720 excerpt of our classroom capture. Its README gives the exact commands to validate it, reconstruct it and walk the result, and lists the outputs to expect.
 
-| Test Suite | Scope | Command | Result |
-| :--- | :--- | :--- | :--- |
-| **TypeScript Typecheck** | Strict mode static types | `cd apps/studio && npm run typecheck` | **PASSED** (0 errors) |
-| **ESLint** | Code quality & style rules | `cd apps/studio && npm run lint` | **PASSED** (0 errors) |
-| **Vitest Unit & Integration** | Reducers, stores, pairing, A* | `cd apps/studio && npm test` | **PASSED** (679 / 679 tests) |
-| **Python Test Suite** | Observation preprocessing & schemas | `uv run --with pytest python -m pytest tests -q` | **PASSED** (78 / 78 tests) |
-| **Scene Bundle Validator** | Manifest, nav-grid & asset hashes | `cd apps/studio && npm run validate:scenes` | **PASSED** (5 / 5 scenes) |
-| **Bundle Chunk Budget** | Entry gzip & heavy library chunking | `python3 apps/studio/scripts/check_chunks.py` | **PASSED** (all budgets met) |
-| **Playwright Browser E2E** | Full end-to-end user journeys | `cd apps/studio && npm run test:e2e` | **PASSED** (37 / 37 tests) |
-| **Full Quality Gate** | 10 automated quality tiers | `python3 apps/studio/scripts/quality_gate.py` | **10 / 10 PASSED** |
+## Limitations
 
----
+- **Scale is estimated.** It comes from an assumed 1.45 m camera height, so expect roughly 15 % error until a measured distance is added.
+- **Collision is approximate.** It uses a 10 cm grid derived from COLMAP's sparse points; walls and desks block movement, and unfilmed areas are closed off.
+- **Hard surfaces.** Mirrors, glass and blank walls reconstruct poorly, and rarely filmed areas such as the classroom ceiling look foggy.
 
-## 📂 Detailed Documentation Links
+## Credits
 
-- **Comprehensive Audit**: [`submission/FINAL_INTEGRATION_AUDIT.md`](submission/FINAL_INTEGRATION_AUDIT.md)
-- **Subsystem Integration Matrix**: [`logs/final-integration/INTEGRATION_MATRIX.md`](logs/final-integration/INTEGRATION_MATRIX.md)
-- **Branch Investigation Audit**: [`logs/final-integration/BRANCH_AUDIT.md`](logs/final-integration/BRANCH_AUDIT.md)
-- **Architectural Decisions**: [`logs/final-integration/DECISIONS.md`](logs/final-integration/DECISIONS.md)
-- **Disclosed Limitations & Blockers**: [`logs/final-integration/BLOCKERS.md`](logs/final-integration/BLOCKERS.md)
-- **Standard Operating Procedure for Capture**: [`docs/SOP.md`](docs/SOP.md)
-- **Developer Handoff**: [`logs/final-integration/HANDOFF.md`](logs/final-integration/HANDOFF.md)
+Open-source tools and datasets, with licences, are listed in the Technical Abstract ([docs/submission](docs/submission)) and in [submission/THIRD_PARTY_NOTICES.md](submission/THIRD_PARTY_NOTICES.md).

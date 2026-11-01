@@ -19,9 +19,9 @@ Expect every dependency line to say `OK`, then `[PASS] input looks usable` and `
 
 **2. Full run.**
 ```powershell
-.venv\Scripts\python pipeline\run_pipeline.py tests\sample_data\capture_short.mp4 --out work\sample --title "Sample classroom" --mask-people
+.venv\Scripts\python pipeline\run_pipeline.py tests\sample_data\capture_short.mp4 --out work\sample --title "Sample classroom"
 ```
-The run goes through frames, camera poses, coverage, people masking, training, cleanup, checks, compression and publishing. It ends with `DONE, NOT YET VERIFIED`. We have not timed this excerpt; as an estimate, expect well under an hour on an RTX-class laptop, since the 180 s original is five times longer. The excerpt covers only part of the room, so the model shows that part, and the coverage step writes a re-film list for the rest.
+The run goes through frames, camera poses, coverage, training, cleanup, checks, compression and publishing. To also mask people out of the training frames, as we did for the live classroom, first run `.venv\Scripts\pip install ultralytics` and add `--mask-people`. It ends with `DONE, NOT YET VERIFIED`. We have not timed this excerpt. As an estimate, expect about 45 to 60 minutes on an RTX laptop: training dominates and depends on the step count, not the clip length, and Brush took 40 minutes for 30,000 steps on our first classroom run. The excerpt covers only part of the room, so the model shows that part, and the coverage step writes a re-film list for the rest.
 
 Outputs, all in `work\sample\`:
 - `report.json`: status, stage timings, registration ratio and every check

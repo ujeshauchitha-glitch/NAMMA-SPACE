@@ -14,11 +14,10 @@ Requirements: Windows 10/11 x64, NVIDIA GPU with a current driver, Git, winget, 
 ```powershell
 git clone https://github.com/ujeshauchitha-glitch/NAMMA-SPACE
 cd NAMMA-SPACE
-git checkout integration/round1
 powershell -ExecutionPolicy Bypass -File scripts\setup_tools.ps1
 .venv\Scripts\python pipeline\run_pipeline.py --doctor
 ```
-Already have a clone? Run `git fetch origin`, then `git checkout integration/round1`, then `git pull` instead of the first three lines.
+Already have a clone? Run `git checkout round1/viewer-pipeline`, then `git pull` instead of the first two lines.
 
 Every `--doctor` line must say `OK`. If setup fails:
 - "open a new terminal and re-run": do exactly that; it resumes where it stopped.
