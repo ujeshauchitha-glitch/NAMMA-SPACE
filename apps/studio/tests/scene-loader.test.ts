@@ -311,6 +311,19 @@ describe('visual asset integrity verification (D3)', () => {
     await expectSceneLoadError(verifyAssetIntegrity(MANIFEST_URL, asset), 'network');
   });
 
+  it('retries once when the download drops mid-body', async () => {
+    const bytes = encoder.encode('scene-bytes');
+    const asset: AssetRef = { kind: 'sog', uri: 'visual/scene.sog', sha256: await sha256Hex(bytes) };
+    let calls = 0;
+    const fetchMock = stubFetch(() => {
+      calls += 1;
+      if (calls === 1) return { ok: true, status: 200, headers: new Headers(), arrayBuffer: async () => { throw new TypeError('network error'); } } as unknown as Response;
+      return mockResponse(bytes);
+    });
+    await expect(verifyAssetIntegrity(MANIFEST_URL, asset)).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('refuses to claim integrity when WebCrypto is unavailable', async () => {
     const asset: AssetRef = { kind: 'glb', uri: 'visual/scene.glb', sha256: 'e'.repeat(64) };
     stubFetch(() => mockResponse(encoder.encode('scene-bytes')));

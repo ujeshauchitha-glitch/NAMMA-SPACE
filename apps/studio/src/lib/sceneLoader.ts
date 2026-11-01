@@ -103,7 +103,17 @@ export function resolveSceneUri(baseUrl: string, uri: string, origin = window.lo
   return resolved.href;
 }
 
+// Large splats can drop mid-download on a cold CDN or a flaky connection; one retry clears most of those.
 async function fetchDocument(url: string, label: string, maxBytes: number): Promise<ArrayBuffer> {
+  try {
+    return await fetchDocumentOnce(url, label, maxBytes);
+  } catch (error) {
+    if (!(error instanceof SceneLoadError) || error.code !== 'network') throw error;
+    return fetchDocumentOnce(url, label, maxBytes);
+  }
+}
+
+async function fetchDocumentOnce(url: string, label: string, maxBytes: number): Promise<ArrayBuffer> {
   let response: Response;
   try {
     response = await fetch(url);
