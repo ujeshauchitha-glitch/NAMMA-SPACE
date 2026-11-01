@@ -55,7 +55,7 @@
    "kind": "sog",
    "uri": "visual/apartment.sog",
    "label": "Apartment Gaussian splat",
-   "sha256": "41362916a19d445895a09283b82d605047b69712cbf4916baf7e2d74fb47617f"
+   "sha256": "96b358da57f40db122f86645eed5bbf2910bb3df4d6e0b1cfe906ac9c2968702"
   }
  ],
  "collisionAsset": null,
@@ -67,7 +67,7 @@
   "pipeline": "pipeline/scene_bundle.py",
   "pipelineVersion": "0.1.0",
   "capturedAt": "",
-  "source": "Eyeful Tower 'apartment' by Meta Platforms, Inc. (MIT licence): colmap/images_8, every 3rd rig position",
+  "source": "Eyeful Tower 'apartment' by Meta Platforms, Inc. (MIT licence): colmap/images_4 (1481x2243), 958 rig photos",
   "notes": [
    "Camera poses and scale from the dataset's own COLMAP export (metric).",
    "Reconstruction-to-world transform baked into the splat, so worldFromReconstruction is identity.",
