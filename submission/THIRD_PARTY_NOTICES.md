@@ -192,14 +192,15 @@ Provenance recorded in `logs/round1-rescue/COMMANDS_AND_TESTS.md`, `logs/round1-
 | 5 | `vitest` (+ `@vitest/*`, `chai`, `tinybench`, …) | 5.0.5 tree | Unit-test runner | MIT (and MIT-family) | `apps/studio/node_modules/vitest/LICENSE.md`; Appendix A |
 | 6 | `pytest` stack | see §5 | Python tests | MIT/BSD/Apache-family | §5 |
 
-## 9. Model weights and datasets — **none ship**
+## 9. Model weights and datasets — **one third-party dataset ships (updated 2026-11-01)**
 
-- Search for weight formats (`.pth .pt .onnx .safetensors .ckpt .h5 .tflite .npz` plus >2 MB files outside `node_modules`) returns **no model weights anywhere in the repo**. The only `*.bin` hits are COLMAP sparse-reconstruction outputs under `work/captures/**` (`cameras.bin`, `images.bin`, `points3D.bin`…) — **`work/` is gitignored, never committed, not model weights**, and are runtime artifacts of COLMAP, not third-party data.
-- **No training ever ran** on real photos: `docs/SUBMISSION_ROUND1.md:75` ("Real splat / trained scene — Does not exist"), so no trained checkpoint exists to declare.
-- External references (hosted outside the repo, not distributed by us):
-  - `viewer/public/models/scene.json` → `https://huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/resolve/main/synthetic_room.ply` — **defaults to the synthetic room fixture** (`pipeline/make_demo_splat.py`), badged `SYNTHETIC` in the viewer.
-  - `viewer/public/scenes/synthetic.json` → `huggingface.co/datasets/Ojas-CoderAI/namma-space-splats/.../synthetic_room.ply` — **our own procedurally generated fixture** (`pipeline/make_demo_splat.py`), labelled `SYNTHETIC` in the UI. No third-party dataset or pretrained weights involved.
-- Conclusion: **no third-party datasets or model weights are included in, or required by, the release.** If a real trained splat is uploaded to Hugging Face before submission, re-run this check (it would still be first-party capture data, but the statement should be re-verified).
+- **No model weights** ship (no `.pth .pt .onnx .safetensors .ckpt .h5 .tflite .npz` in the repo).
+- **Shipped scenes and their sources** (`apps/studio/public/scenes/`):
+  - `apartment/` — Gaussian splat trained with Brush 0.3.0 on our machine from the **Eyeful Tower "apartment"** scene (Meta Platforms, Inc.; VR-NeRF, SIGGRAPH Asia 2023; https://github.com/facebookresearch/EyefulTower). The repository README and LICENSE state the content is under the **MIT License** ("Relicensed all content under the MIT license", changelog 11 Mar 2026; LICENSE fetched 2026-11-01). Used: `colmap/images_8` (every 3rd rig position, 1,275 photos) and `colmap/sparse/0` camera poses. **Obligation met:** the MIT copyright and permission notice ships beside the scene as `apartment/LICENSE-EyefulTower.txt`.
+  - `classroom/` — first-party: our own smartphone video, COLMAP + Brush. No third-party data.
+  - `real-room/`, `nerfstudio-poster/` — added by Ashwin; `nerfstudio-poster` cites the Nerfstudio benchmark "poster" capture. **UNVERIFIED — licence of the Nerfstudio poster data was not checked here.**
+  - `fixture/`, `glb-fixture/`, `splat-fixture/` — our own synthetic fixtures.
+- Raw dataset downloads stay in `work/` (gitignored) and are not redistributed.
 
 ---
 
@@ -244,8 +245,10 @@ Open-source components used in Namma Space (full inventory: submission/THIRD_PAR
 • NumPy 2.5.4 — BSD-3-Clause; OpenCV (opencv-python-headless) 5.0.0.93 — Apache-2.0 (pipeline)
 • Archivo and IBM Plex Mono webfonts — SIL Open Font License 1.1 (self-hosted, license texts shipped)
 • Playwright 1.64.1 — Apache-2.0 (testing only)
-No GPL code is included in the shipped web bundle; no third-party model weights or datasets are
-distributed with this release. Details, versions and license-file paths: submission/THIRD_PARTY_NOTICES.md.
+• Apartment scene trained from the Eyeful Tower dataset (Meta Platforms, Inc., VR-NeRF, SIGGRAPH Asia 2023)
+  — MIT License; notice shipped as apps/studio/public/scenes/apartment/LICENSE-EyefulTower.txt
+No GPL code is included in the shipped web bundle; no third-party model weights are distributed with
+this release. Details, versions and license-file paths: submission/THIRD_PARTY_NOTICES.md.
 ```
 
 ---

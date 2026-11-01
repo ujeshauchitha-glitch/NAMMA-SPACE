@@ -29,7 +29,8 @@ import styles from './SpatialViewerWorkspace.module.css';
  * HUD at T17.
  */
 
-const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
+// Opens on the flagship capture; tests pin the procedural fixture with VITE_SCENE_URL (playwright.config.ts).
+const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/apartment/manifest.json';
 const SCENE_OPTIONS = [
   // Gaussian splats trained by pipeline/ (COLMAP + Brush): a classroom filmed on a phone, and Meta's Eyeful
   // Tower 'apartment' (MIT licence, credited in its manifest).
