@@ -11,7 +11,7 @@ import {
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
-import { assetFailureMessage, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
+import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
@@ -422,11 +422,14 @@ export class PlayCanvasViewer {
     if (refs.length === 0) return;
 
     refs.forEach((assetRef) => {
-      void verifyAssetIntegrity(this.manifestUrl, assetRef)
-        .then(() => {
+      void fetchVerifiedAsset(this.manifestUrl, assetRef)
+        .then((verified) => {
           const label = assetRef.label ?? assetRef.uri;
           const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
-          const asset = new Asset(label, 'gsplat', { url });
+          // A SOG that was just downloaded to check its sha256 is handed over as `contents`, so PlayCanvas's
+          // SOG parser skips its own fetch (a second 20+ MB download when the HTTP cache misses).
+          const file = verified && assetRef.kind === 'sog' ? { url, contents: verified } : { url };
+          const asset = new Asset(label, 'gsplat', file);
           asset.once('load', () => {
             const entity = new Entity(label);
             entity.addComponent('gsplat', { asset });

@@ -187,7 +187,15 @@ export async function loadSceneBundle(manifestUrl: string): Promise<SceneBundle>
  * without caching — noted in the D3 tradeoffs).
  */
 export async function verifyAssetIntegrity(manifestUrl: string, asset: AssetRef): Promise<void> {
-  if (asset.kind === 'procedural' || !asset.sha256) return;
+  await fetchVerifiedAsset(manifestUrl, asset);
+}
+
+/**
+ * Same check as verifyAssetIntegrity, but hands back the verified bytes (null when the asset declares no
+ * digest) so the renderer can use them instead of downloading a large splat a second time.
+ */
+export async function fetchVerifiedAsset(manifestUrl: string, asset: AssetRef): Promise<ArrayBuffer | null> {
+  if (asset.kind === 'procedural' || !asset.sha256) return null;
   const url = resolveSceneUri(manifestUrl, asset.uri);
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new SceneLoadError(
@@ -212,6 +220,7 @@ export async function verifyAssetIntegrity(manifestUrl: string, asset: AssetRef)
       `Integrity check failed for ${asset.label ?? asset.uri}: sha256 ${hex} does not match the declared ${asset.sha256} — the scene bundle is corrupt or was modified.`,
     );
   }
+  return buffer;
 }
 
 /** Status-strip phrasing for asset failures (distinct, actionable prefixes). */
