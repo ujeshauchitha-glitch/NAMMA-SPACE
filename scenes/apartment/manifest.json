@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
  "sceneId": "eyeful-apartment",
- "displayName": "Apartment \u00b7 Eyeful Tower (Meta)",
+ "displayName": "Apartment \u00b7 external benchmark dataset (Meta Eyeful Tower, MIT)",
  "sceneKind": "reconstructed-capture",
  "description": "Gaussian splat of a furnished apartment trained with Brush from Meta's Eyeful Tower dataset (VR-NeRF, SIGGRAPH Asia 2023; 22-camera rig, metric poses).",
  "coordinateSystem": "right-handed-y-up",
