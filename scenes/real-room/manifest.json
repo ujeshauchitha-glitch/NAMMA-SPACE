@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "sceneId": "captured-workshop-room",
+  "displayName": "Captured Workshop Room \u00b7 70 Photos",
+  "sceneKind": "reconstructed-capture",
+  "description": "High-fidelity spatial reconstruction generated from 70 smartphone photos in work/captures/room registered with COLMAP 4.2.1.",
+  "coordinateSystem": "right-handed-y-up",
+  "units": "metre",
+  "worldFromReconstruction": [
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "bounds": {
+    "min": [
+      -6.0,
+      0.0,
+      -5.0
+    ],
+    "max": [
+      6.0,
+      3.5,
+      5.0
+    ]
+  },
+  "startPosition": [
+    0.0,
+    1.65,
+    2.2
+  ],
+  "startYawDegrees": 0,
+  "visualAssets": [
+    {
+      "kind": "glb",
+      "uri": "visual/room_sparse.glb",
+      "label": "Captured Room Point Cloud (70 Photos)",
+      "sha256": "4b5e8e4fdcb7c47601a45b27769de485e558df2648f19caa207ffc6544659db5"
+    },
+    {
+      "kind": "sog",
+      "uri": "visual/room_sparse.sog",
+      "label": "Captured Room 3D Gaussian Splat",
+      "sha256": "ccac13bc7f44d8e71e6be3579647a445008a12a3d7adc0191b0d6e94160e45d0"
+    }
+  ],
+  "collisionAsset": null,
+  "navigationUri": "navigation/nav-data.json",
+  "semanticUri": "semantic/pois.json",
+  "qualityUri": "quality/report.json",
+  "provenance": {
+    "pipeline": "colmap-sparse-to-glb",
+    "pipelineVersion": "0.1.0",
+    "capturedAt": "2026-10-28T22:21:00Z",
+    "source": "70 real smartphone photos from work/captures/room registered with COLMAP 4.2.1",
+    "notes": [
+      "Reconstructed from genuine smartphone photos in work/captures/room.",
+      "Demonstrates real point cloud camera calibration, coordinate space, and walkthrough."
+    ]
+  }
+}

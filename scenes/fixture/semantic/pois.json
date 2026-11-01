@@ -1,0 +1,49 @@
+[
+  {
+    "id": "main-hall",
+    "label": "Main Hall",
+    "category": "room",
+    "position": [4.6, 1.5, -3.3],
+    "approachPoint": [4.2, 1.65, -3.3],
+    "aliases": ["exhibition hall", "hall"],
+    "description": "The open central exhibition area.",
+    "confidence": 0.99,
+    "source": "synthetic"
+  },
+  {
+    "id": "registration-desk",
+    "label": "Registration Desk",
+    "category": "service",
+    "roomId": "main-hall",
+    "position": [-1.8, 1.2, -1.1],
+    "approachPoint": [-3.1, 1.65, -1.1],
+    "aliases": ["help desk", "check in", "reception"],
+    "description": "A service desk near the west side of the hall.",
+    "confidence": 0.96,
+    "source": "synthetic"
+  },
+  {
+    "id": "information-kiosk",
+    "label": "Information Kiosk",
+    "category": "landmark",
+    "roomId": "main-hall",
+    "position": [0, 1.5, 2.65],
+    "approachPoint": [-1.1, 1.65, 2.65],
+    "aliases": ["info", "wayfinding kiosk"],
+    "description": "A warm amber wayfinding point beside the south route.",
+    "confidence": 0.94,
+    "source": "synthetic"
+  },
+  {
+    "id": "display-table",
+    "label": "Materials Display",
+    "category": "furniture",
+    "roomId": "main-hall",
+    "position": [2.4, 0.9, 1.4],
+    "approachPoint": [2.4, 1.65, 0.4],
+    "aliases": ["display", "table", "exhibit"],
+    "description": "A low display table with material samples.",
+    "confidence": 0.91,
+    "source": "synthetic"
+  }
+]

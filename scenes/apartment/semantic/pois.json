@@ -1,0 +1,166 @@
+[
+ {
+  "id": "kitchen-island",
+  "label": "Kitchen island",
+  "category": "furniture",
+  "position": [
+   1.135,
+   1.055,
+   1.246
+  ],
+  "approachPoint": [
+   1.624,
+   1.45,
+   2.662
+  ],
+  "aliases": [
+   "kitchen",
+   "sink",
+   "island"
+  ],
+  "description": "Counter with the sink, looking down the apartment.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "bedroom-door",
+  "label": "Bedroom doorway",
+  "category": "room",
+  "position": [
+   -0.251,
+   1.065,
+   -1.758
+  ],
+  "approachPoint": [
+   0.241,
+   1.45,
+   -0.343
+  ],
+  "aliases": [
+   "bedroom",
+   "bed"
+  ],
+  "description": "Doorway into the bedroom.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "workstation",
+  "label": "Desk and monitors",
+  "category": "furniture",
+  "position": [
+   1.308,
+   1.071,
+   -3.347
+  ],
+  "approachPoint": [
+   1.674,
+   1.45,
+   -1.894
+  ],
+  "aliases": [
+   "desk",
+   "office",
+   "monitors",
+   "pc"
+  ],
+  "description": "Standing desk with three monitors by the window.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "living-room",
+  "label": "Living room sofa",
+  "category": "room",
+  "position": [
+   2.117,
+   1.064,
+   0.104
+  ],
+  "approachPoint": [
+   1.668,
+   1.45,
+   -1.325
+  ],
+  "aliases": [
+   "living room",
+   "sofa",
+   "couch",
+   "lounge"
+  ],
+  "description": "Sofa looking back towards the kitchen bar stools.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "cooker",
+  "label": "Cooker and microwave",
+  "category": "furniture",
+  "position": [
+   1.146,
+   1.069,
+   4.727
+  ],
+  "approachPoint": [
+   0.679,
+   1.45,
+   3.302
+  ],
+  "aliases": [
+   "stove",
+   "oven",
+   "microwave",
+   "cooker"
+  ],
+  "description": "Kitchen wall with the cooker and microwave.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "entrance",
+  "label": "Front door",
+  "category": "entrance",
+  "position": [
+   -0.574,
+   1.07,
+   4.496
+  ],
+  "approachPoint": [
+   -0.851,
+   1.45,
+   3.023
+  ],
+  "aliases": [
+   "entrance",
+   "front door",
+   "exit"
+  ],
+  "description": "The apartment's front door.",
+  "confidence": 1,
+  "source": "operator"
+ },
+ {
+  "id": "bathroom",
+  "label": "Bathroom",
+  "category": "room",
+  "position": [
+   -4.261,
+   1.085,
+   2.584
+  ],
+  "approachPoint": [
+   -2.763,
+   1.45,
+   2.613
+  ],
+  "aliases": [
+   "bathroom",
+   "toilet",
+   "washroom",
+   "restroom"
+  ],
+  "description": "Bathroom with the sink and mirror.",
+  "confidence": 1,
+  "source": "operator"
+ }
+]

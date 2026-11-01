@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 1,
+ "sceneId": "eyeful-apartment",
+ "displayName": "Apartment \u00b7 Eyeful Tower (Meta)",
+ "sceneKind": "reconstructed-capture",
+ "description": "Gaussian splat of a furnished apartment trained with Brush from Meta's Eyeful Tower dataset (VR-NeRF, SIGGRAPH Asia 2023; 22-camera rig, metric poses).",
+ "coordinateSystem": "right-handed-y-up",
+ "units": "metre",
+ "worldFromReconstruction": [
+  [
+   1,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   1,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   1
+  ]
+ ],
+ "bounds": {
+  "min": [
+   -3.431,
+   0.0,
+   -3.987
+  ],
+  "max": [
+   2.828,
+   3.026,
+   4.086
+  ]
+ },
+ "startPosition": [
+  1.624,
+  1.45,
+  2.662
+ ],
+ "startYawDegrees": 19.05,
+ "visualAssets": [
+  {
+   "kind": "sog",
+   "uri": "visual/apartment.sog",
+   "label": "Apartment Gaussian splat",
+   "sha256": "41362916a19d445895a09283b82d605047b69712cbf4916baf7e2d74fb47617f"
+  }
+ ],
+ "collisionAsset": null,
+ "navigationUri": "navigation/grid.json",
+ "semanticUri": "semantic/pois.json",
+ "qualityUri": "quality/report.json",
+ "scaleStatus": "known",
+ "provenance": {
+  "pipeline": "pipeline/scene_bundle.py",
+  "pipelineVersion": "0.1.0",
+  "capturedAt": "",
+  "source": "Eyeful Tower 'apartment' by Meta Platforms, Inc. (MIT licence): colmap/images_8, every 3rd rig position",
+  "notes": [
+   "Camera poses and scale from the dataset's own COLMAP export (metric).",
+   "Reconstruction-to-world transform baked into the splat, so worldFromReconstruction is identity.",
+   "Raw Brush output (clean_splat.py is tuned for handheld video and removed real furniture here)."
+  ]
+ }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "washbasin-sink",
+    "label": "Washbasin / Sink Area",
+    "category": "service",
+    "position": [
+      -1.8,
+      1.1,
+      -1.0
+    ],
+    "approachPoint": [
+      -1.2,
+      1.65,
+      0.2
+    ],
+    "aliases": [
+      "sink",
+      "washbasin",
+      "yellow shelf"
+    ],
+    "description": "Wall-mounted sink with yellow shelf against the corrugated metal wall.",
+    "confidence": 0.95,
+    "source": "operator"
+  },
+  {
+    "id": "luggage-corner",
+    "label": "Suitcase / Luggage Corner",
+    "category": "furniture",
+    "position": [
+      1.2,
+      0.4,
+      1.5
+    ],
+    "approachPoint": [
+      0.5,
+      1.65,
+      0.6
+    ],
+    "aliases": [
+      "suitcase",
+      "luggage",
+      "bags"
+    ],
+    "description": "Open travel luggage resting on the concrete floor.",
+    "confidence": 0.92,
+    "source": "operator"
+  },
+  {
+    "id": "workshop-entrance",
+    "label": "Workshop Entrance",
+    "category": "landmark",
+    "position": [
+      0.0,
+      1.5,
+      3.0
+    ],
+    "approachPoint": [
+      0.0,
+      1.65,
+      2.0
+    ],
+    "aliases": [
+      "entrance",
+      "door",
+      "entry",
+      "threshold"
+    ],
+    "description": "Industrial door threshold leading into the reconstructed workshop.",
+    "confidence": 0.98,
+    "source": "operator"
+  }
+]

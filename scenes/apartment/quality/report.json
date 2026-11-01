@@ -1,0 +1,13 @@
+{
+ "status": "needs-review",
+ "readiness": "navigation_ready",
+ "warnings": [],
+ "checks": [
+  {
+   "id": "scale",
+   "label": "Scale",
+   "status": "passed",
+   "detail": "1.000 m per model unit, known"
+  }
+ ]
+}
