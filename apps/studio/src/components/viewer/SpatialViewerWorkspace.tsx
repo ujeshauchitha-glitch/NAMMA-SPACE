@@ -30,29 +30,31 @@ import styles from './SpatialViewerWorkspace.module.css';
  */
 
 // Opens on the flagship capture; tests pin the procedural fixture with VITE_SCENE_URL (playwright.config.ts).
-const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/apartment/manifest.json';
+// Scene bundles live under the deploy base (Vite's BASE_URL: '/' on Vercel, '/NAMMA-SPACE/' on GitHub Pages).
+const scene = (name: string): string => `${import.meta.env.BASE_URL}scenes/${name}/manifest.json`;
+const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene('apartment');
 const SCENE_OPTIONS = [
   // Gaussian splats trained by pipeline/ (COLMAP + Brush): a classroom filmed on a phone, and Meta's Eyeful
   // Tower 'apartment' (MIT licence, credited in its manifest).
-  { value: '/scenes/classroom/manifest.json', label: 'Classroom (phone video, Gaussian splat)' },
-  { value: '/scenes/apartment/manifest.json', label: 'Apartment (Eyeful Tower, Gaussian splat)' },
-  { value: '/scenes/real-room/manifest.json', label: 'Captured Workshop Room (70 Photos)' },
-  { value: '/scenes/nerfstudio-poster/manifest.json', label: 'Nerfstudio Benchmark · Poster (226 Cameras)' },
-  { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
-  { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
-  { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
+  { value: scene('classroom'), label: 'Classroom (phone video, Gaussian splat)' },
+  { value: scene('apartment'), label: 'Apartment (Eyeful Tower, Gaussian splat)' },
+  { value: scene('real-room'), label: 'Captured Workshop Room (70 Photos)' },
+  { value: scene('nerfstudio-poster'), label: 'Nerfstudio Benchmark · Poster (226 Cameras)' },
+  { value: scene('splat-fixture'), label: 'Synthetic Splat fixture (SOG)' },
+  { value: scene('fixture'), label: 'Procedural fixture' },
+  { value: scene('glb-fixture'), label: 'Generated GLB fixture' },
 ];
 
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
-  if (requestedScene === 'real' || requestedScene === 'room') return '/scenes/real-room/manifest.json';
-  if (requestedScene === 'nerfstudio' || requestedScene === 'poster') return '/scenes/nerfstudio-poster/manifest.json';
-  if (requestedScene === 'glb') return '/scenes/glb-fixture/manifest.json';
-  if (requestedScene === 'splat') return '/scenes/splat-fixture/manifest.json';
-  if (requestedScene === 'fixture') return '/scenes/fixture/manifest.json';
-  if (requestedScene === 'classroom') return '/scenes/classroom/manifest.json';
-  if (requestedScene === 'apartment') return '/scenes/apartment/manifest.json';
-  if (requestedScene?.startsWith('/scenes/')) return requestedScene;
+  if (requestedScene === 'real' || requestedScene === 'room') return scene('real-room');
+  if (requestedScene === 'nerfstudio' || requestedScene === 'poster') return scene('nerfstudio-poster');
+  if (requestedScene === 'glb') return scene('glb-fixture');
+  if (requestedScene === 'splat') return scene('splat-fixture');
+  if (requestedScene === 'fixture') return scene('fixture');
+  if (requestedScene === 'classroom') return scene('classroom');
+  if (requestedScene === 'apartment') return scene('apartment');
+  if (requestedScene?.startsWith('/scenes/')) return `${import.meta.env.BASE_URL}${requestedScene.slice(1)}`;
   return DEFAULT_SCENE_URL;
 }
 
