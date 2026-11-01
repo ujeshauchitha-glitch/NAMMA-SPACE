@@ -7,7 +7,8 @@ quality/report.json. Two things the studio viewer needs that COLMAP does not giv
 
 Scale. COLMAP's units are arbitrary. Without a marker in the room we guess: the phone was held at
 ASSUMED_CAMERA_HEIGHT_M above the floor, and the floor is the lowest dense layer of SfM points.
-The manifest says scaleStatus "estimated"; expect +-15% on a real capture.
+The manifest says scaleStatus "estimated"; expect +-15% on a real capture. When the model is already in
+metres (e.g. a dataset solved with a calibrated rig), pass --metres-per-unit and scaleStatus is "known".
 
 Walls. The navigation grid marks a cell blocked when SfM points sit between knee and head height
 in it (desks, walls), widened by the player's clearance. Cells the camera walked through are always
@@ -125,13 +126,16 @@ def navigation_grid(W: np.ndarray, Cw: np.ndarray, lo: np.ndarray, hi: np.ndarra
     return grid
 
 
-def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None = None) -> dict:
+def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None = None,
+          metres_per_unit: float | None = None) -> dict:
     pts, tracks, centres, axes = load_model(sparse, out / "_sparse_txt")
     R = level_rotation(centres, axes[:, 1])
     P, C = (pts @ R.T)[tracks >= 3], centres @ R.T
     keep = np.all((P >= np.percentile(P, 1, axis=0)) & (P <= np.percentile(P, 99, axis=0)), axis=1)
     P = P[keep]
     s, floor, ceiling = estimate_scale(P, C)
+    if metres_per_unit:
+        s = metres_per_unit  # the floor and ceiling still come from the points
     mid = C.mean(0)
     t = -s * np.array([mid[0], floor, mid[2]])
     to_world = lambda X: s * X + t  # levelled model units -> metres, floor at y=0, path centred on 0
@@ -160,14 +164,16 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
              "confidence": 1, "source": "operator"}]
     (out / "semantic" / "pois.json").write_text(json.dumps(pois, indent=1), encoding="utf-8")
     room_h = (ceiling - floor) * s
-    warnings = [f"Scale is estimated from an assumed {ASSUMED_CAMERA_HEIGHT_M} m camera height "
-                f"(room height comes out at {room_h:.2f} m)."]
+    warnings = [] if metres_per_unit else [
+        f"Scale is estimated from an assumed {ASSUMED_CAMERA_HEIGHT_M} m camera height "
+        f"(room height comes out at {room_h:.2f} m)."]
     if not 2.2 <= room_h <= 4.5:
         warnings.append(f"Estimated room height {room_h:.2f} m is implausible: the scale guess is probably off.")
     (out / "quality" / "report.json").write_text(json.dumps(quality or {
         "status": "needs-review", "readiness": "navigation_ready", "warnings": warnings,
-        "checks": [{"id": "scale", "label": "Scale", "status": "warning",
-                    "detail": f"{s:.3f} m per model unit, estimated"}]}, indent=1), encoding="utf-8")
+        "checks": [{"id": "scale", "label": "Scale", "status": "passed" if metres_per_unit else "warning",
+                    "detail": f"{s:.3f} m per model unit, {'known' if metres_per_unit else 'estimated'}"}]},
+        indent=1), encoding="utf-8")
 
     M = np.eye(4)
     M[:3, :3], M[:3, 3] = s * R, t
@@ -184,7 +190,7 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
                           "sha256": hashlib.sha256(splat.read_bytes()).hexdigest()}],
         "collisionAsset": None, "navigationUri": "navigation/grid.json",
         "semanticUri": "semantic/pois.json", "qualityUri": "quality/report.json",
-        "scaleStatus": "estimated",
+        "scaleStatus": "known" if metres_per_unit else "estimated",
         "provenance": {"pipeline": "pipeline/scene_bundle.py", "pipelineVersion": "0.1.0",
                        "capturedAt": "", "source": "Smartphone video capture", "notes": warnings},
     }
@@ -203,5 +209,6 @@ if __name__ == "__main__":
     ap.add_argument("splat", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--title", default="Captured room")
+    ap.add_argument("--metres-per-unit", type=float, help="known model scale; skips the camera-height guess")
     a = ap.parse_args()
-    build(a.sparse, a.splat, a.out, a.title)
+    build(a.sparse, a.splat, a.out, a.title, metres_per_unit=a.metres_per_unit)

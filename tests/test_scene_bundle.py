@@ -41,3 +41,14 @@ def test_bundle_scale_walls_and_start(tmp_path):
     assert grid["viewSectors"] == scene_bundle.VIEW_SECTORS
     assert views[s["z"], s["x"]] > 0 and not views[occ].any()
     assert views.max() < 1 << grid["viewSectors"]
+
+
+def test_bundle_known_scale(tmp_path):
+    # A model already in metres: the given scale is used as-is and reported as known.
+    model = write_model(tmp_path / "m", 0.3)
+    splat = tmp_path / "scene.sog"
+    splat.write_bytes(b"not a real splat")
+    stats = scene_bundle.build(model, splat, tmp_path / "bundle", "Synthetic", metres_per_unit=1.0)
+    manifest = json.loads((tmp_path / "bundle" / "manifest.json").read_text())
+    assert stats["metres_per_unit"] == 1.0 and manifest["scaleStatus"] == "known"
+    assert stats["room_height_m"] == pytest.approx(2.6, rel=0.05)
