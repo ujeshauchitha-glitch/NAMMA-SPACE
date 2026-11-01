@@ -27,7 +27,7 @@ fi
 
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
-.venv/bin/pip install opencv-python-headless numpy
+.venv/bin/pip install opencv-python-headless numpy scipy
 
 cat <<'EOF'
 

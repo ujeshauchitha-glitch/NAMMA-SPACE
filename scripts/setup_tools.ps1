@@ -4,7 +4,7 @@
 #   Brush 0.3.0               -> tools\brush          Gaussian-splat training (WebGPU, no CUDA toolkit)
 #   splat-transform 3.10.3    -> tools\splat-transform  .ply -> .sog/.spz for the web (needs Node.js >= 22)
 #   ffmpeg, Node.js           -> winget, if missing
-#   Python venv               -> .venv (opencv-python-headless, numpy)
+#   Python venv               -> .venv (opencv-python-headless, numpy, scipy; ultralytics only for --mask-people)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest many times slower on PS 5.1
 $root = Split-Path $PSScriptRoot -Parent
@@ -84,7 +84,7 @@ if (-not (Test-Path $venvPy)) {
     if (-not $py) { throw 'Python 3.11-3.13 not found. Install it: winget install Python.Python.3.12, then re-run.' }
     Invoke-Checked 'create .venv' { py $py -m venv (Join-Path $root '.venv') }
 }
-Invoke-Checked 'pip install' { & $venvPy -m pip install --disable-pip-version-check opencv-python-headless numpy }
+Invoke-Checked 'pip install' { & $venvPy -m pip install --disable-pip-version-check opencv-python-headless numpy scipy }
 
 Write-Host ''
 Write-Host 'Done. Check everything with:'

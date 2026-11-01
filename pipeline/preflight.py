@@ -57,12 +57,12 @@ def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
         "winget install OpenJS.NodeJS.LTS" if win else "install Node.js 22 LTS")
     row("splat-transform", compress.SPLAT_TRANSFORM_CLI.is_file(),
         "run scripts/setup_tools.ps1" if win else "run scripts/setup_tools.sh")
-    for mod in ("cv2", "numpy"):
+    for mod in ("cv2", "numpy", "scipy"):  # scipy: coverage map and the studio scene bundle
         try:
             __import__(mod)
             row(f"python:{mod}", True, "")
         except ImportError:
-            row(f"python:{mod}", False, "pip install opencv-python-headless numpy")
+            row(f"python:{mod}", False, "pip install opencv-python-headless numpy scipy")
     if gpu and shutil.which("nvidia-smi"):
         out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
                              capture_output=True, text=True).stdout.strip()
