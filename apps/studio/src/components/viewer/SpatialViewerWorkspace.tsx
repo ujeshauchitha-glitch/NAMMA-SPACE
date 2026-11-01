@@ -29,17 +29,16 @@ import styles from './SpatialViewerWorkspace.module.css';
  * HUD at T17.
  */
 
-// Opens on the flagship capture; tests pin the procedural fixture with VITE_SCENE_URL (playwright.config.ts).
+// Opens on our own classroom capture; tests pin the procedural fixture with VITE_SCENE_URL (playwright.config.ts).
 // Scene bundles live under the deploy base (Vite's BASE_URL: '/' on Vercel, '/NAMMA-SPACE/' on GitHub Pages).
 const scene = (name: string): string => `${import.meta.env.BASE_URL}scenes/${name}/manifest.json`;
-const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene('apartment');
+const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene('classroom');
 const SCENE_OPTIONS = [
-  // Gaussian splats trained by pipeline/ (COLMAP + Brush): a classroom filmed on a phone, and Meta's Eyeful
-  // Tower 'apartment' (MIT licence, credited in its manifest).
-  { value: scene('classroom'), label: 'Classroom (phone video, Gaussian splat)' },
-  { value: scene('apartment'), label: 'Apartment (Eyeful Tower, Gaussian splat)' },
-  { value: scene('real-room'), label: 'Captured Workshop Room (70 Photos)' },
-  { value: scene('nerfstudio-poster'), label: 'Nerfstudio Benchmark · Poster (226 Cameras)' },
+  // Gaussian splats trained by pipeline/ (COLMAP + Brush): our classroom filmed on a phone, and Meta's Eyeful
+  // Tower 'apartment', an external benchmark dataset (MIT licence, credited in its manifest).
+  { value: scene('classroom'), label: 'Classroom: our phone capture (Gaussian splat)' },
+  { value: scene('real-room'), label: 'Workshop room: our 70-photo capture (sparse model)' },
+  { value: scene('apartment'), label: 'Apartment: external benchmark dataset (Meta Eyeful Tower, MIT)' },
   { value: scene('splat-fixture'), label: 'Synthetic Splat fixture (SOG)' },
   { value: scene('fixture'), label: 'Procedural fixture' },
   { value: scene('glb-fixture'), label: 'Generated GLB fixture' },
@@ -48,7 +47,6 @@ const SCENE_OPTIONS = [
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
   if (requestedScene === 'real' || requestedScene === 'room') return scene('real-room');
-  if (requestedScene === 'nerfstudio' || requestedScene === 'poster') return scene('nerfstudio-poster');
   if (requestedScene === 'glb') return scene('glb-fixture');
   if (requestedScene === 'splat') return scene('splat-fixture');
   if (requestedScene === 'fixture') return scene('fixture');

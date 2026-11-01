@@ -23,7 +23,7 @@ export default defineConfig({
     command: 'npm run dev -- --host 127.0.0.1 --port 5183 --strictPort',
     url: 'http://127.0.0.1:5183/',
     reuseExistingServer: false,
-    // The app opens on the apartment capture; the e2e suite is written against the procedural fixture.
+    // The app opens on the classroom capture; the e2e suite is written against the procedural fixture.
     env: { VITE_SCENE_URL: '/scenes/fixture/manifest.json' },
     timeout: 120_000,
   },

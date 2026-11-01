@@ -150,7 +150,9 @@ export class PlayCanvasViewer {
 
   public enterWalkthrough(): void {
     // Full screen is the workspace's own toggle (F / HUD button), so it keeps the HUD around the canvas.
-    this.canvas.requestPointerLock();
+    // Some embedded browsers refuse pointer lock; WASD still works while the canvas has focus.
+    this.canvas.focus();
+    void Promise.resolve(this.canvas.requestPointerLock()).catch(() => undefined);
     this.callbacks.onStatus('Walkthrough active · WASD to move · Esc to release');
   }
 
