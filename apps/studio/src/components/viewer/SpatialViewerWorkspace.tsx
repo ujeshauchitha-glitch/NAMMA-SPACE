@@ -31,21 +31,26 @@ import styles from './SpatialViewerWorkspace.module.css';
 
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || '/scenes/fixture/manifest.json';
 const SCENE_OPTIONS = [
+  // Gaussian splats trained by pipeline/ (COLMAP + Brush): a classroom filmed on a phone, and Meta's Eyeful
+  // Tower 'apartment' (MIT licence, credited in its manifest).
+  { value: '/scenes/classroom/manifest.json', label: 'Classroom (phone video, Gaussian splat)' },
+  { value: '/scenes/apartment/manifest.json', label: 'Apartment (Eyeful Tower, Gaussian splat)' },
   { value: '/scenes/real-room/manifest.json', label: 'Captured Workshop Room (70 Photos)' },
+  { value: '/scenes/nerfstudio-poster/manifest.json', label: 'Nerfstudio Benchmark · Poster (226 Cameras)' },
+  { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
   { value: '/scenes/fixture/manifest.json', label: 'Procedural fixture' },
   { value: '/scenes/glb-fixture/manifest.json', label: 'Generated GLB fixture' },
-  { value: '/scenes/splat-fixture/manifest.json', label: 'Synthetic Splat fixture (SOG)' },
-  // Gaussian splat trained from a smartphone video of a classroom (pipeline/scene_bundle.py).
-  { value: '/scenes/classroom/manifest.json', label: 'Classroom (real capture, Gaussian splat)' },
 ];
 
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
   if (requestedScene === 'real' || requestedScene === 'room') return '/scenes/real-room/manifest.json';
+  if (requestedScene === 'nerfstudio' || requestedScene === 'poster') return '/scenes/nerfstudio-poster/manifest.json';
   if (requestedScene === 'glb') return '/scenes/glb-fixture/manifest.json';
   if (requestedScene === 'splat') return '/scenes/splat-fixture/manifest.json';
   if (requestedScene === 'fixture') return '/scenes/fixture/manifest.json';
   if (requestedScene === 'classroom') return '/scenes/classroom/manifest.json';
+  if (requestedScene === 'apartment') return '/scenes/apartment/manifest.json';
   if (requestedScene?.startsWith('/scenes/')) return requestedScene;
   return DEFAULT_SCENE_URL;
 }

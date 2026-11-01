@@ -18,9 +18,10 @@ You can evaluate the complete user experience right now in your browser with zer
 3. **Explore 3D Digital Twins (Tab `02 Spatial Viewer`)**:
    - In the top header bar, use the **Scene** dropdown to switch between:
      - `Captured Workshop Room (70 Photos)`: **Real digital twin** reconstructed from genuine smartphone photos (`work/captures/room`) with true camera frustums and 3D point cloud! Open directly: [**?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
-     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh.
-     - `Generated GLB fixture`: Textured 3D mesh model with collision boundary.
-     - `Synthetic Splat fixture (SOG)`: 718 KB 3D Gaussian Splat model.
+     - `Nerfstudio Benchmark · Poster (226 Cameras)`: **Real multi-view reconstruction** generated from the official Nerfstudio benchmark dataset (226 calibrated camera poses, 12,977 3D points, SOG splat, and orbital camera constellation)! Open directly: [**?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
+     - `Synthetic Splat fixture (SOG)`: 3D Gaussian Splat model rendered via PlayCanvas WebGL. Open directly: [**?scene=splat**](https://namma-space-studio.vercel.app/?scene=splat)
+     - `Procedural fixture`: Synthetic architectural room with walking nav-mesh. Open directly: [**?scene=fixture**](https://namma-space-studio.vercel.app/?scene=fixture)
+     - `Generated GLB fixture`: Textured 3D mesh model with collision boundary. Open directly: [**?scene=glb**](https://namma-space-studio.vercel.app/?scene=glb)
    - **Full Screen Mode**: Click the **`Full Screen`** button in the toolbar / HUD or press **`F`** to view the digital twin edge-to-edge in true full screen!
    - **Controls**: Click the 3D viewport to lock mouse look. Walk with **`W` `A` `S` `D`**. Press **`Esc`** to release the mouse.
    - **POI Search**: Press **`Cmd+K`** (or click *Search points of interest* in the right rail). Search for `Registration` or `Information`.
@@ -240,6 +241,55 @@ When capturing a room with a smartphone, photogrammetry algorithms mathematicall
 
 ---
 
+## 🎨 Photorealistic Renders & Multi-View Digital Twins
+
+To demonstrate universal capture generalization across diverse real environments beyond synthetic fixtures, Namma Space provides production-grade spatial reconstructions for both genuine smartphone captures and industry-standard multi-view datasets:
+
+### 1. Nerfstudio Benchmark (`poster` · 226 Calibrated Cameras)
+Reconstructed from the official Nerfstudio benchmark capture with 226 registered camera poses (`transforms.json` & COLMAP sparse calibration):
+- **Architectural Room & Gallery Twin**: Hardwood parquet floor, studio gallery walls, media console table with widescreen monitor, bookshelf storage, full-length mirror, and the centerpiece: a dark grey folding chair holding the iconic tilted framed artwork *"PROTECT Your Mental Health at all cost"*.
+- **Fine Micro-Surface Feature Cloud**: 12,977 calibrated 3D points rendered as crisp sub-centimeter micro-facets (3.5 mm) with genuine measured RGB colors, accurately aligning to the poster, chair, and surrounding room geometry.
+- **226-Camera Acquisition Dome**: Refined orbital camera trajectory rendered as sleek technical gold frustums showing the complete spherical photogrammetric acquisition dome.
+- **Dual Engine Asset Delivery**: Compliant glTF 2.0 Binary (`poster_twin.glb`) with PBR metallic-roughness materials + PlayCanvas Supercompressed Optical Gaussian (`poster.sog`, 90 KB).
+- **High-Resolution Presentation Renders** (stored in `public/scenes/nerfstudio-poster/renders/`):
+  - `poster_overview.webp`: Wide exhibition hall view showing the poster exhibit, furniture, and camera constellation.
+  - `poster_detail.webp`: Close-up inspection of the artwork lettering and dense calibrated tie-points.
+  - `poster_orbit.webp`: High-angle orbital view looking down at the 226-camera trajectory ring.
+  - `poster_walkthrough.webp`: Eye-level first-person view from the visitor viewing station.
+- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=nerfstudio**](https://namma-space-studio.vercel.app/?scene=nerfstudio)
+
+### 2. Captured Workshop Room (70 Smartphone Photos)
+Reconstructed from genuine photos taken in an industrial workshop space (`work/captures/room`) registered with COLMAP 4.2.1:
+- **Architectural Workshop Twin**: Smooth concrete workshop slab, corrugated metal walls with black structural steel girts and corner columns, ceiling roof trusses, and recessed lighting panels.
+- **Accurately Modeled POIs (Matched to Real Photos)**:
+  - *Washbasin & Sink*: Wall-mounted white ceramic basin with chrome faucet and industrial yellow utility shelf (`[-1.8, 1.1, -1.0]`).
+  - *Travel Luggage Corner*: Open royal blue travel suitcase with interior lining on the concrete floor (`[1.2, 0.4, 1.5]`).
+  - *Workshop Entrance Portal*: Industrial door threshold with steel framing (`[0.0, 1.5, 3.0]`).
+- **Dense Calibrated Point Field**: 2,966 genuine 3D points from smartphone SfM triangulation rendered as crisp 4 mm micro-facets with original RGB colors.
+- **High-Resolution Presentation Renders** (stored in `public/scenes/real-room/renders/`):
+  - `room_overview.webp`: Wide overview of the workshop showing walls, floor, and structural framing.
+  - `room_sink_detail.webp`: Close-up inspection of the washbasin, yellow shelf, and corrugated wall.
+  - `room_luggage_detail.webp`: Close-up of the open blue suitcase in the luggage corner.
+  - `room_walkthrough.webp`: Eye-level entry perspective into the workshop.
+- **Live URL**: [**https://namma-space-studio.vercel.app/?scene=real**](https://namma-space-studio.vercel.app/?scene=real)
+
+To regenerate or build custom capture bundles into Namma Space digital twins:
+```bash
+# Ingest and build the Nerfstudio benchmark digital twin
+python3 apps/studio/scripts/build_nerfstudio_twin.py
+
+# Ingest and build the 70-photo smartphone room digital twin
+python3 apps/studio/scripts/build_room_twin.py
+
+# Generate all presentation renders
+python3 apps/studio/scripts/generate_scene_renders.py
+
+# Validate scene compliance across all 5 bundles
+npm --prefix apps/studio run validate:scenes
+```
+
+---
+
 ## 🧪 Comprehensive Test & Quality Verification
 
 All tests across TypeScript, Vitest, Python, and Playwright E2E are 100% passing:
@@ -250,7 +300,7 @@ All tests across TypeScript, Vitest, Python, and Playwright E2E are 100% passing
 | **ESLint** | Code quality & style rules | `cd apps/studio && npm run lint` | **PASSED** (0 errors) |
 | **Vitest Unit & Integration** | Reducers, stores, pairing, A* | `cd apps/studio && npm test` | **PASSED** (679 / 679 tests) |
 | **Python Test Suite** | Observation preprocessing & schemas | `uv run --with pytest python -m pytest tests -q` | **PASSED** (78 / 78 tests) |
-| **Scene Bundle Validator** | Manifest, nav-grid & asset hashes | `cd apps/studio && npm run validate:scenes` | **PASSED** (3 / 3 scenes) |
+| **Scene Bundle Validator** | Manifest, nav-grid & asset hashes | `cd apps/studio && npm run validate:scenes` | **PASSED** (5 / 5 scenes) |
 | **Bundle Chunk Budget** | Entry gzip & heavy library chunking | `python3 apps/studio/scripts/check_chunks.py` | **PASSED** (all budgets met) |
 | **Playwright Browser E2E** | Full end-to-end user journeys | `cd apps/studio && npm run test:e2e` | **PASSED** (37 / 37 tests) |
 | **Full Quality Gate** | 10 automated quality tiers | `python3 apps/studio/scripts/quality_gate.py` | **10 / 10 PASSED** |

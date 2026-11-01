@@ -1,0 +1,15 @@
+{
+ "status": "needs-review",
+ "readiness": "navigation_ready",
+ "warnings": [
+  "Scale is estimated from an assumed 1.45 m camera height (room height comes out at 3.82 m)."
+ ],
+ "checks": [
+  {
+   "id": "scale",
+   "label": "Scale",
+   "status": "warning",
+   "detail": "1.264 m per model unit, estimated"
+  }
+ ]
+}

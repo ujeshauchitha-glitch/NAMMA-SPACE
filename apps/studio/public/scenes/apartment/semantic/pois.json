@@ -1,0 +1,24 @@
+[
+ {
+  "id": "start",
+  "label": "Start",
+  "category": "entrance",
+  "position": [
+   2.052,
+   1.45,
+   3.365
+  ],
+  "approachPoint": [
+   2.052,
+   1.45,
+   3.365
+  ],
+  "aliases": [
+   "spawn",
+   "entrance"
+  ],
+  "description": "Where the walk-through begins (a real camera position from the capture).",
+  "confidence": 1,
+  "source": "operator"
+ }
+]

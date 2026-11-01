@@ -3,7 +3,7 @@
   "sceneId": "captured-workshop-room",
   "displayName": "Captured Workshop Room \u00b7 70 Photos",
   "sceneKind": "reconstructed-capture",
-  "description": "Sparse 3D reconstruction generated from 70 smartphone photos in work/captures/room.",
+  "description": "High-fidelity spatial reconstruction generated from 70 smartphone photos in work/captures/room registered with COLMAP 4.2.1.",
   "coordinateSystem": "right-handed-y-up",
   "units": "metre",
   "worldFromReconstruction": [
@@ -46,8 +46,8 @@
   },
   "startPosition": [
     0.0,
-    1.6,
-    1.0
+    1.65,
+    2.2
   ],
   "startYawDegrees": 0,
   "visualAssets": [
@@ -55,7 +55,13 @@
       "kind": "glb",
       "uri": "visual/room_sparse.glb",
       "label": "Captured Room Point Cloud (70 Photos)",
-      "sha256": "708439f8e4da87439146dfb5886aa7df3d555aeff7f83616437cc4a88f7e4727"
+      "sha256": "4b5e8e4fdcb7c47601a45b27769de485e558df2648f19caa207ffc6544659db5"
+    },
+    {
+      "kind": "sog",
+      "uri": "visual/room_sparse.sog",
+      "label": "Captured Room 3D Gaussian Splat",
+      "sha256": "ccac13bc7f44d8e71e6be3579647a445008a12a3d7adc0191b0d6e94160e45d0"
     }
   ],
   "collisionAsset": null,

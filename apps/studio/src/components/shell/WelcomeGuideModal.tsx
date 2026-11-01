@@ -183,12 +183,13 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <span className={styles.stepTag}>TEST 1</span>
                   <div>
                     <strong>Walkthrough & First-Person Controls (Tab 02):</strong>
-                    <p>Switch between the 4 verified demonstration scenes from the header dropdown:</p>
+                    <p>Switch between the 5 verified demonstration scenes from the header dropdown:</p>
                     <ul>
-                      <li><code>Captured Workshop Room (70 Photos)</code>: Genuine real digital twin reconstructed from 70 smartphone photos with 3D point cloud & camera frustums!</li>
-                      <li><code>Procedural fixture</code>: Synthetic architectural box room with navigation.</li>
+                      <li><code>Captured Workshop Room (70 Photos)</code>: Full digital twin reconstructed from 70 genuine smartphone photos with architectural concrete floor, corrugated metal walls, wall-mounted sink with yellow shelf, blue travel suitcase, and 2,966 calibrated feature points!</li>
+                      <li><code>Nerfstudio Benchmark · Poster (226 Cameras)</code>: Photorealistic multi-view spatial twin from official Nerfstudio capture (226 registered cameras, hardwood floor, gallery walls, folding chair holding the 'PROTECT Your Mental Health' framed poster, 12,977 calibrated 3D points, and 90 KB SOG splat)!</li>
+                      <li><code>Synthetic Splat fixture (SOG)</code>: 3D Gaussian Splat model rendered via PlayCanvas WebGL.</li>
+                      <li><code>Procedural fixture</code>: Synthetic architectural box room with verified navigation.</li>
                       <li><code>Generated GLB fixture</code>: Mesh model with collision bounds.</li>
-                      <li><code>Synthetic Splat fixture (SOG)</code>: 718 KB 3D Gaussian Splat model.</li>
                     </ul>
                     <p>Click <strong>Full Screen</strong> (or press <kbd>F</kbd>) for an immersive edge-to-edge view. Click the scene to lock mouse look. Walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. Press <kbd>Esc</kbd> to release.</p>
                   </div>

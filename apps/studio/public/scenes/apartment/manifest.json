@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 1,
+ "sceneId": "apartment",
+ "displayName": "Apartment (Eyeful Tower, Meta, MIT)",
+ "sceneKind": "reconstructed-capture",
+ "description": "Gaussian splat reconstructed from a smartphone video (COLMAP + Brush).",
+ "coordinateSystem": "right-handed-y-up",
+ "units": "metre",
+ "worldFromReconstruction": [
+  [
+   1,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   1,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   1
+  ]
+ ],
+ "bounds": {
+  "min": [
+   -4.336,
+   0.0,
+   -5.04
+  ],
+  "max": [
+   3.575,
+   3.825,
+   5.138
+  ]
+ },
+ "startPosition": [
+  2.052,
+  1.45,
+  3.365
+ ],
+ "startYawDegrees": 19.1,
+ "visualAssets": [
+  {
+   "kind": "sog",
+   "uri": "visual/apartment_world.sog",
+   "label": "Apartment (Eyeful Tower, Meta, MIT)",
+   "sha256": "2b991973baa7711fdb12045ec2f6b4a744c48efc311876995bb19a26c1293481"
+  }
+ ],
+ "collisionAsset": null,
+ "navigationUri": "navigation/grid.json",
+ "semanticUri": "semantic/pois.json",
+ "qualityUri": "quality/report.json",
+ "scaleStatus": "estimated",
+ "provenance": {
+  "pipeline": "pipeline/scene_bundle.py",
+  "pipelineVersion": "0.1.0",
+  "capturedAt": "",
+  "source": "Smartphone video capture",
+  "notes": [
+   "Scale is estimated from an assumed 1.45 m camera height (room height comes out at 3.82 m).",
+   "Source: Eyeful Tower 'apartment' (Meta, VR-NeRF, SIGGRAPH Asia 2023), MIT licence; colmap/images_8, every 3rd rig position.",
+   "Uncleaned Brush output: clean_splat.py removed real furniture on this rig capture.",
+   "Reconstruction-to-world transform baked into the splat (splat-transform -r/-s/-t), so worldFromReconstruction is identity."
+  ]
+ }
+}
