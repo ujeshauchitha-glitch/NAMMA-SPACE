@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
+import { AdaptiveResolution } from './AdaptiveResolution'
 import { DEFAULT_CONFIG, loadConfig, type SceneConfig } from './config'
 import { FirstPersonControls } from './FirstPersonControls'
 import { SplatScene } from './SplatScene'
-import type { LoadProgress } from './loadSplat'
+import { loadSplat, splatUrl, type LoadProgress } from './loadSplat'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -21,7 +22,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (config) document.title = config.title
+    if (!config) return
+    document.title = config.title
+    // Start downloading now; SplatScene mounts only once the canvas is laid out.
+    loadSplat(splatUrl(config.splat), setBytes).catch(() => {}) // errors are reported by SplatScene
   }, [config])
 
   const onProgress = useCallback((s: Status, message?: string) => {
@@ -46,15 +50,18 @@ export default function App() {
         <Canvas
           camera={{ fov: 70, near: 0.05, far: 200 }}
           gl={{ antialias: false, powerPreference: 'high-performance' }}
-          dpr={[1, 1.5]}
+          dpr={1}
           onClick={() => started && !locked && document.querySelector('canvas')?.requestPointerLock?.()}
         >
+          <AdaptiveResolution />
           <SplatScene config={config} onProgress={onProgress} onBytes={onBytes} />
           <FirstPersonControls
             spawn={spawn}
             yaw={config.spawnYaw}
             eyeHeight={config.eyeHeight}
             bounds={config.bounds}
+            walkPath={config.walkPath}
+            walkRadius={config.walkRadius}
             enabled={status === 'ready'}
             onLock={setLocked}
           />
@@ -81,7 +88,7 @@ export default function App() {
             <p>Walk through the reconstructed space in first person.</p>
             <p>
               <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move · mouse look · <kbd>Shift</kbd> sprint ·{' '}
-              <kbd>Q</kbd>/<kbd>E</kbd> down/up · <kbd>Esc</kbd> release mouse
+              <kbd>Q</kbd>/<kbd>E</kbd> down/up · <kbd>R</kbd> back to start · <kbd>Esc</kbd> release mouse
             </p>
             <p>On touch: drag to look, two fingers to walk.</p>
             <button onClick={enter}>Enter space</button>

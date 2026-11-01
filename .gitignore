@@ -37,3 +37,4 @@ target/
 # (work/ above covers work/captures/room/)
 .env*
 .playwright-mcp/
+docs/round1/ABSTRACT.html

@@ -52,7 +52,7 @@ One video per room or one per floor, named `<space>_<room>.mp4`, plus an optiona
 
 | Stage | Tool | What happens | Typical time (RTX 5060 8 GB) |
 |---|---|---|---|
-| Frame extraction | ffmpeg + OpenCV | 3 fps, 1600 px, blurriest 15% dropped (Laplacian variance) | seconds |
+| Frame extraction | ffmpeg + OpenCV | 3 fps, 1920 px, blurriest 15% dropped (Laplacian variance) | seconds |
 | Structure-from-motion | COLMAP | SIFT features, sequential matching, incremental mapping, undistortion | ~5-15 min for ~500 frames |
 | Splat training | Brush (WebGPU) | 30k steps 3D Gaussian Splatting | ~15-30 min |
 | Compress | splat-transform 3.10.3 | `.ply` → `.sog` (fallback `.spz`) under 50 MB: drops SH bands, then decimates only if still too big | ~1 min |
