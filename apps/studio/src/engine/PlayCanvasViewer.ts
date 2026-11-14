@@ -16,12 +16,13 @@ import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../type
 import { filmedHeading, isWalkable, planRoute, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
+import { FADE_CUT_MS, fadeCutOpacity, flightDurationMs, flightPose, planFlight } from '../lib/routeFlight';
 import { faceAngles, formatInstruction, formatWalkTime, nextInstruction, routeProgress } from '../lib/routeGuidance';
 import { chevronDistances, pointAtDistance, polylineLength, ribbonMesh, slicePolyline } from '../lib/routeGeometry';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
-import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
+import { advanceTween, createTween, easeInOutCubic, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
 
 /** What the guidance panel shows; null when no route is being followed. */
@@ -813,10 +814,10 @@ export class PlayCanvasViewer {
 
   private lookAt(target: Vec3): void {
     const position = this.currentPosition();
-    const direction = new PcVec3(target[0] - position[0], target[1] - position[1], target[2] - position[2]);
-    this.yawPivot.setEulerAngles(0, Math.atan2(direction.x, -direction.z) * 180 / Math.PI, 0);
-    const horizontal = Math.hypot(direction.x, direction.z);
-    this.pitchPivot.setLocalEulerAngles(-Math.atan2(direction.y, horizontal) * 180 / Math.PI, 0, 0);
+    if (Math.hypot(target[0] - position[0], target[2] - position[2]) < 0.05) return; // standing on it: keep the view
+    const { yawDegrees, pitchDegrees } = faceAngles(position, target);
+    this.yawPivot.setEulerAngles(0, yawDegrees, 0);
+    this.pitchPivot.setLocalEulerAngles(pitchDegrees, 0, 0);
   }
 
   /**
@@ -1249,11 +1250,11 @@ export class PlayCanvasViewer {
   }
 
   /**
-   * Eased jump (700 ms expo settle) to a POI approach point with the pitch
-   * leveling to the POI look-at. Cancellable at any moment — the camera
-   * stays wherever the operator's input left it (honest partial state, no
-   * fake completion status). Reduced motion → the existing instant jumpTo.
-   * Invalid/unwalkable targets delegate to jumpTo for its verbatim status.
+   * Go to a POI's view. With a walking route from here, the camera flies ALONG the route (eased,
+   * at most 3 s) and ends at the approach point facing the POI, so it never passes through walls.
+   * Without one (no walkable floor nearby, or none connects) it fades out, cuts, and fades back in.
+   * Cancellable at any moment by a movement key or pointer lock; reduced motion cuts instantly.
+   * Unknown/unwalkable destinations delegate to jumpTo for its status.
    */
   public jumpToSmooth(poiId: string): boolean {
     const poi = this.pois.find((candidate) => candidate.id === poiId);
@@ -1266,35 +1267,63 @@ export class PlayCanvasViewer {
       this.jumpTo(poiId);
       return true;
     }
-
     this.cameraMotionStop?.();
+    this.followStop?.();
     const from = this.getPose();
-    const [tx, ty, tz] = poi.approachPoint;
-    const direction = new PcVec3(poi.position[0] - tx, poi.position[1] - ty, poi.position[2] - tz);
-    const targetYaw = (Math.atan2(direction.x, -direction.z) * 180) / Math.PI;
-    const horizontal = Math.hypot(direction.x, direction.z);
-    const targetPitch = (-Math.atan2(direction.y, horizontal) * 180) / Math.PI;
-
-    let tween = createTween(resolveTweenDuration(700, false));
+    const result = planRoute(this.navigation, from.position, poi.approachPoint);
+    if (!result.ok || result.path.length < 2) {
+      this.lastFlight = { kind: 'fade', durationMs: FADE_CUT_MS, length: 0 };
+      this.fadeCutTo(poi);
+      return true;
+    }
+    // Fly from where the camera is, along the route, to the exact approach point.
+    const path: FloorPoint[] = [[from.position[0], from.position[2]], ...result.path.map((p): FloorPoint => [p[0], p[2]]), [poi.approachPoint[0], poi.approachPoint[2]]];
+    const plan = planFlight(path, from.position[1], poi.approachPoint[1], from.yawDegrees, from.pitchDegrees, poi.position);
+    const durationMs = flightDurationMs(plan.length);
+    this.lastFlight = { kind: 'route', durationMs, length: plan.length };
+    let elapsed = 0;
     this.cameraMotionStop = this.startMotion((deltaMs) => {
-      const stepped = advanceTween(tween, deltaMs);
-      tween = stepped.tween;
-      const eased = easeOutExpo(stepped.progress);
-      this.yawPivot.setPosition(
-        lerp(from.position[0], tx, eased),
-        lerp(from.position[1], ty, eased) - PLAYER_HEIGHT,
-        lerp(from.position[2], tz, eased),
-      );
-      this.yawPivot.setEulerAngles(0, lerpAngleDeg(from.yawDegrees, targetYaw, eased), 0);
-      this.pitchPivot.setLocalEulerAngles(lerpAngleDeg(from.pitchDegrees, targetPitch, eased), 0, 0);
+      elapsed = Math.min(durationMs, elapsed + deltaMs);
+      const pose = flightPose(plan, elapsed / durationMs);
+      this.yawPivot.setPosition(pose.x, pose.y - PLAYER_HEIGHT, pose.z);
+      this.yawPivot.setEulerAngles(0, pose.yawDegrees, 0);
+      this.pitchPivot.setLocalEulerAngles(pose.pitchDegrees, 0, 0);
+      this.lastLookAt = performance.now();
       this.emitPosition();
-      if (stepped.done) {
-        this.callbacks.onStatus(`Focused on ${poi.label}`);
-        return true;
-      }
-      return false;
+      if (elapsed < durationMs) return false;
+      this.callbacks.onStatus(`Focused on ${poi.label}`);
+      return true;
     }, (kill) => this.armCameraKill(kill));
     return true;
+  }
+
+  /** How the last Go to view travelled (for tests and the dev hook). */
+  public lastFlight: { kind: 'route' | 'fade'; durationMs: number; length: number } | null = null;
+
+  /** Fade the canvas out, cut to the POI's approach point facing it, fade back in. */
+  private fadeCutTo(poi: Poi): void {
+    let elapsed = 0;
+    let cut = false;
+    const restore = () => { this.canvas.style.opacity = ''; };
+    this.cameraMotionStop = this.startMotion((deltaMs) => {
+      elapsed += deltaMs;
+      if (!cut && elapsed >= FADE_CUT_MS / 2) {
+        cut = true;
+        const [x, y, z] = poi.approachPoint;
+        this.yawPivot.setPosition(x, y - PLAYER_HEIGHT, z);
+        this.lookAt(poi.position);
+        this.lastLookAt = performance.now();
+        this.emitPosition();
+      }
+      this.canvas.style.opacity = String(fadeCutOpacity(elapsed));
+      if (elapsed < FADE_CUT_MS) return false;
+      restore();
+      this.callbacks.onStatus(`Focused on ${poi.label}`);
+      return true;
+    }, (kill) => this.armCameraKill(() => {
+      kill();
+      restore();
+    }));
   }
 
   /**

@@ -199,7 +199,7 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <span className={styles.stepTag}>TEST 2</span>
                   <div>
                     <strong>POI Search & Collision-Safe A* Navigation:</strong>
-                    <p>Press <code>Cmd+K</code> or click <em>Search points of interest</em> in the right rail. Search for <code>Registration</code> or <code>Information</code>. Click a destination, then click <strong>Plot route</strong>. Notice the green walking tape calculated through obstacles. Click <strong>Jump to view</strong> to smoothly fly to the viewpoint.</p>
+                    <p>Press <code>Cmd+K</code> or click <em>Search points of interest</em> in the right rail. Search for <code>Registration</code> or <code>Information</code>. Click a destination, then click <strong>Plot route</strong>. Notice the green walking tape calculated through obstacles. Click <strong>Jump to view</strong> to fly along the walking route to the viewpoint.</p>
                   </div>
                 </div>
 
