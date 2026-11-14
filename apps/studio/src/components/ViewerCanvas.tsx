@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import type { PlayCanvasViewer } from '../engine/PlayCanvasViewer';
 import type { GridCell } from '../lib/navigation';
@@ -12,6 +12,8 @@ type ViewerCanvasProps = {
   onViewerDestroyed: () => void;
   onPosition: (position: Vec3, cell: GridCell) => void;
   onStatus: (status: string) => void;
+  /** Overlay element for the engine's HTML POI labels. */
+  labelLayerRef?: RefObject<HTMLDivElement | null>;
 };
 
 /**
@@ -23,7 +25,7 @@ type ViewerCanvasProps = {
  */
 let liveViewerCount = 0;
 
-export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus }: ViewerCanvasProps) {
+export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus, labelLayerRef }: ViewerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [contextConflict, setContextConflict] = useState(false);
 
@@ -44,6 +46,7 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
         manifest,
         navigation,
         pois,
+        labelLayer: labelLayerRef?.current ?? null,
         callbacks: {
           onPosition,
           onStatus,
@@ -60,7 +63,7 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
       viewer?.destroy();
       onViewerDestroyed();
     };
-  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois]);
+  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois, labelLayerRef]);
 
   if (contextConflict) {
     // Honest refusal — never a second silent WebGL context.

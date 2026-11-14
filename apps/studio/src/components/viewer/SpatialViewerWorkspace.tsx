@@ -84,6 +84,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const viewerRef = useRef<PlayCanvasViewer | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
+  const labelLayerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -442,8 +443,10 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     onViewerDestroyed={handleViewerDestroyed}
                     onPosition={handlePosition}
                     onStatus={handleViewerStatus}
+                    labelLayerRef={labelLayerRef}
                   />
                 )}
+                <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" />
                 {!isViewerReady && (
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}

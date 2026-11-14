@@ -11,6 +11,7 @@ import {
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
+import { focalLengthPx, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
@@ -29,7 +30,13 @@ type ViewerOptions = {
   navigation: NavigationGrid | null;
   pois: Poi[];
   callbacks: ViewerCallbacks;
+  /** Element over the canvas that holds the HTML POI labels (positioned by the engine each frame). */
+  labelLayer?: HTMLElement | null;
 };
+
+const CAMERA_FOV = 68;
+const PIN_COLOR = new Color(0.96, 0.57, 0.2);
+const PIN_SELECTED_COLOR = new Color(1, 0.78, 0.3);
 
 const PLAYER_HEIGHT = 1.65;
 const WALK_SPEED = 1.4; // normal indoor walking pace, m/s
@@ -53,7 +60,13 @@ export class PlayCanvasViewer {
   private frameTime = 1 / 60;
   private framesSinceResize = 0;
   private lastLookAt = 0;
-  private readonly pois: Poi[];
+  private pois: Poi[];
+  private readonly labelLayer: HTMLElement | null;
+  /** One HTML label per POI, with its measured size (labels are positioned every frame). */
+  private readonly labelEls = new Map<string, { el: HTMLDivElement; width: number; height: number }>();
+  private selectedPoiId: string | null = null;
+  /** Per-POI pin size multiplier driven by the selection pulse. */
+  private readonly pinPulse = new Map<string, number>();
   private readonly callbacks: ViewerCallbacks;
   private readonly pressedKeys = new Set<string>();
   private readonly routeEntity: Entity;
@@ -89,6 +102,7 @@ export class PlayCanvasViewer {
     this.navigation = options.navigation;
     this.pois = options.pois;
     this.callbacks = options.callbacks;
+    this.labelLayer = options.labelLayer ?? null;
 
     // Splats rendered into a multisampled target are several times more expensive (PlayCanvas warns
     // about this), so MSAA is only used for mesh scenes.
@@ -110,7 +124,7 @@ export class PlayCanvasViewer {
     this.camera = new Entity('player-camera');
     this.camera.addComponent('camera', {
       clearColor: new Color(0.055, 0.07, 0.065),
-      fov: 68,
+      fov: CAMERA_FOV,
       // Splats within a hand's reach of the eye are almost always reconstruction noise that would
       // fill the screen as a smear; real surfaces are kept further away by the navigation clearance.
       nearClip: hasSplat ? 0.2 : 0.1,
@@ -132,6 +146,8 @@ export class PlayCanvasViewer {
     this.loadVisualAssets();
 
     this.app.on('update', (dt: number) => this.update(dt));
+    // After every update and motion tween: size pins and place labels for the frame about to render.
+    this.app.on('prerender', () => this.updatePoiOverlay());
     this.app.start();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas.parentElement ?? this.canvas);
@@ -165,15 +181,28 @@ export class PlayCanvasViewer {
   }
 
   public selectPoi(poiId: string | null): void {
+    this.selectedPoiId = poiId;
     this.poiEntities.forEach((marker, id) => {
       const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
       if (!material) return;
       const selected = id === poiId;
-      material.diffuse = selected ? new Color(1, 0.78, 0.3) : new Color(0.96, 0.57, 0.2);
-      material.emissive = selected ? new Color(0.5, 0.18, 0.01) : new Color(0.12, 0.03, 0.005);
+      material.diffuse = selected ? PIN_SELECTED_COLOR : PIN_COLOR;
+      material.emissive = selected ? new Color(0.5, 0.18, 0.01) : new Color(0.25, 0.08, 0.01);
       material.update();
-      marker.setLocalScale(selected ? 0.25 : 0.18, selected ? 0.48 : 0.32, selected ? 0.25 : 0.18);
     });
+    this.labelEls.forEach(({ el }, id) => el.classList.toggle('is-selected', id === poiId));
+  }
+
+  /** Replace the POI set (e.g. after editing) without reloading the scene. */
+  public setPois(pois: Poi[]): void {
+    this.poiEntities.forEach((marker) => marker.destroy());
+    this.poiEntities.clear();
+    this.labelEls.forEach(({ el }) => el.remove());
+    this.labelEls.clear();
+    this.pois = pois;
+    this.buildPoiMarkers();
+    if (this.selectedPoiId && !pois.some((poi) => poi.id === this.selectedPoiId)) this.selectedPoiId = null;
+    this.selectPoi(this.selectedPoiId);
   }
 
   public jumpTo(poiId: string): void {
@@ -235,6 +264,7 @@ export class PlayCanvasViewer {
   public destroy(): void {
     this.resizeObserver.disconnect();
     window.removeEventListener('resize', this.resize);
+    this.labelEls.forEach(({ el }) => el.remove());
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('mousemove', this.onMouseMove);
@@ -467,11 +497,83 @@ export class PlayCanvasViewer {
     this.app.assets.load(asset);
   }
 
+  /** A small sphere per POI (sized each frame in updatePoiOverlay) and, with a label layer, an HTML label. */
   private buildPoiMarkers(): void {
     this.pois.forEach((poi) => {
-      const marker = this.createPrimitive(`poi-${poi.id}`, 'cylinder', [poi.position[0], poi.position[1], poi.position[2]], [0.18, 0.32, 0.18], new Color(0.96, 0.57, 0.2));
+      const marker = this.createPrimitive(`poi-${poi.id}`, 'sphere', [poi.position[0], poi.position[1], poi.position[2]], [0.1, 0.1, 0.1], PIN_COLOR);
+      const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
+      if (material) {
+        material.emissive = new Color(0.25, 0.08, 0.01);
+        material.update();
+      }
       this.app.root.addChild(marker);
       this.poiEntities.set(poi.id, marker);
+      if (this.labelLayer) {
+        const el = document.createElement('div');
+        el.className = 'poi-label';
+        el.dataset.poiId = poi.id;
+        el.textContent = poi.label;
+        this.labelLayer.appendChild(el);
+        this.labelEls.set(poi.id, { el, width: 0, height: 0 });
+      }
+    });
+  }
+
+  /**
+   * Per frame: keep every pin between PIN_MIN_PX and PIN_MAX_PX on screen, and place the HTML labels
+   * (fade with distance, hidden behind the camera, nearest wins when labels overlap).
+   */
+  private updatePoiOverlay(): void {
+    const cameraComponent = this.camera.camera;
+    if (!cameraComponent || this.poiEntities.size === 0) return;
+    const { width, height } = this.app.graphicsDevice.clientRect;
+    if (width === 0 || height === 0) return;
+    const focal = focalLengthPx(height, CAMERA_FOV);
+    const eye = this.camera.getPosition();
+    const forward = this.camera.forward;
+    const projected: ProjectedLabel[] = [];
+    const screen = new PcVec3();
+    this.pois.forEach((poi) => {
+      const marker = this.poiEntities.get(poi.id);
+      if (!marker) return;
+      const [x, y, z] = poi.position;
+      const dx = x - eye.x;
+      const dy = y - eye.y;
+      const dz = z - eye.z;
+      const distance = Math.hypot(dx, dy, dz);
+      const selected = poi.id === this.selectedPoiId;
+      const diameter = pinWorldDiameter(distance, focal) * (selected ? 1.3 : 1) * (this.pinPulse.get(poi.id) ?? 1);
+      marker.setLocalScale(diameter, diameter, diameter);
+      const label = this.labelEls.get(poi.id);
+      if (!label) return;
+      if (label.width === 0) {
+        // Measure once, shown but invisible (a display:none element has no size).
+        label.el.style.visibility = 'hidden';
+        label.el.style.display = 'block';
+        label.width = label.el.offsetWidth;
+        label.height = label.el.offsetHeight;
+        label.el.style.visibility = '';
+      }
+      cameraComponent.worldToScreen(new PcVec3(x, y, z), screen);
+      const pinPx = pinScreenPx(distance, focal) * (selected ? 1.3 : 1);
+      projected.push({
+        id: poi.id,
+        x: screen.x,
+        y: screen.y - pinPx / 2 - 4,
+        distance,
+        behind: dx * forward.x + dy * forward.y + dz * forward.z <= 0,
+        width: label.width,
+        height: label.height,
+        pinned: selected,
+      });
+    });
+    layoutLabels(projected, { width, height }).forEach((placed) => {
+      const label = this.labelEls.get(placed.id);
+      if (!label) return;
+      label.el.style.display = placed.visible ? 'block' : 'none';
+      if (!placed.visible) return;
+      label.el.style.opacity = placed.opacity.toFixed(2);
+      label.el.style.transform = `translate(${(placed.x - label.width / 2).toFixed(1)}px, ${(placed.y - label.height).toFixed(1)}px)`;
     });
   }
 
@@ -479,7 +581,7 @@ export class PlayCanvasViewer {
     this.app.root.addChild(this.createPrimitive(name, 'box', position, scale, color));
   }
 
-  private createPrimitive(name: string, type: 'box' | 'cylinder', position: [number, number, number], scale: [number, number, number], color: Color): Entity {
+  private createPrimitive(name: string, type: 'box' | 'cylinder' | 'sphere', position: [number, number, number], scale: [number, number, number], color: Color): Entity {
     const entity = new Entity(name);
     const material = new StandardMaterial();
     material.diffuse = color;
@@ -717,15 +819,16 @@ export class PlayCanvasViewer {
     this.pulseStops.get(poiId)?.restore();
     this.pulseStops.get(poiId)?.stop();
 
-    const scale = marker.getLocalScale();
-    const base: [number, number, number] = [scale.x, scale.y, scale.z];
-    const restore = (): void => marker.setLocalScale(base[0], base[1], base[2]);
+    // Pin size is recomputed every frame, so the pulse scales a multiplier that updatePoiOverlay applies.
+    const restore = (): void => {
+      this.pinPulse.delete(poiId);
+    };
     let tween = createTween(360);
     const stopMotion = this.startMotion((deltaMs) => {
       const stepped = advanceTween(tween, deltaMs);
       tween = stepped.tween;
       const swell = 1 + 0.55 * Math.sin(Math.PI * stepped.progress);
-      marker.setLocalScale(base[0] * swell, base[1] * swell, base[2] * swell);
+      this.pinPulse.set(poiId, swell);
       if (stepped.done) {
         restore();
         return true;
