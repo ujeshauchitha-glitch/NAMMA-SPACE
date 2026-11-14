@@ -30,6 +30,10 @@ type ViewerCallbacks = {
   onPoiClick?: (poiId: string, viaCrosshair: boolean) => void;
   /** The POI under the cursor (or the crosshair) changed. */
   onPoiHover?: (poiId: string | null) => void;
+  /** Edit mode: a click (not a drag) on the scene, with the floor point and any POI pin/zone under it. */
+  onEditClick?: (floor: FloorPoint | null, poiId: string | null) => void;
+  /** Edit mode: a pin was dragged to a new floor point. */
+  onEditMoveEnd?: (poiId: string, floor: FloorPoint) => void;
 };
 
 type ViewerOptions = {
@@ -85,6 +89,13 @@ export class PlayCanvasViewer {
   private hoveredPoiId: string | null = null;
   /** Cursor position over the canvas (CSS px) while the pointer is not locked. */
   private pointerPx: [number, number] | null = null;
+  /** Edit mode: clicks place/select instead of opening cards; pins can be dragged. */
+  private editMode = false;
+  private editDown: { px: number; py: number; poiId: string | null; moved: boolean; floor: FloorPoint | null } | null = null;
+  /** Zone outline being drawn in the editor (open polyline). */
+  private draftZone: FloorPoint[] = [];
+  /** Right-button drag looks around without pointer lock. */
+  private dragLooking = false;
   /** Per-POI pin size multiplier driven by the selection pulse. */
   private readonly pinPulse = new Map<string, number>();
   private readonly callbacks: ViewerCallbacks;
@@ -107,23 +118,63 @@ export class PlayCanvasViewer {
   private readonly onKeyUp = (event: KeyboardEvent) => this.pressedKeys.delete(event.code);
   private readonly onMouseMove = (event: MouseEvent) => {
     if (document.pointerLockElement !== this.canvas) return;
+    this.look(event.movementX, event.movementY);
+  };
+
+  private look(movementX: number, movementY: number): void {
     this.lastLookAt = performance.now();
-    this.yawPivot.rotateLocal(0, -event.movementX * LOOK_SPEED, 0);
-    this.pitchPivot.rotateLocal(-event.movementY * LOOK_SPEED, 0, 0);
+    this.yawPivot.rotateLocal(0, -movementX * LOOK_SPEED, 0);
+    this.pitchPivot.rotateLocal(-movementY * LOOK_SPEED, 0, 0);
     const pitch = this.pitchPivot.getLocalEulerAngles().x;
     this.pitchPivot.setLocalEulerAngles(Math.max(-this.maxPitch, Math.min(this.maxPitch, pitch)), 0, 0);
-  };
+  }
   private readonly onPointerLockChange = () => this.callbacks.onPointerLock(document.pointerLockElement === this.canvas);
   private readonly onCanvasPointerMove = (event: MouseEvent) => {
     if (document.pointerLockElement === this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
     this.pointerPx = [event.clientX - rect.left, event.clientY - rect.top];
+    if (this.dragLooking) this.look(event.movementX, event.movementY);
+    const down = this.editDown;
+    if (down && down.poiId && (down.moved || Math.hypot(this.pointerPx[0] - down.px, this.pointerPx[1] - down.py) > 3)) {
+      down.moved = true;
+      // Keep the pin under the cursor: intersect with the horizontal plane at the pin's own height.
+      const height = this.pois.find((poi) => poi.id === down.poiId)?.position[1] ?? this.floorY;
+      const floor = this.floorPointAt(this.pointerPx[0], this.pointerPx[1], height);
+      if (floor) {
+        down.floor = floor;
+        this.previewMove(down.poiId, floor);
+      }
+    }
   };
+  private readonly onCanvasMouseDown = (event: MouseEvent) => {
+    if (document.pointerLockElement === this.canvas) return;
+    if (event.button === 2) {
+      this.dragLooking = true;
+      return;
+    }
+    if (event.button !== 0 || !this.editMode) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const [px, py] = [event.clientX - rect.left, event.clientY - rect.top];
+    this.editDown = { px, py, poiId: hitTestScreen(this.hitTargets, px, py), moved: false, floor: null };
+  };
+  private readonly onWindowMouseUp = (event: MouseEvent) => {
+    if (event.button === 2) this.dragLooking = false;
+    const down = this.editDown;
+    if (event.button !== 0 || !down) return;
+    this.editDown = null;
+    if (down.poiId && down.moved && down.floor) {
+      this.callbacks.onEditMoveEnd?.(down.poiId, down.floor);
+      return;
+    }
+    this.callbacks.onEditClick?.(this.floorPointAt(down.px, down.py), this.poiAtScreen(down.px, down.py));
+  };
+  private readonly onContextMenu = (event: MouseEvent) => event.preventDefault();
   private readonly onCanvasPointerLeave = () => {
     this.pointerPx = null;
   };
   /** Click: under pointer lock the crosshair (screen centre) picks, otherwise the cursor does. */
   private readonly onCanvasClick = (event: MouseEvent) => {
+    if (this.editMode) return; // edit-mode clicks are handled on mouseup (click vs drag)
     const locked = document.pointerLockElement === this.canvas;
     const rect = this.canvas.getBoundingClientRect();
     const [px, py] = locked ? [rect.width / 2, rect.height / 2] : [event.clientX - rect.left, event.clientY - rect.top];
@@ -201,6 +252,9 @@ export class PlayCanvasViewer {
     this.canvas.addEventListener('mousemove', this.onCanvasPointerMove);
     this.canvas.addEventListener('mouseleave', this.onCanvasPointerLeave);
     this.canvas.addEventListener('click', this.onCanvasClick);
+    this.canvas.addEventListener('mousedown', this.onCanvasMouseDown);
+    this.canvas.addEventListener('contextmenu', this.onContextMenu);
+    window.addEventListener('mouseup', this.onWindowMouseUp);
     this.resize();
     this.reset();
     // Dev builds only: lets a person (or a test) place the camera from the console, e.g. to compare
@@ -247,13 +301,13 @@ export class PlayCanvasViewer {
     return floor ? this.poiIndex.zonesAt(floor[0], floor[1])[0]?.id ?? null : null;
   }
 
-  /** Floor point [x, z] seen at a canvas pixel (ray from the eye through the pixel, to y = floorY). */
-  public floorPointAt(px: number, py: number): FloorPoint | null {
+  /** Point [x, z] seen at a canvas pixel on the horizontal plane y = planeY (the floor by default). */
+  public floorPointAt(px: number, py: number, planeY = this.floorY): FloorPoint | null {
     const cameraComponent = this.camera.camera;
     if (!cameraComponent) return null;
     const eye = this.camera.getPosition();
     const far = cameraComponent.screenToWorld(px, py, cameraComponent.farClip);
-    return rayFloorHit([eye.x, eye.y, eye.z], [far.x - eye.x, far.y - eye.y, far.z - eye.z], this.floorY);
+    return rayFloorHit([eye.x, eye.y, eye.z], [far.x - eye.x, far.y - eye.y, far.z - eye.z], planeY);
   }
 
   private setHovered(poiId: string | null): void {
@@ -276,6 +330,25 @@ export class PlayCanvasViewer {
       material.emissive = id === this.hoveredPoiId ? new Color(0.55, 0.3, 0.05) : new Color(0.25, 0.08, 0.01);
       material.update();
     });
+  }
+
+  /** Edit mode: clicks report floor points (placing, zone vertices) and pins can be dragged. */
+  public setEditMode(on: boolean): void {
+    this.editMode = on;
+    this.editDown = null;
+    if (on && document.pointerLockElement === this.canvas) document.exitPointerLock();
+    this.canvas.classList.toggle('is-editing', on);
+  }
+
+  /** Zone polygon being drawn in the editor; [] hides it. */
+  public setDraftZone(points: FloorPoint[]): void {
+    this.draftZone = points;
+  }
+
+  /** Move a pin while it is dragged; the editor commits the move (and re-snaps the approach) on release. */
+  private previewMove(poiId: string, [x, z]: FloorPoint): void {
+    this.pois = this.pois.map((poi) => (poi.id === poiId ? { ...poi, position: [x, poi.position[1], z] } : poi));
+    this.poiEntities.get(poiId)?.setPosition(x, this.pois.find((poi) => poi.id === poiId)!.position[1], z);
   }
 
   /** Replace the POI set (e.g. after editing) without reloading the scene. */
@@ -364,6 +437,9 @@ export class PlayCanvasViewer {
     this.canvas.removeEventListener('mousemove', this.onCanvasPointerMove);
     this.canvas.removeEventListener('mouseleave', this.onCanvasPointerLeave);
     this.canvas.removeEventListener('click', this.onCanvasClick);
+    this.canvas.removeEventListener('mousedown', this.onCanvasMouseDown);
+    this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+    window.removeEventListener('mouseup', this.onWindowMouseUp);
     document.exitPointerLock();
     this.loadedAssets.forEach((asset) => {
       asset.unload();
@@ -643,7 +719,36 @@ export class PlayCanvasViewer {
     this.zoneEntities.set(poiId, { entity, material });
   }
 
+  /** Edit mode only: approach points (stem from pin to floor, line to the approach cell) and the draft zone. */
+  private drawEditorOverlay(): void {
+    if (!this.editMode) return;
+    const y = this.floorY + 0.03;
+    const approach = new Color(0.2, 0.55, 1);
+    this.pois.forEach((poi) => {
+      const [px, py, pz] = poi.position;
+      const [ax, , az] = poi.approachPoint;
+      this.app.drawLines([
+        new PcVec3(px, py, pz), new PcVec3(px, y, pz),
+        new PcVec3(px, y, pz), new PcVec3(ax, y, az),
+        new PcVec3(ax - 0.12, y, az), new PcVec3(ax + 0.12, y, az),
+        new PcVec3(ax, y, az - 0.12), new PcVec3(ax, y, az + 0.12),
+      ], approach, false);
+    });
+    const draft = this.draftZone;
+    if (draft.length > 0) {
+      const color = new Color(1, 0.85, 0.2);
+      const points: PcVec3[] = [];
+      draft.forEach(([x, z], i) => {
+        points.push(new PcVec3(x - 0.08, y, z), new PcVec3(x + 0.08, y, z), new PcVec3(x, y, z - 0.08), new PcVec3(x, y, z + 0.08));
+        const next = draft[i + 1] ?? (draft.length >= 3 ? draft[0] : null);
+        if (next) points.push(new PcVec3(x, y, z), new PcVec3(next[0], y, next[1]));
+      });
+      this.app.drawLines(points, color, false);
+    }
+  }
+
   private drawZoneOutlines(): void {
+    this.drawEditorOverlay();
     const y = this.floorY + 0.03;
     this.pois.forEach((poi) => {
       if (!poi.zone || !this.zoneEntities.has(poi.id)) return;
@@ -663,8 +768,12 @@ export class PlayCanvasViewer {
    */
   private updatePoiOverlay(): void {
     const cameraComponent = this.camera.camera;
-    if (!cameraComponent || this.poiEntities.size === 0) return;
+    if (!cameraComponent) return;
     this.drawZoneOutlines();
+    if (this.poiEntities.size === 0) {
+      this.hitTargets = [];
+      return;
+    }
     const { width, height } = this.app.graphicsDevice.clientRect;
     if (width === 0 || height === 0) return;
     const focal = focalLengthPx(height, CAMERA_FOV);

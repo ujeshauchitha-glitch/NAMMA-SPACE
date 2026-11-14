@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
 import { findRoute, measureRouteMetres, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
-import type { SceneBundle, Vec3 } from '../../types/scene';
+import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
 import type { PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { useWorkspaceStore } from '../../state/workspaceContext';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
@@ -14,6 +14,9 @@ import { SceneErrorPanel } from './SceneErrorPanel';
 import { PoiSearch } from './PoiSearch';
 import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
+import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
+import { approachIsWalkable, clearDraft, createPoi, exportPois, importPois, loadDraft, movePoi, saveDraft, type EditorContext } from '../../lib/poiEditor';
+import type { FloorPoint } from '../../lib/poiIndex';
 import { SceneDossier } from './SceneDossier';
 import { Hud } from './Hud';
 import { usePointerLock } from './usePointerLock';
@@ -75,6 +78,14 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   // POI card opened from the 3D view (pin, label or zone click), and the POI under the cursor/crosshair.
   const [cardPoiId, setCardPoiId] = useState<string | null>(null);
   const [hoveredPoiId, setHoveredPoiId] = useState<string | null>(null);
+  // In-app POI editor (toggle, or ?edit=1). A draft lives in localStorage per scene and, while it
+  // exists, replaces the scene's shipped POIs everywhere in this browser.
+  const [editMode, setEditMode] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1');
+  const [draftPois, setDraftPois] = useState<Poi[] | null>(null);
+  const [editTool, setEditTool] = useState<EditorTool>('select');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [zoneDraft, setZoneDraft] = useState<FloorPoint[]>([]);
+  const [editMessage, setEditMessage] = useState<string | null>(null);
   const [position, setPosition] = useState<Vec3>([0, 0, 0]);
   const [cell, setCell] = useState<GridCell>({ x: 0, z: 0 });
   const [viewerStatus, setViewerStatus] = useState('Loading scene bundle…');
@@ -154,6 +165,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     try {
       const nextBundle = await loadSceneBundle(sceneUrl);
       setBundle(nextBundle);
+      setDraftPois(loadDraft(typeof window === 'undefined' ? undefined : window.localStorage, nextBundle.manifest.sceneId));
+      setEditingId(null);
+      setZoneDraft([]);
       setIsViewerReady(false);
       setSelectedPoiId(null);
       setPosition(nextBundle.manifest.startPosition);
@@ -286,14 +300,15 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     setCardPoiId((current) => (current && current !== selectedPoiId ? null : current));
   }, [selectedPoiId]);
 
-  const selectedPoi = bundle?.pois.find((poi) => poi.id === selectedPoiId) ?? null;
-  const cardPoi = bundle?.pois.find((poi) => poi.id === cardPoiId) ?? null;
+  const scenePois = useMemo(() => draftPois ?? bundle?.pois ?? [], [draftPois, bundle?.pois]);
+  const selectedPoi = scenePois.find((poi) => poi.id === selectedPoiId) ?? null;
+  const cardPoi = scenePois.find((poi) => poi.id === cardPoiId) ?? null;
   // Recomputed when the visitor moves to another grid cell, not on every sub-cell step.
   const cardWalkMetres = useMemo(
     () => (cardPoi && bundle?.navigation ? walkingDistance(bundle.navigation, position, cardPoi) : undefined),
     [cardPoi, bundle?.navigation, cell.x, cell.z],
   );
-  const results = useMemo(() => searchPois(bundle?.pois ?? [], query), [bundle?.pois, query]);
+  const results = useMemo(() => searchPois(scenePois, query), [scenePois, query]);
   const hasGlbVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'glb' || asset.kind === 'gltf') ?? false;
   const hasSplatVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog') ?? false;
   const sceneOrigin = bundle?.manifest.sceneKind === 'reconstructed-capture' ? 'reconstructed capture' : 'synthetic';
@@ -330,6 +345,94 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     if (viaCrosshair) document.exitPointerLock();
   }, []);
   const handlePoiHover = useCallback((poiId: string | null) => setHoveredPoiId(poiId), []);
+
+  /* ---------------- POI editor ---------------- */
+
+  const editorContext: EditorContext | null = bundle
+    ? { grid: bundle.navigation, floorY: bundle.manifest.bounds.min[1], eyeY: bundle.manifest.startPosition[1] }
+    : null;
+  /** Apply an edit to the draft (starting one from the shipped POIs on the first edit). */
+  const editPois = (change: (pois: Poi[]) => Poi[]) => setDraftPois((current) => change(current ?? bundle?.pois ?? []));
+
+  // Keep the engine's POIs in step with the draft without reloading the scene.
+  useEffect(() => {
+    if (isViewerReady) viewerRef.current?.setPois(scenePois);
+  }, [isViewerReady, scenePois]);
+  useEffect(() => {
+    if (isViewerReady) viewerRef.current?.setEditMode(editMode);
+  }, [isViewerReady, editMode]);
+  useEffect(() => {
+    if (isViewerReady) viewerRef.current?.setDraftZone(editMode && editTool === 'zone' ? zoneDraft : []);
+  }, [isViewerReady, editMode, editTool, zoneDraft]);
+  // Autosave the draft per scene.
+  useEffect(() => {
+    if (draftPois && bundle) saveDraft(window.localStorage, bundle.manifest.sceneId, draftPois);
+  }, [draftPois, bundle]);
+
+  const handleEditClick = (floor: FloorPoint | null, poiId: string | null) => {
+    if (!editorContext) return;
+    setEditMessage(null);
+    if (editTool === 'place') {
+      if (!floor) return setEditMessage('Click on the floor to place a POI.');
+      const created = createPoi(editorContext, floor, scenePois);
+      editPois((pois) => [...pois, created]);
+      setEditingId(created.id);
+      setEditTool('select');
+      return;
+    }
+    if (editTool === 'zone') {
+      if (floor) setZoneDraft((points) => [...points, floor]);
+      return;
+    }
+    if (poiId) setEditingId(poiId);
+  };
+  const handleEditMoveEnd = (poiId: string, floor: FloorPoint) => {
+    if (!editorContext) return;
+    editPois((pois) => pois.map((poi) => (poi.id === poiId ? movePoi(editorContext, poi, floor) : poi)));
+    setEditingId(poiId);
+  };
+  // Stable identities for the engine (its mount effect depends on them); the latest handlers live in a ref.
+  const editHandlersRef = useRef({ click: handleEditClick, moveEnd: handleEditMoveEnd });
+  useEffect(() => {
+    editHandlersRef.current = { click: handleEditClick, moveEnd: handleEditMoveEnd };
+  });
+  const onEditClick = useCallback((floor: FloorPoint | null, poiId: string | null) => editHandlersRef.current.click(floor, poiId), []);
+  const onEditMoveEnd = useCallback((poiId: string, floor: FloorPoint) => editHandlersRef.current.moveEnd(poiId, floor), []);
+
+  const handleExport = () => {
+    try {
+      const blob = new Blob([exportPois(scenePois)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'pois.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      setEditMessage(`Exported ${scenePois.length} POIs. Put the file at semantic/pois.json in the scene bundle.`);
+    } catch (error) {
+      setEditMessage(`Cannot export yet: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+    }
+  };
+  const handleImport = (file: File) => {
+    void file.text().then((text) => {
+      try {
+        const imported = importPois(text);
+        setDraftPois(imported);
+        setEditingId(null);
+        setEditMessage(`Imported ${imported.length} POIs from ${file.name}.`);
+      } catch (error) {
+        setEditMessage(error instanceof Error ? error.message : String(error));
+      }
+    });
+  };
+  const handleDiscard = () => {
+    if (bundle) clearDraft(window.localStorage, bundle.manifest.sceneId);
+    setDraftPois(null);
+    setEditingId(null);
+    setZoneDraft([]);
+    setEditMessage('Draft discarded; showing the shipped POIs.');
+  };
+  const editingPoi = scenePois.find((poi) => poi.id === editingId) ?? null;
   // T17 · compass needle samples the live pose; [] keeps a stable identity.
   const getYaw = useCallback(() => viewerRef.current?.getPose().yawDegrees ?? null, []);
 
@@ -345,7 +448,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
-    if (selectedPoiId && !searchPois(bundle?.pois ?? [], nextQuery).some((poi) => poi.id === selectedPoiId)) {
+    if (selectedPoiId && !searchPois(scenePois, nextQuery).some((poi) => poi.id === selectedPoiId)) {
       setSelectedPoiId(null);
       viewerRef.current?.selectPoi(null);
     }
@@ -431,6 +534,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               <StatusPill state={bundle?.quality.status === 'passed' ? 'validated' : 'needs-review'}>
                 {bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}
               </StatusPill>
+              <Button variant={editMode ? 'primary' : 'quiet'} aria-pressed={editMode} onClick={() => setEditMode((on) => !on)}>
+                {editMode ? 'Done editing' : 'Edit POIs'}
+              </Button>
               <Button variant="quiet" onClick={() => void loadScene()}>Reload bundle</Button>
             </div>
           </header>
@@ -472,6 +578,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     labelLayerRef={labelLayerRef}
                     onPoiClick={handlePoiClick}
                     onPoiHover={handlePoiHover}
+                    onEditClick={onEditClick}
+                    onEditMoveEnd={onEditMoveEnd}
                   />
                 )}
                 <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" />
@@ -514,6 +622,47 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
         </div>
 
         <aside className={styles.rail}>
+          {editMode && (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}>
+                <div>
+                  <p className={styles.eyebrow}>POI editor</p>
+                  <h2 className={styles.panelTitle}>Edit points of interest</h2>
+                </div>
+              </div>
+              <PoiEditorPanel
+                pois={scenePois}
+                selectedId={editingId}
+                tool={editTool}
+                zonePointCount={zoneDraft.length}
+                approachWalkable={editingPoi ? approachIsWalkable(bundle?.navigation ?? null, editingPoi) : true}
+                hasDraft={draftPois !== null}
+                message={editMessage}
+                onTool={(tool) => {
+                  setEditTool(tool);
+                  setZoneDraft([]);
+                }}
+                onSelect={setEditingId}
+                onChange={(changed) => editPois((pois) => pois.map((poi) => (poi.id === changed.id ? changed : poi)))}
+                onDelete={(poiId) => {
+                  editPois((pois) => pois.filter((poi) => poi.id !== poiId));
+                  setEditingId(null);
+                }}
+                onFinishZone={() => {
+                  if (!editingId || zoneDraft.length < 3) return;
+                  const zone = zoneDraft;
+                  editPois((pois) => pois.map((poi) => (poi.id === editingId ? { ...poi, zone } : poi)));
+                  setZoneDraft([]);
+                  setEditTool('select');
+                }}
+                onCancelZone={() => setZoneDraft([])}
+                onRemoveZone={(poiId) => editPois((pois) => pois.map((poi) => (poi.id === poiId ? { ...poi, zone: undefined } : poi)))}
+                onExport={handleExport}
+                onImport={handleImport}
+                onDiscard={handleDiscard}
+              />
+            </section>
+          )}
           <section className={styles.panel}>
             <div className={styles.panelHeading}>
               <div>

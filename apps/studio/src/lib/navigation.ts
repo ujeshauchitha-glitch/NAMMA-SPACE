@@ -251,3 +251,29 @@ export function walkingDistance(grid: NavigationGrid, from: Vec3, poi: Pick<Poi,
   const route = findRoute(grid, worldToCell(grid, from), worldToCell(grid, poi.approachPoint));
   return route.ok ? measureRouteMetres(route.world) : null;
 }
+
+/**
+ * Nearest walkable cell to `cell` by breadth-first search over the grid (4-connected), or null when the
+ * grid has no walkable cell within `maxRadius` cells. Used to snap POI approach points onto the floor
+ * a visitor can actually reach.
+ */
+export function nearestWalkableCell(grid: NavigationGrid, cell: GridCell, maxRadius = Math.max(grid.width, grid.height)): GridCell | null {
+  const clamp = (value: number, max: number) => Math.min(max - 1, Math.max(0, value));
+  const origin = { x: clamp(cell.x, grid.width), z: clamp(cell.z, grid.height) };
+  // Start from the nearest in-grid cell, but measure the search radius from the requested cell.
+  const seen = new Set<number>([origin.z * grid.width + origin.x]);
+  const queue: GridCell[] = [origin];
+  for (let head = 0; head < queue.length; head += 1) {
+    const current = queue[head];
+    if (isWalkable(grid, current)) return current;
+    if (Math.max(Math.abs(current.x - cell.x), Math.abs(current.z - cell.z)) >= maxRadius) continue;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const next = { x: current.x + dx, z: current.z + dz };
+      const index = next.z * grid.width + next.x;
+      if (!isInside(grid, next) || seen.has(index)) continue;
+      seen.add(index);
+      queue.push(next);
+    }
+  }
+  return null;
+}
