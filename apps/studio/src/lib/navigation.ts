@@ -1,3 +1,4 @@
+import { rankPois } from './poiSearch';
 import type { NavigationGrid, Poi, Vec3 } from '../types/scene';
 
 export type GridCell = { x: number; z: number };
@@ -330,18 +331,10 @@ export function measureRouteMetres(world: Vec3[]): number {
   return total;
 }
 
+/** Ranked, typo-tolerant search (see poiSearch.ts); kept for callers that only need the POIs. */
 export function searchPois(pois: Poi[], query: string): Poi[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return pois;
-  return pois
-    .map((poi) => {
-      const haystack = [poi.label, poi.category, poi.description ?? '', ...poi.aliases].join(' ').toLowerCase();
-      const score = haystack.startsWith(normalized) ? 2 : haystack.includes(normalized) ? 1 : 0;
-      return { poi, score };
-    })
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score || a.poi.label.localeCompare(b.poi.label))
-    .map(({ poi }) => poi);
+  if (!query.trim()) return pois;
+  return rankPois(pois, query).map(({ poi }) => poi);
 }
 
 /**

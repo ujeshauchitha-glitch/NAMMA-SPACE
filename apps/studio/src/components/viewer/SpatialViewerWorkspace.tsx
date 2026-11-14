@@ -4,7 +4,8 @@ import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
-import { measureRouteMetres, planRoute, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
+import { measureRouteMetres, planRoute, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
+import { rankPois, suggestLabels, type PoiCategory } from '../../lib/poiSearch';
 import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
 import type { GuidanceUpdate, PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { GuidancePanel } from './GuidancePanel';
@@ -75,6 +76,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [bundle, setBundle] = useState<SceneBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [searchCategory, setSearchCategory] = useState<PoiCategory | null>(null);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   // POI card opened from the 3D view (pin, label or zone click), and the POI under the cursor/crosshair.
   const [cardPoiId, setCardPoiId] = useState<string | null>(null);
@@ -267,6 +269,14 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         searchInputRef.current?.focus();
+        return;
+      }
+      // "/" focuses search too, unless the visitor is typing somewhere or walking in pointer lock.
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && document.pointerLockElement === null) {
+        const target = event.target as HTMLElement | null;
+        if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+        event.preventDefault();
+        searchInputRef.current?.focus();
       }
     };
     window.addEventListener('keydown', onShortcut);
@@ -315,12 +325,34 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     [cardPoi, bundle?.navigation, cell.x, cell.z],
   );
   const poiIndex = useMemo(() => new PoiSpatialIndex(scenePois), [scenePois]);
-  // With an empty search the list is ordered nearest-first from where the visitor stands.
+  // Walking distance (route length, not straight line) from the visitor to each POI, computed lazily and
+  // forgotten when the visitor changes grid cell.
+  const distanceOf = useMemo(() => {
+    const cache = new Map<string, number | null>();
+    const grid = bundle?.navigation;
+    return (poi: { id: string; approachPoint: Vec3 }) => {
+      if (!grid) return null;
+      if (!cache.has(poi.id)) cache.set(poi.id, walkingDistance(grid, position, poi));
+      return cache.get(poi.id) ?? null;
+    };
+  }, [bundle?.navigation, scenePois, cell.x, cell.z]);
+  // Ranked by relevance then walking distance; an empty search lists everything nearest-first.
   const results = useMemo(
-    () => (query.trim() ? searchPois(scenePois, query) : poiIndex.nearest(position[0], position[2], scenePois.length)),
-    // Re-sorted when the visitor changes grid cell, not on every sub-cell step.
-    [scenePois, poiIndex, query, cell.x, cell.z],
+    () => rankPois(scenePois, query, { category: searchCategory, distanceOf }),
+    [scenePois, query, searchCategory, distanceOf],
   );
+  const searchCategories = useMemo(() => {
+    const counts = new Map<PoiCategory, number>();
+    for (const poi of scenePois) counts.set(poi.category, (counts.get(poi.category) ?? 0) + 1);
+    return [...counts].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+  }, [scenePois]);
+  // Empty state: close spellings first, else the nearest destinations to try.
+  const searchSuggestions = useMemo(() => {
+    if (results.length > 0 || !query.trim()) return { labels: [], kind: 'did-you-mean' as const };
+    const close = suggestLabels(scenePois, query);
+    if (close.length > 0) return { labels: close, kind: 'did-you-mean' as const };
+    return { labels: rankPois(scenePois, '', { distanceOf }).slice(0, 3).map(({ poi }) => poi.label), kind: 'nearby' as const };
+  }, [results.length, query, scenePois, distanceOf]);
   const cardNearby = useMemo(
     () => (cardPoi ? poiIndex.within(cardPoi.position[0], cardPoi.position[2], 3).filter((poi) => poi.id !== cardPoi.id).slice(0, 3).map((poi) => poi.label) : []),
     [cardPoi, poiIndex],
@@ -465,7 +497,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
-    if (selectedPoiId && !searchPois(scenePois, nextQuery).some((poi) => poi.id === selectedPoiId)) {
+    if (selectedPoiId && nextQuery.trim() && !rankPois(scenePois, nextQuery, { category: searchCategory }).some(({ poi }) => poi.id === selectedPoiId)) {
       setSelectedPoiId(null);
       viewerRef.current?.selectPoi(null);
     }
@@ -703,6 +735,11 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               onQueryChange={handleQueryChange}
               onSelect={selectPoi}
               inputRef={searchInputRef}
+              categories={searchCategories}
+              category={searchCategory}
+              onCategoryChange={setSearchCategory}
+              suggestions={searchSuggestions.labels}
+              suggestionsKind={searchSuggestions.kind}
             />
             {selectedPoi && (
               <DestinationDetail
