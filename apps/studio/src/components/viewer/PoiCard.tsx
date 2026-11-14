@@ -14,6 +14,8 @@ export type PoiCardProps = {
   poi: Poi;
   /** Metres along the grid; null = no route; undefined = scene has no navigation grid. */
   walkMetres: number | null | undefined;
+  /** Labels of other POIs within a few metres (from the spatial index). */
+  nearby?: string[];
   disabled: boolean;
   onRoute: () => void;
   onGoTo: () => void;
@@ -21,7 +23,7 @@ export type PoiCardProps = {
 };
 
 /** Card opened by clicking a POI pin, label or zone in the 3D view. Esc (in the workspace) closes it. */
-export function PoiCard({ poi, walkMetres, disabled, onRoute, onGoTo, onClose }: PoiCardProps) {
+export function PoiCard({ poi, walkMetres, nearby = [], disabled, onRoute, onGoTo, onClose }: PoiCardProps) {
   const routable = walkMetres !== undefined && walkMetres !== null;
   return (
     <div className={styles.poiCard} role="dialog" aria-label={`${poi.label} details`} data-testid="poi-card">
@@ -34,6 +36,7 @@ export function PoiCard({ poi, walkMetres, disabled, onRoute, onGoTo, onClose }:
       </div>
       {poi.description && <p className={styles.poiCardText}>{poi.description}</p>}
       <p className={styles.poiCardWalk}>{formatWalk(walkMetres)}</p>
+      {nearby.length > 0 && <p className={styles.poiCardWalk}>{`Nearby: ${nearby.join(', ')}`}</p>}
       <div className={styles.poiCardActions}>
         <Button onClick={onRoute} disabled={disabled || !routable}>Route here</Button>
         <Button variant="quiet" onClick={onGoTo} disabled={disabled || walkMetres === undefined}>Go to view</Button>

@@ -16,7 +16,7 @@ import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
 import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
 import { approachIsWalkable, clearDraft, createPoi, exportPois, importPois, loadDraft, movePoi, saveDraft, type EditorContext } from '../../lib/poiEditor';
-import type { FloorPoint } from '../../lib/poiIndex';
+import { PoiSpatialIndex, type FloorPoint } from '../../lib/poiIndex';
 import { SceneDossier } from './SceneDossier';
 import { Hud } from './Hud';
 import { usePointerLock } from './usePointerLock';
@@ -308,7 +308,17 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     () => (cardPoi && bundle?.navigation ? walkingDistance(bundle.navigation, position, cardPoi) : undefined),
     [cardPoi, bundle?.navigation, cell.x, cell.z],
   );
-  const results = useMemo(() => searchPois(scenePois, query), [scenePois, query]);
+  const poiIndex = useMemo(() => new PoiSpatialIndex(scenePois), [scenePois]);
+  // With an empty search the list is ordered nearest-first from where the visitor stands.
+  const results = useMemo(
+    () => (query.trim() ? searchPois(scenePois, query) : poiIndex.nearest(position[0], position[2], scenePois.length)),
+    // Re-sorted when the visitor changes grid cell, not on every sub-cell step.
+    [scenePois, poiIndex, query, cell.x, cell.z],
+  );
+  const cardNearby = useMemo(
+    () => (cardPoi ? poiIndex.within(cardPoi.position[0], cardPoi.position[2], 3).filter((poi) => poi.id !== cardPoi.id).slice(0, 3).map((poi) => poi.label) : []),
+    [cardPoi, poiIndex],
+  );
   const hasGlbVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'glb' || asset.kind === 'gltf') ?? false;
   const hasSplatVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog') ?? false;
   const sceneOrigin = bundle?.manifest.sceneKind === 'reconstructed-capture' ? 'reconstructed capture' : 'synthetic';
@@ -590,6 +600,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   <PoiCard
                     poi={cardPoi}
                     walkMetres={cardWalkMetres}
+                    nearby={cardNearby}
                     disabled={!isViewerReady}
                     onRoute={handleRoute}
                     onGoTo={handleJump}

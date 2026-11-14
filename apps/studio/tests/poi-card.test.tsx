@@ -34,4 +34,12 @@ describe('POI card', () => {
     expect(formatWalk(23.6)).toBe('24 m walk from where you are');
     expect(formatWalk(null)).toBe('No walkable route from where you are');
   });
+
+  it('lists nearby POIs when the spatial index finds some', () => {
+    const html = renderToStaticMarkup(
+      <PoiCard poi={poi} walkMetres={3} nearby={['Window', 'Shelf']} disabled={false} onRoute={() => {}} onGoTo={() => {}} onClose={() => {}} />,
+    );
+    expect(html).toContain('Nearby: Window, Shelf');
+    expect(card(3)).not.toContain('Nearby:');
+  });
 });
