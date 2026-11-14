@@ -24,7 +24,9 @@ test.describe('Namma Space browser journey', () => {
     await expect(page.getByRole('option', { name: /Registration Desk/ })).toBeVisible();
     await page.getByRole('option', { name: /Registration Desk/ }).click();
     await expect(page.getByText('Selected destination')).toBeVisible();
-    await expect(page.getByText('Registration Desk', { exact: true })).toHaveCount(2);
+    // Search option + destination detail in the rail; the 3D view also carries the POI's own label.
+    await expect(page.locator('aside').getByText('Registration Desk', { exact: true })).toHaveCount(2);
+    await expect(page.locator('.poi-label', { hasText: 'Registration Desk' })).toHaveCount(1);
 
     await page.getByRole('button', { name: /Plot route/ }).click();
     await expect(page.getByText(/Route ready/)).toBeVisible();

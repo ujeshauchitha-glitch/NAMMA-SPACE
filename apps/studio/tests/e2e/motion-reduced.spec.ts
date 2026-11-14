@@ -74,6 +74,8 @@ test.describe('reduced motion (T23/T24)', () => {
           const readTransforms = (): Map<Element, string> => {
             const map = new Map<Element, string>();
             for (const element of document.querySelectorAll('*')) {
+              // 3D-anchored overlays (POI labels) follow the camera and canvas size; they are content, not motion.
+              if (element.closest('[data-tracks-3d]')) continue;
               const transform = getComputedStyle(element).transform;
               if (transform && transform !== 'none') map.set(element, transform);
             }

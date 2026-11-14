@@ -592,7 +592,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     onEditMoveEnd={onEditMoveEnd}
                   />
                 )}
-                <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" />
+                <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" data-tracks-3d="" />
                 {isWalkthroughActive && (
                   <div className={`${styles.crosshair} ${hoveredPoiId ? styles.crosshairActive : ''}`} aria-hidden="true" />
                 )}
