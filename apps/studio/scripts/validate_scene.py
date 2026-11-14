@@ -193,6 +193,19 @@ def main() -> int:
         start_index = start["z"] * width + start["x"]
         if start_index in all_indices:
             fail("navigation start cell is blocked")
+        # Route here / Go to view need a POI's approach point on a walkable cell (blocked and unknown
+        # cells are not walkable, matching src/lib/navigation.ts).
+        occupied = set(all_indices)
+        origin = navigation.get("origin") or {}
+        cell_size = navigation.get("cellSize")
+        for poi in pois:
+            approach = poi.get("approachPoint")
+            if not isinstance(approach, list) or len(approach) != 3:
+                fail(f"POI {poi.get('id')!r} has no approachPoint [x, y, z]")
+            cx = math.floor((approach[0] - origin.get("x", 0)) / cell_size)
+            cz = math.floor((approach[2] - origin.get("z", 0)) / cell_size)
+            if not (0 <= cx < width and 0 <= cz < height) or cz * width + cx in occupied:
+                fail(f"POI {poi.get('id')!r} approach point ({approach[0]:.2f}, {approach[2]:.2f}) is not on a walkable cell")
 
     quality = load_json(root / manifest["qualityUri"], "Quality report")
     if quality.get("status") not in {"passed", "needs-review", "failed"}:

@@ -25,10 +25,76 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
+from collections import deque
 from pathlib import Path
 
 VALID_CATEGORIES = ["room", "service", "landmark", "furniture", "entrance", "other"]
+DEFAULT_EYE_HEIGHT = 1.45
+
+
+class Grid:
+    """Navigation grid (grid.json): blocked and unknown cells are not walkable, as in the viewer."""
+
+    def __init__(self, data: dict):
+        self.width = data["width"]
+        self.height = data["height"]
+        self.cell = data["cellSize"]
+        self.ox = data["origin"]["x"]
+        self.oz = data["origin"]["z"]
+        self.occupied = set(data.get("blocked", [])) | set(data.get("unknown", []))
+
+    def cell_of(self, x: float, z: float) -> tuple[int, int]:
+        return math.floor((x - self.ox) / self.cell), math.floor((z - self.oz) / self.cell)
+
+    def walkable(self, cx: int, cz: int) -> bool:
+        return 0 <= cx < self.width and 0 <= cz < self.height and cz * self.width + cx not in self.occupied
+
+    def nearest_walkable(self, x: float, z: float) -> tuple[float, float] | None:
+        """Centre of the walkable cell nearest to (x, z) by breadth-first search, or None."""
+        cx, cz = self.cell_of(x, z)
+        start = (min(self.width - 1, max(0, cx)), min(self.height - 1, max(0, cz)))
+        seen = {start}
+        queue = deque([start])
+        while queue:
+            gx, gz = queue.popleft()
+            if self.walkable(gx, gz):
+                return self.ox + (gx + 0.5) * self.cell, self.oz + (gz + 0.5) * self.cell
+            for nx, nz in ((gx + 1, gz), (gx - 1, gz), (gx, gz + 1), (gx, gz - 1)):
+                if 0 <= nx < self.width and 0 <= nz < self.height and (nx, nz) not in seen:
+                    seen.add((nx, nz))
+                    queue.append((nx, nz))
+        return None
+
+
+def find_scene(output: Path) -> tuple[Path | None, float | None]:
+    """For <scene>/semantic/pois.json, the scene's grid.json and its start (eye) height, if declared."""
+    manifest_path = output.resolve().parent.parent / "manifest.json"
+    if not manifest_path.is_file():
+        return None, None
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    nav = manifest.get("navigationUri")
+    start = manifest.get("startPosition")
+    eye = float(start[1]) if isinstance(start, list) and len(start) == 3 else None
+    return (manifest_path.parent / nav if nav else None), eye
+
+
+def snap_approach(grid: Grid | None, x: float, z: float, y: float, label: str, explicit: bool) -> list[float]:
+    """Approach point for a POI at (x, z): the nearest walkable cell centre at height y.
+
+    Without a grid the point is kept as given (or placed at the POI) and cannot be checked."""
+    if grid is None:
+        return [x, y, z]
+    if explicit and grid.walkable(*grid.cell_of(x, z)):
+        return [x, y, z]
+    snapped = grid.nearest_walkable(x, z)
+    if snapped is None:
+        print(f"  WARNING: no walkable cell for '{label}'; approach point left at ({x:.2f}, {z:.2f}).", file=sys.stderr)
+        return [x, y, z]
+    if explicit:
+        print(f"  '{label}': approach ({x:.2f}, {z:.2f}) is not walkable; snapped to ({snapped[0]:.2f}, {snapped[1]:.2f}).", file=sys.stderr)
+    return [round(snapped[0], 4), y, round(snapped[1], 4)]
 
 
 def slugify(label: str) -> str:
@@ -61,7 +127,7 @@ def prompt_category() -> str:
         print(f"  Must be one of: {cats_display}")
 
 
-def prompt_poi(index: int) -> dict:
+def prompt_poi(index: int, grid: Grid | None = None, eye: float = DEFAULT_EYE_HEIGHT) -> dict:
     print(f"\n-- POI #{index + 1} --")
     label = input("  Label (e.g. 'Reception Desk'): ").strip()
     if not label:
@@ -72,7 +138,9 @@ def prompt_poi(index: int) -> dict:
     print("  Position [x y z] — world-space centre of the POI marker:")
     position = prompt_float3("  x y z", (0.0, 0.9, 0.0))
     print("  Approach point [x y z] — where the player should stand to face this POI:")
-    approach = prompt_float3("  x y z", (position[0], position[1], position[2] + 1.0))
+    suggested = snap_approach(grid, position[0], position[2], eye, label, explicit=False)
+    approach = prompt_float3("  x y z", (suggested[0], suggested[1], suggested[2]))
+    approach = snap_approach(grid, approach[0], approach[2], approach[1], label, explicit=True)
     aliases_raw = input("  Aliases (comma-separated, or leave blank): ").strip()
     aliases = [a.strip() for a in aliases_raw.split(",") if a.strip()] if aliases_raw else []
     description = input("  Description (optional): ").strip() or None
@@ -99,14 +167,15 @@ def prompt_poi(index: int) -> dict:
     return poi
 
 
-def load_batch_csv(path: Path) -> list[dict]:
+def load_batch_csv(path: Path, grid: Grid | None = None, eye: float = DEFAULT_EYE_HEIGHT) -> list[dict]:
     """Load POIs from a CSV file.
 
     Expected columns (header required):
         id, label, category, px, py, pz, ax, ay, az, aliases, confidence, room_id, description
 
     All position columns are floats. aliases is a pipe-separated list.
-    Missing optional columns are silently skipped.
+    Missing optional columns are silently skipped. Without ax/az the approach point is the walkable
+    cell nearest the POI (with a grid); a given approach point that is not walkable is snapped.
     """
     pois = []
     with path.open(newline="", encoding="utf-8") as fh:
@@ -121,12 +190,18 @@ def load_batch_csv(path: Path) -> list[dict]:
             if category not in VALID_CATEGORIES:
                 print(f"  Row {i}: unknown category '{category}', using 'other'.", file=sys.stderr)
                 category = "other"
+            def number(key: str, default: float) -> float:
+                value = (row.get(key) or "").strip()
+                return float(value) if value else default
+
             try:
-                px, py, pz = float(row.get("px", 0)), float(row.get("py", 0.9)), float(row.get("pz", 0))
-                ax, ay, az = float(row.get("ax", px)), float(row.get("ay", py)), float(row.get("az", pz + 1.0))
+                px, py, pz = number("px", 0.0), number("py", 0.9), number("pz", 0.0)
+                explicit = bool((row.get("ax") or "").strip() or (row.get("az") or "").strip())
+                ax, ay, az = number("ax", px), number("ay", eye), number("az", pz)
             except ValueError:
                 print(f"  Row {i}: invalid position floats, using zeros.", file=sys.stderr)
-                px, py, pz, ax, ay, az = 0.0, 0.9, 0.0, 0.0, 0.9, 1.0
+                px, py, pz, ax, ay, az, explicit = 0.0, 0.9, 0.0, 0.0, eye, 0.0, False
+            ax, ay, az = snap_approach(grid, ax, az, ay, label, explicit)
             aliases_raw = row.get("aliases", "").strip()
             aliases = [a.strip() for a in aliases_raw.split("|") if a.strip()] if aliases_raw else []
             try:
@@ -159,7 +234,17 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="Output path for pois.json.")
     parser.add_argument("--batch", type=Path, help="Load POIs from a CSV file instead of interactive entry.")
     parser.add_argument("--append", action="store_true", help="Append to an existing pois.json instead of overwriting.")
+    parser.add_argument("--grid", type=Path, help="Navigation grid.json used to snap approach points onto walkable floor "
+                        "(default: the scene's grid when --output is <scene>/semantic/pois.json).")
+    parser.add_argument("--eye-height", type=float, help="Approach point height (default: the scene's start height, else 1.45).")
     args = parser.parse_args()
+
+    scene_grid, scene_eye = find_scene(args.output)
+    grid_path = args.grid or scene_grid
+    grid = Grid(json.loads(grid_path.read_text(encoding="utf-8"))) if grid_path and grid_path.is_file() else None
+    eye = args.eye_height if args.eye_height is not None else (scene_eye if scene_eye is not None else DEFAULT_EYE_HEIGHT)
+    if grid is None:
+        print("NOTE: no navigation grid given (--grid); approach points cannot be checked for walkability.", file=sys.stderr)
 
     pois: list[dict] = []
 
@@ -181,7 +266,7 @@ def main() -> int:
             print(f"ERROR: CSV file not found: {args.batch}", file=sys.stderr)
             return 2
         try:
-            batch_pois = load_batch_csv(args.batch)
+            batch_pois = load_batch_csv(args.batch, grid, eye)
             print(f"Loaded {len(batch_pois)} POIs from CSV.")
             pois.extend(batch_pois)
         except (OSError, csv.Error) as err:
@@ -197,7 +282,7 @@ def main() -> int:
 
         index = len(pois)
         while True:
-            poi = prompt_poi(index)
+            poi = prompt_poi(index, grid, eye)
             if not poi:
                 break
             pois.append(poi)

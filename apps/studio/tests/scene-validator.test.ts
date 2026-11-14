@@ -215,3 +215,29 @@ describe('validate_scene.py POI zones', () => {
     expect(run.output).toContain('has no area');
   });
 });
+
+describe('validate_scene.py POI approach points', () => {
+  it('fails when a POI approach point is on a blocked cell', () => {
+    const run = runValidator((dir) => {
+      const nav = JSON.parse(readFileSync(join(dir, 'navigation', 'nav-data.json'), 'utf8')) as {
+        width: number; cellSize: number; origin: { x: number; z: number }; blocked: number[];
+      };
+      const index = nav.blocked[0];
+      const x = nav.origin.x + ((index % nav.width) + 0.5) * nav.cellSize;
+      const z = nav.origin.z + (Math.floor(index / nav.width) + 0.5) * nav.cellSize;
+      editPois(dir, (pois) => {
+        pois[0].approachPoint = [x, 1.6, z];
+      });
+    });
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('is not on a walkable cell');
+  });
+
+  it('fails when a POI approach point is outside the grid', () => {
+    const run = runValidator((dir) => editPois(dir, (pois) => {
+      pois[0].approachPoint = [500, 1.6, 500];
+    }));
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('is not on a walkable cell');
+  });
+});
