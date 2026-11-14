@@ -488,7 +488,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       setRouteState({
         status: 'ok',
         // Raw metres; RouteStatus rounds once at display time (review F5).
-        metres: measureRouteMetres(result.world),
+        metres: measureRouteMetres(result.path),
         cells: result.cells.length,
       });
       return;

@@ -3,7 +3,8 @@ import type { NavigationGrid, Poi, Vec3 } from '../types/scene';
 export type GridCell = { x: number; z: number };
 
 export type RouteResult =
-  | { ok: true; cells: GridCell[]; world: Vec3[] }
+  /** cells/world: the raw grid path (cell centres); path: the same route string-pulled (fewer, straight legs). */
+  | { ok: true; cells: GridCell[]; world: Vec3[]; path: Vec3[] }
   | { ok: false; reason: 'invalid-start' | 'invalid-goal' | 'unreachable' | 'invalid-grid'; detail: string };
 
 function isInside(grid: NavigationGrid, cell: GridCell): boolean {
@@ -243,7 +244,8 @@ export function findRoute(grid: NavigationGrid, start: GridCell, goal: GridCell)
       const cells: GridCell[] = [];
       for (let cursor = currentIndex; cursor !== -1; cursor = cameFrom[cursor]) cells.push({ x: cursor % width, z: Math.floor(cursor / width) });
       cells.reverse();
-      return { ok: true, cells, world: cells.map((cell) => cellToWorld(grid, cell)) };
+      const world = cells.map((cell) => cellToWorld(grid, cell));
+      return { ok: true, cells, world, path: smoothPath(grid, world) };
     }
     closed[currentIndex] = 1;
     const current = { x: currentIndex % width, z: Math.floor(currentIndex / width) };
@@ -348,7 +350,7 @@ export function searchPois(pois: Poi[], query: string): Poi[] {
  */
 export function walkingDistance(grid: NavigationGrid, from: Vec3, poi: Pick<Poi, 'approachPoint'>): number | null {
   const route = planRoute(grid, from, poi.approachPoint);
-  return route.ok ? measureRouteMetres(route.world) : null;
+  return route.ok ? measureRouteMetres(route.path) : null;
 }
 
 /**
@@ -375,4 +377,79 @@ export function nearestWalkableCell(grid: NavigationGrid, cell: GridCell, maxRad
     }
   }
   return null;
+}
+
+/**
+ * Grid line of sight between two world points on the floor: true when every cell the straight segment
+ * touches is walkable. Conservative at cell corners (a segment through a corner needs both side cells),
+ * so a smoothed route never clips a blocked or unknown cell, and the clearance baked into the grid holds.
+ */
+export function lineOfSight(grid: NavigationGrid, from: Vec3, to: Vec3): boolean {
+  // Continuous cell coordinates.
+  const ax = (from[0] - grid.origin.x) / grid.cellSize;
+  const az = (from[2] - grid.origin.z) / grid.cellSize;
+  const bx = (to[0] - grid.origin.x) / grid.cellSize;
+  const bz = (to[2] - grid.origin.z) / grid.cellSize;
+  let cx = Math.floor(ax);
+  let cz = Math.floor(az);
+  const endX = Math.floor(bx);
+  const endZ = Math.floor(bz);
+  if (!isWalkable(grid, { x: cx, z: cz })) return false;
+  const dx = bx - ax;
+  const dz = bz - az;
+  const stepX = Math.sign(dx);
+  const stepZ = Math.sign(dz);
+  const tDeltaX = stepX === 0 ? Infinity : Math.abs(1 / dx);
+  const tDeltaZ = stepZ === 0 ? Infinity : Math.abs(1 / dz);
+  let tMaxX = stepX === 0 ? Infinity : (stepX > 0 ? cx + 1 - ax : ax - cx) * tDeltaX;
+  let tMaxZ = stepZ === 0 ? Infinity : (stepZ > 0 ? cz + 1 - az : az - cz) * tDeltaZ;
+  const EPS = 1e-9;
+  let guard = Math.abs(endX - cx) + Math.abs(endZ - cz) + 4;
+  while ((cx !== endX || cz !== endZ) && guard > 0) {
+    guard -= 1;
+    if (Math.abs(tMaxX - tMaxZ) < EPS) {
+      // Through a corner: both side cells must be walkable, then step diagonally.
+      if (!isWalkable(grid, { x: cx + stepX, z: cz }) || !isWalkable(grid, { x: cx, z: cz + stepZ })) return false;
+      cx += stepX;
+      cz += stepZ;
+      tMaxX += tDeltaX;
+      tMaxZ += tDeltaZ;
+    } else if (tMaxX < tMaxZ) {
+      cx += stepX;
+      tMaxX += tDeltaX;
+    } else {
+      cz += stepZ;
+      tMaxZ += tDeltaZ;
+    }
+    if (tMaxX > 1 + EPS && tMaxZ > 1 + EPS && (cx !== endX || cz !== endZ)) {
+      // Floating-point drift past the end: finish on the end cell.
+      cx = endX;
+      cz = endZ;
+    }
+    if (!isWalkable(grid, { x: cx, z: cz })) return false;
+  }
+  return true;
+}
+
+/**
+ * String-pulling: from each kept waypoint, jump to the farthest later waypoint that is in line of
+ * sight. Every leg of the result therefore lies on walkable cells, and the result is never longer
+ * than the raw path (each leg replaces a detour between the same two points with a straight line).
+ */
+export function smoothPath(grid: NavigationGrid, points: Vec3[]): Vec3[] {
+  if (points.length <= 2) return points.slice();
+  const result: Vec3[] = [points[0]];
+  let anchor = 0;
+  while (anchor < points.length - 1) {
+    let next = anchor + 1;
+    for (let candidate = points.length - 1; candidate > anchor + 1; candidate -= 1) {
+      if (lineOfSight(grid, points[anchor], points[candidate])) {
+        next = candidate;
+        break;
+      }
+    }
+    result.push(points[next]);
+    anchor = next;
+  }
+  return result;
 }
