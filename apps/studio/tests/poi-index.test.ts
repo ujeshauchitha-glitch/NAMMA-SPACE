@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PoiSpatialIndex, pointInPolygon, polygonArea, polygonCentroid, type FloorPoint, type IndexedPoi } from '../src/lib/poiIndex';
+import { PoiSpatialIndex, pointInPolygon, polygonArea, polygonCentroid, rayFloorHit, triangulatePolygon, type FloorPoint, type IndexedPoi } from '../src/lib/poiIndex';
 
 const point = (id: string, x: number, z: number): IndexedPoi => ({ id, position: [x, 1.4, z] });
 const square = (x0: number, z0: number, size: number): FloorPoint[] => [[x0, z0], [x0 + size, z0], [x0 + size, z0 + size], [x0, z0 + size]];
@@ -59,5 +59,23 @@ describe('PoiSpatialIndex', () => {
     expect(zoned.distance(hall, 9, 9)).toBe(0);
     expect(zoned.distance(room, 4, 2)).toBeCloseTo(1); // 1 m outside the room's right edge
     expect(zoned.within(-1, 5, 1.5).map((p) => p.id)).toEqual(['hall']);
+  });
+});
+
+describe('floor geometry', () => {
+  it('triangulates convex and concave polygons into n-2 triangles covering the area', () => {
+    for (const poly of [square(0, 0, 2), [[0, 0], [4, 0], [4, 1], [1, 1], [1, 4], [0, 4]] as FloorPoint[], [...square(0, 0, 3)].reverse()]) {
+      const tris = triangulatePolygon(poly);
+      expect(tris.length / 3).toBe(poly.length - 2);
+      let area = 0;
+      for (let i = 0; i < tris.length; i += 3) area += Math.abs(polygonArea([poly[tris[i]], poly[tris[i + 1]], poly[tris[i + 2]]]));
+      expect(area).toBeCloseTo(Math.abs(polygonArea(poly)));
+    }
+  });
+
+  it('intersects a camera ray with the floor', () => {
+    expect(rayFloorHit([0, 1.5, 0], [0, -1, 1], 0)).toEqual([0, 1.5]);
+    expect(rayFloorHit([0, 1.5, 0], [0, 1, 1], 0)).toBeNull(); // looking up
+    expect(rayFloorHit([0, 1.5, 0], [1, 0, 0], 0)).toBeNull(); // parallel
   });
 });

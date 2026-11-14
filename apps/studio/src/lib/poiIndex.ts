@@ -157,3 +157,51 @@ function distanceToSegment(x: number, z: number, a: FloorPoint, b: FloorPoint): 
   const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / lengthSq));
   return Math.hypot(x - (a[0] + t * dx), z - (a[1] + t * dz));
 }
+
+/**
+ * Ear-clipping triangulation of a simple polygon (no holes, no self-intersections). Returns vertex
+ * index triples; works for either winding and for concave shapes such as an L-shaped room.
+ */
+export function triangulatePolygon(polygon: readonly FloorPoint[]): number[] {
+  const n = polygon.length;
+  if (n < 3) return [];
+  const ccw = polygonArea(polygon) > 0;
+  const remaining = Array.from({ length: n }, (_, i) => i);
+  const triangles: number[] = [];
+  const cross = (a: FloorPoint, b: FloorPoint, c: FloorPoint) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const inTriangle = (p: FloorPoint, a: FloorPoint, b: FloorPoint, c: FloorPoint) => {
+    const d1 = cross(a, b, p);
+    const d2 = cross(b, c, p);
+    const d3 = cross(c, a, p);
+    return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+  };
+  let guard = n * n;
+  while (remaining.length > 3 && guard > 0) {
+    guard -= 1;
+    let clipped = false;
+    for (let i = 0; i < remaining.length; i += 1) {
+      const ia = remaining[(i + remaining.length - 1) % remaining.length];
+      const ib = remaining[i];
+      const ic = remaining[(i + 1) % remaining.length];
+      const [a, b, c] = [polygon[ia], polygon[ib], polygon[ic]];
+      const turn = cross(a, b, c);
+      if (ccw ? turn <= 0 : turn >= 0) continue; // reflex or degenerate corner
+      if (remaining.some((j) => j !== ia && j !== ib && j !== ic && inTriangle(polygon[j], a, b, c))) continue;
+      triangles.push(ia, ib, ic);
+      remaining.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break; // self-intersecting input: stop with what we have
+  }
+  if (remaining.length === 3) triangles.push(remaining[0], remaining[1], remaining[2]);
+  return triangles;
+}
+
+/** Where a ray from `origin` along `direction` meets the horizontal floor y = floorY, or null. */
+export function rayFloorHit(origin: [number, number, number], direction: [number, number, number], floorY: number): FloorPoint | null {
+  if (Math.abs(direction[1]) < 1e-9) return null;
+  const t = (floorY - origin[1]) / direction[1];
+  if (t <= 0) return null;
+  return [origin[0] + t * direction[0], origin[2] + t * direction[2]];
+}

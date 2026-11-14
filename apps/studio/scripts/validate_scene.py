@@ -167,6 +167,19 @@ def main() -> int:
     ids = [poi.get("id") for poi in pois]
     if len(ids) != len(set(ids)):
         fail("POI identifiers are not unique")
+    for poi in pois:
+        zone = poi.get("zone")
+        if zone is None:
+            continue
+        def is_number(value):
+            return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        if not isinstance(zone, list) or len(zone) < 3 or any(
+            not isinstance(point, list) or len(point) != 2 or not all(is_number(v) for v in point) for point in zone
+        ):
+            fail(f"POI {poi.get('id')!r} zone must be a list of at least 3 [x, z] points")
+        area = sum(zone[i][0] * zone[(i + 1) % len(zone)][1] - zone[(i + 1) % len(zone)][0] * zone[i][1] for i in range(len(zone))) / 2
+        if abs(area) <= 1e-6:
+            fail(f"POI {poi.get('id')!r} zone polygon has no area")
 
     if navigation is not None:
         width = navigation.get("width")

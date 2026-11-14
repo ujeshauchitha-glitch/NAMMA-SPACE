@@ -183,3 +183,35 @@ describe('validate_scene.py integrity policy (D3, mirrors sceneLoader.ts)', () =
     expect(run.status, run.output).toBe(0);
   });
 });
+
+function editPois(sceneDir: string, mutate: (pois: Array<Record<string, unknown>>) => void): void {
+  const path = join(sceneDir, 'semantic', 'pois.json');
+  const pois = JSON.parse(readFileSync(path, 'utf8')) as Array<Record<string, unknown>>;
+  mutate(pois);
+  writeFileSync(path, JSON.stringify(pois, null, 2), 'utf8');
+}
+
+describe('validate_scene.py POI zones', () => {
+  it('accepts a POI with a valid floor zone', () => {
+    const run = runValidator((dir) => editPois(dir, (pois) => {
+      pois[0].zone = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    }));
+    expect(run.status, run.output).toBe(0);
+  });
+
+  it('rejects a zone with fewer than three points', () => {
+    const run = runValidator((dir) => editPois(dir, (pois) => {
+      pois[0].zone = [[0, 0], [1, 1]];
+    }));
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('at least 3 [x, z] points');
+  });
+
+  it('rejects a zone with no area', () => {
+    const run = runValidator((dir) => editPois(dir, (pois) => {
+      pois[0].zone = [[0, 0], [1, 1], [2, 2]];
+    }));
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('has no area');
+  });
+});

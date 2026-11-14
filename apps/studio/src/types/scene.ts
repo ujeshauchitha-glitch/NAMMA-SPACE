@@ -1,6 +1,16 @@
 import { z } from 'zod';
 
 const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
+/** A floor point [x, z] in metres. */
+const FloorPointSchema = z.tuple([z.number(), z.number()]);
+/** Shoelace area, used to reject zones whose vertices are collinear or repeated. */
+const zoneArea = (zone: Array<[number, number]>): number =>
+  zone.reduce((sum, [x, z], i) => {
+    const [nx, nz] = zone[(i + 1) % zone.length];
+    return sum + x * nz - nx * z;
+  }, 0) / 2;
+/** Optional floor zone of a POI: a simple polygon in x/z metres, at least three vertices, non-zero area. */
+const ZoneSchema = z.array(FloorPointSchema).min(3).refine((zone) => Math.abs(zoneArea(zone)) > 1e-6, 'zone polygon has no area');
 const Matrix4Schema = z.array(z.array(z.number()).length(4)).length(4);
 
 /* ------------------------------------------------------------------ *
@@ -127,6 +137,8 @@ export const PoiSchema = z.object({
   approachPoint: Vec3Schema,
   aliases: z.array(z.string()).default([]),
   description: z.string().optional(),
+  /** Optional area on the floor (e.g. a room or stall); clicking the floor inside it opens this POI. */
+  zone: ZoneSchema.optional(),
   confidence: z.number().min(0).max(1),
   source: z.enum(['operator', 'model', 'synthetic', 'observed']),
 });

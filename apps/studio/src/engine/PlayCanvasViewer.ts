@@ -1,9 +1,13 @@
 import {
   Application,
   Asset,
+  BLEND_NORMAL,
+  CULLFACE_NONE,
   Color,
   Entity,
   FILLMODE_NONE,
+  Mesh,
+  MeshInstance,
   RESOLUTION_AUTO,
   StandardMaterial,
   Vec3 as PcVec3,
@@ -11,6 +15,7 @@ import {
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
+import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
@@ -71,6 +76,12 @@ export class PlayCanvasViewer {
   private selectedPoiId: string | null = null;
   /** Pin and label screen targets from the last rendered frame, for click and hover hit tests. */
   private hitTargets: ScreenTarget[] = [];
+  /** Spatial index over POIs and their zones (rebuilt with the POI set). */
+  private poiIndex = new PoiSpatialIndex<Poi>([]);
+  /** Translucent floor overlay per zoned POI. */
+  private readonly zoneEntities = new Map<string, { entity: Entity; material: StandardMaterial }>();
+  /** Floor height for zones and floor picking: the scene's lowest bound. */
+  private readonly floorY: number;
   private hoveredPoiId: string | null = null;
   /** Cursor position over the canvas (CSS px) while the pointer is not locked. */
   private pointerPx: [number, number] | null = null;
@@ -116,7 +127,7 @@ export class PlayCanvasViewer {
     const locked = document.pointerLockElement === this.canvas;
     const rect = this.canvas.getBoundingClientRect();
     const [px, py] = locked ? [rect.width / 2, rect.height / 2] : [event.clientX - rect.left, event.clientY - rect.top];
-    const poiId = hitTestScreen(this.hitTargets, px, py);
+    const poiId = this.poiAtScreen(px, py);
     if (poiId) {
       this.callbacks.onPoiClick?.(poiId, locked);
       return;
@@ -133,6 +144,7 @@ export class PlayCanvasViewer {
     this.pois = options.pois;
     this.callbacks = options.callbacks;
     this.labelLayer = options.labelLayer ?? null;
+    this.floorY = this.manifest.bounds.min[1];
 
     // Splats rendered into a multisampled target are several times more expensive (PlayCanvas warns
     // about this), so MSAA is only used for mesh scenes.
@@ -227,6 +239,23 @@ export class PlayCanvasViewer {
     this.applyHoverStyle();
   }
 
+  /** POI under a screen point: a pin or label first, otherwise the smallest zone under that floor point. */
+  private poiAtScreen(px: number, py: number): string | null {
+    const pinned = hitTestScreen(this.hitTargets, px, py);
+    if (pinned) return pinned;
+    const floor = this.floorPointAt(px, py);
+    return floor ? this.poiIndex.zonesAt(floor[0], floor[1])[0]?.id ?? null : null;
+  }
+
+  /** Floor point [x, z] seen at a canvas pixel (ray from the eye through the pixel, to y = floorY). */
+  public floorPointAt(px: number, py: number): FloorPoint | null {
+    const cameraComponent = this.camera.camera;
+    if (!cameraComponent) return null;
+    const eye = this.camera.getPosition();
+    const far = cameraComponent.screenToWorld(px, py, cameraComponent.farClip);
+    return rayFloorHit([eye.x, eye.y, eye.z], [far.x - eye.x, far.y - eye.y, far.z - eye.z], this.floorY);
+  }
+
   private setHovered(poiId: string | null): void {
     if (poiId === this.hoveredPoiId) return;
     this.hoveredPoiId = poiId;
@@ -237,6 +266,10 @@ export class PlayCanvasViewer {
 
   private applyHoverStyle(): void {
     this.labelEls.forEach(({ el }, id) => el.classList.toggle('is-hovered', id === this.hoveredPoiId));
+    this.zoneEntities.forEach(({ material }, id) => {
+      material.opacity = id === this.hoveredPoiId || id === this.selectedPoiId ? 0.3 : 0.16;
+      material.update();
+    });
     this.poiEntities.forEach((marker, id) => {
       const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
       if (!material || id === this.selectedPoiId) return;
@@ -249,6 +282,11 @@ export class PlayCanvasViewer {
   public setPois(pois: Poi[]): void {
     this.poiEntities.forEach((marker) => marker.destroy());
     this.poiEntities.clear();
+    this.zoneEntities.forEach(({ entity, material }) => {
+      entity.destroy();
+      material.destroy();
+    });
+    this.zoneEntities.clear();
     this.labelEls.forEach(({ el }) => el.remove());
     this.labelEls.clear();
     this.pois = pois;
@@ -556,7 +594,9 @@ export class PlayCanvasViewer {
 
   /** A small sphere per POI (sized each frame in updatePoiOverlay) and, with a label layer, an HTML label. */
   private buildPoiMarkers(): void {
+    this.poiIndex = new PoiSpatialIndex<Poi>(this.pois);
     this.pois.forEach((poi) => {
+      if (poi.zone) this.buildZone(poi.id, poi.zone);
       const marker = this.createPrimitive(`poi-${poi.id}`, 'sphere', [poi.position[0], poi.position[1], poi.position[2]], [0.1, 0.1, 0.1], PIN_COLOR);
       const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
       if (material) {
@@ -577,12 +617,54 @@ export class PlayCanvasViewer {
   }
 
   /**
+   * Translucent, unlit floor overlay for a POI zone, 2 cm above the floor so it never z-fights.
+   * Splats write no depth, so a zone is an overlay: objects standing on it do not hide it. The outline
+   * (drawn every frame in updatePoiOverlay) keeps its boundary readable at low opacity.
+   */
+  private buildZone(poiId: string, zone: FloorPoint[]): void {
+    const indices = triangulatePolygon(zone);
+    if (indices.length === 0) return;
+    const mesh = new Mesh(this.app.graphicsDevice);
+    mesh.setPositions(zone.flatMap(([x, z]) => [x, this.floorY + 0.02, z]));
+    mesh.setIndices(indices);
+    mesh.update();
+    const material = new StandardMaterial();
+    material.useLighting = false;
+    material.diffuse = new Color(0, 0, 0);
+    material.emissive = new Color(0.66, 0.8, 0.09);
+    material.opacity = 0.16;
+    material.blendType = BLEND_NORMAL;
+    material.depthWrite = false;
+    material.cull = CULLFACE_NONE;
+    material.update();
+    const entity = new Entity(`zone-${poiId}`);
+    entity.addComponent('render', { meshInstances: [new MeshInstance(mesh, material)] });
+    this.app.root.addChild(entity);
+    this.zoneEntities.set(poiId, { entity, material });
+  }
+
+  private drawZoneOutlines(): void {
+    const y = this.floorY + 0.03;
+    this.pois.forEach((poi) => {
+      if (!poi.zone || !this.zoneEntities.has(poi.id)) return;
+      const strong = poi.id === this.hoveredPoiId || poi.id === this.selectedPoiId;
+      const color = strong ? new Color(0.8, 0.95, 0.2) : new Color(0.66, 0.8, 0.09);
+      const points = poi.zone.flatMap(([x, z], i) => {
+        const [nx, nz] = poi.zone![(i + 1) % poi.zone!.length];
+        return [new PcVec3(x, y, z), new PcVec3(nx, y, nz)];
+      });
+      this.app.drawLines(points, color, false);
+    });
+  }
+
+  /**
    * Per frame: keep every pin between PIN_MIN_PX and PIN_MAX_PX on screen, and place the HTML labels
    * (fade with distance, hidden behind the camera, nearest wins when labels overlap).
    */
   private updatePoiOverlay(): void {
     const cameraComponent = this.camera.camera;
     if (!cameraComponent || this.poiEntities.size === 0) return;
+    this.drawZoneOutlines();
     const { width, height } = this.app.graphicsDevice.clientRect;
     if (width === 0 || height === 0) return;
     const focal = focalLengthPx(height, CAMERA_FOV);
@@ -641,7 +723,7 @@ export class PlayCanvasViewer {
     // Hover follows the crosshair under pointer lock and the cursor otherwise.
     const locked = document.pointerLockElement === this.canvas;
     const probe: [number, number] | null = locked ? [width / 2, height / 2] : this.pointerPx;
-    this.setHovered(probe ? hitTestScreen(targets, probe[0], probe[1]) : null);
+    this.setHovered(probe ? this.poiAtScreen(probe[0], probe[1]) : null);
   }
 
   private addBox(name: string, position: [number, number, number], scale: [number, number, number], color: Color): void {
