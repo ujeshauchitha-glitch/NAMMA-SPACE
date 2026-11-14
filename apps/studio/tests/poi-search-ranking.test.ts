@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { categoryFor, editDistance, matchWord, MatchTier, parseQuery, rankPois, suggestLabels } from '../src/lib/poiSearch';
+import { categoryFor, editDistance, matchesNearest, matchWord, MatchTier, nearestByWalking, parseQuery, rankPois, suggestLabels } from '../src/lib/poiSearch';
+import { PoiSpatialIndex } from '../src/lib/poiIndex';
+import { planRoute, walkingDistance } from '../src/lib/navigation';
+import type { NavigationGrid } from '../src/types/scene';
 import type { Poi } from '../src/types/scene';
 
 const poi = (id: string, label: string, category: Poi['category'], extra: Partial<Poi> = {}): Poi => ({
@@ -98,5 +101,40 @@ describe('empty-state suggestions', () => {
     expect(suggestLabels(pois, 'stagge')).toContain('Stage');
     expect(suggestLabels(pois, 'zzzzzzzzzz')).toEqual([]);
     expect(suggestLabels(pois, 'zebra')).toEqual([]); // nothing genuinely close: no random labels
+  });
+});
+
+describe('nearestByWalking (spatial index)', () => {
+  // 40 x 40 m grid (0.5 m cells) with a long wall at x = 20 open only near z = 38, and POIs scattered.
+  const cell = 0.5;
+  const w = 80;
+  const blocked: number[] = [];
+  for (let cz = 0; cz < w; cz += 1) if (cz < 74) blocked.push(40 + cz * w);
+  const grid: NavigationGrid = { version: 1, coordinateSystem: 'x-z-grid', origin: { x: 0, z: 0 }, cellSize: cell, width: w, height: w, blocked, unknown: [], start: { x: 2, z: 2 }, clearanceMetres: 0.3 };
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const scattered: Poi[] = Array.from({ length: 120 }, (_, i) => {
+    const x = 0.75 + rand() * 38.5;
+    const z = 0.75 + rand() * 38.5;
+    const safeX = Math.abs(x - 20.25) < 1 ? x + 2 : x;
+    return poi(`p${i}`, `Point ${i}`, i % 3 === 0 ? 'entrance' : 'service', { position: [safeX, 1.6, z], approachPoint: [safeX, 1.6, z] });
+  });
+  const index = new PoiSpatialIndex(scattered);
+  const me: [number, number, number] = [18, 1.6, 5]; // just left of the wall: things to the right are a long walk
+
+  it('returns exactly the brute-force walking order while planning far fewer routes', () => {
+    const parsed = parseQuery('nearest exit');
+    if (parsed.kind !== 'nearest') throw new Error('expected a nearest query');
+    const distanceOf = (p: Poi) => walkingDistance(grid, me, p);
+    const brute = scattered.filter((p) => matchesNearest(parsed, p)).map((p) => ({ id: p.id, m: distanceOf(p) }))
+      .filter((r) => r.m !== null).sort((a, b) => a.m! - b.m!).slice(0, 5);
+    const { results, evaluated } = nearestByWalking(index, me[0], me[2], (p) => matchesNearest(parsed, p), distanceOf, 5);
+    expect(results.map((r) => r.poi.id)).toEqual(brute.map((r) => r.id));
+    results.forEach((r, i) => expect(r.metres).toBeCloseTo(brute[i].m!));
+    expect(evaluated).toBeLessThan(scattered.filter((p) => matchesNearest(parsed, p)).length / 2);
+    // Walking order differs from straight-line order here (the wall), so this is not just the index order.
+    const straight = index.nearest(me[0], me[2], scattered.length).filter((p) => p.category === 'entrance').slice(0, 5).map((p) => p.id);
+    expect(planRoute(grid, me, [25, 1.6, 5]).ok).toBe(true);
+    expect(straight).not.toEqual(results.map((r) => r.poi.id));
   });
 });

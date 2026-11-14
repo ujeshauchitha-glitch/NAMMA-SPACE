@@ -210,3 +210,43 @@ export function suggestLabels(pois: readonly Poi[], query: string, count = 3): s
     .slice(0, count)
     .map((s) => s.label);
 }
+
+/** Whether a POI answers a "nearest …" query: the named category, else a search match. */
+export function matchesNearest(parsed: Extract<ParsedQuery, { kind: 'nearest' }>, poi: Poi): boolean {
+  return parsed.category ? poi.category === parsed.category : scorePoi(poi, parsed.words) !== null;
+}
+
+/** What nearestByWalking needs from the spatial index (PoiSpatialIndex satisfies it). */
+export type NearestIndex<T> = { pois: readonly T[]; nearest(x: number, z: number, k: number): T[]; distance(poi: T, x: number, z: number): number };
+
+/**
+ * The `k` accepted POIs nearest to (x, z) by WALKING distance, using the spatial index to avoid
+ * routing to every POI. Candidates come out of the index in straight-line order; a route is never
+ * shorter than the straight line, less `slack` (the index measures to a POI's position or zone, the
+ * route to its approach point up to `maxApproachOffset` away, and both route ends may snap up to
+ * 1.5 m), so the scan stops once the next candidate's lower bound exceeds the k-th best walk.
+ * `evaluated` counts the routes actually planned.
+ */
+export function nearestByWalking<T extends Poi>(
+  index: NearestIndex<T>,
+  x: number,
+  z: number,
+  accept: (poi: T) => boolean,
+  distanceOf: (poi: T) => number | null,
+  k = 5,
+  snapMetres = 1.5,
+): { results: RankedResult<T>[]; evaluated: number } {
+  const maxApproachOffset = Math.max(0, ...index.pois.map((poi) => Math.hypot(poi.approachPoint[0] - poi.position[0], poi.approachPoint[2] - poi.position[2])));
+  const slack = maxApproachOffset + 2 * snapMetres;
+  const found: RankedResult<T>[] = [];
+  let evaluated = 0;
+  for (const poi of index.nearest(x, z, index.pois.length)) {
+    if (!accept(poi)) continue;
+    const reachable = found.filter((r) => r.metres !== null);
+    if (reachable.length >= k && index.distance(poi, x, z) - slack > reachable[k - 1].metres!) break;
+    evaluated += 1;
+    found.push({ poi, score: 1, metres: distanceOf(poi) });
+    found.sort((a, b) => byDistance(a.metres, b.metres));
+  }
+  return { results: found.slice(0, k), evaluated };
+}
