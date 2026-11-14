@@ -6,7 +6,8 @@ import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
 import { measureRouteMetres, planRoute, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
 import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
-import type { PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
+import type { GuidanceUpdate, PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
+import { GuidancePanel } from './GuidancePanel';
 import { useWorkspaceStore } from '../../state/workspaceContext';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
 import { SceneSkeleton } from './SceneSkeleton';
@@ -78,6 +79,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   // POI card opened from the 3D view (pin, label or zone click), and the POI under the cursor/crosshair.
   const [cardPoiId, setCardPoiId] = useState<string | null>(null);
   const [hoveredPoiId, setHoveredPoiId] = useState<string | null>(null);
+  // Turn-by-turn guidance reported by the engine while a route is followed.
+  const [guidance, setGuidance] = useState<GuidanceUpdate | null>(null);
   // In-app POI editor (toggle, or ?edit=1). A draft lives in localStorage per scene and, while it
   // exists, replaces the scene's shipped POIs everywhere in this browser.
   const [editMode, setEditMode] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1');
@@ -280,6 +283,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       setCardPoiId(null);
       setSelectedPoiId(null);
       viewerRef.current?.selectPoi(null);
+      viewerRef.current?.stopGuidance();
       viewerRef.current?.clearRoute();
     };
     window.addEventListener('keydown', onKeyDown);
@@ -292,7 +296,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   // (viewerRef nulled by handleViewerDestroyed before this effect runs).
   useEffect(() => {
     setRouteState({ status: 'idle' });
+    viewerRef.current?.stopGuidance();
     viewerRef.current?.clearRoute();
+    setGuidance(null);
   }, [selectedPoiId, sceneUrl]);
 
   // A different selection (e.g. from search) closes a card opened for another POI.
@@ -355,6 +361,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     if (viaCrosshair) document.exitPointerLock();
   }, []);
   const handlePoiHover = useCallback((poiId: string | null) => setHoveredPoiId(poiId), []);
+  const handleGuidance = useCallback((update: GuidanceUpdate | null) => setGuidance(update), []);
 
   /* ---------------- POI editor ---------------- */
 
@@ -485,6 +492,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     // own live pose, so a false here means the plot did not happen.
     if (viewerRef.current?.routeTo(selectedPoi.id)) {
       viewerRef.current?.revealRouteTape();
+      viewerRef.current?.startGuidance(selectedPoi.id);
       setRouteState({
         status: 'ok',
         // Raw metres; RouteStatus rounds once at display time (review F5).
@@ -508,7 +516,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
 
   const handleClearRoute = () => {
     setRouteState({ status: 'idle' });
+    viewerRef.current?.stopGuidance();
     viewerRef.current?.clearRoute();
+    setGuidance(null);
   };
 
   const handleJump = () => {
@@ -585,11 +595,20 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     onPoiHover={handlePoiHover}
                     onEditClick={onEditClick}
                     onEditMoveEnd={onEditMoveEnd}
+                    onGuidance={handleGuidance}
                   />
                 )}
                 <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" data-tracks-3d="" />
                 {isWalkthroughActive && (
                   <div className={`${styles.crosshair} ${hoveredPoiId ? styles.crosshairActive : ''}`} aria-hidden="true" />
+                )}
+                {guidance && (
+                  <GuidancePanel
+                    guidance={guidance}
+                    onFollow={() => viewerRef.current?.followRoute()}
+                    onStopFollowing={() => viewerRef.current?.stopFollowing()}
+                    onEnd={handleClearRoute}
+                  />
                 )}
                 {cardPoi && (
                   <PoiCard

@@ -356,6 +356,53 @@
   cursor: crosshair;
 }
 
+/* Turn-by-turn guidance over the 3D view */
+.guidance {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(14, 18, 16, 0.86);
+  color: #f4f6f1;
+  z-index: 3;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.guidanceStep {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.guidanceMeta {
+  margin: 4px 0 0;
+  font: var(--text-meta, 450 11px/1.4 monospace);
+  color: #c9d1c4;
+}
+
+.guidanceBar {
+  height: 4px;
+  margin: 10px 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.guidanceBar span {
+  display: block;
+  height: 100%;
+  background: var(--accent-lime);
+  transition: width 0.2s linear;
+}
+
+.guidanceActions {
+  display: flex;
+  gap: 8px;
+}
+
 /* error state replaces the viewport, not the app (§5.13) */
 .errorPanel {
   display: grid;

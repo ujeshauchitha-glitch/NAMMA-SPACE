@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
-import type { PlayCanvasViewer } from '../engine/PlayCanvasViewer';
+import type { GuidanceUpdate, PlayCanvasViewer } from '../engine/PlayCanvasViewer';
 import type { GridCell } from '../lib/navigation';
 import type { FloorPoint } from '../lib/poiIndex';
 
@@ -19,6 +19,7 @@ type ViewerCanvasProps = {
   onPoiHover?: (poiId: string | null) => void;
   onEditClick?: (floor: FloorPoint | null, poiId: string | null) => void;
   onEditMoveEnd?: (poiId: string, floor: FloorPoint) => void;
+  onGuidance?: (update: GuidanceUpdate | null) => void;
 };
 
 /**
@@ -30,7 +31,7 @@ type ViewerCanvasProps = {
  */
 let liveViewerCount = 0;
 
-export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus, labelLayerRef, onPoiClick, onPoiHover, onEditClick, onEditMoveEnd }: ViewerCanvasProps) {
+export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus, labelLayerRef, onPoiClick, onPoiHover, onEditClick, onEditMoveEnd, onGuidance }: ViewerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [contextConflict, setContextConflict] = useState(false);
 
@@ -60,6 +61,7 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
           onPoiHover,
           onEditClick,
           onEditMoveEnd,
+          onGuidance,
         },
       });
       onViewerReady(viewer);
@@ -72,7 +74,7 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
       viewer?.destroy();
       onViewerDestroyed();
     };
-  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois, labelLayerRef, onPoiClick, onPoiHover, onEditClick, onEditMoveEnd]);
+  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois, labelLayerRef, onPoiClick, onPoiHover, onEditClick, onEditMoveEnd, onGuidance]);
 
   if (contextConflict) {
     // Honest refusal — never a second silent WebGL context.

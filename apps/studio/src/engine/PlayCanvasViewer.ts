@@ -16,12 +16,26 @@ import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../type
 import { filmedHeading, isWalkable, planRoute, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
+import { faceAngles, formatInstruction, formatWalkTime, nextInstruction, routeProgress } from '../lib/routeGuidance';
 import { chevronDistances, pointAtDistance, polylineLength, ribbonMesh, slicePolyline } from '../lib/routeGeometry';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
+
+/** What the guidance panel shows; null when no route is being followed. */
+export type GuidanceUpdate = {
+  poiId: string;
+  label: string;
+  status: 'guiding' | 'following' | 'arrived';
+  remaining: number;
+  total: number;
+  instruction: string;
+  walkTime: string;
+  /** True for a moment after the route was re-planned because the visitor left it. */
+  rerouted: boolean;
+};
 
 type ViewerCallbacks = {
   onStatus: (message: string) => void;
@@ -35,6 +49,8 @@ type ViewerCallbacks = {
   onEditClick?: (floor: FloorPoint | null, poiId: string | null) => void;
   /** Edit mode: a pin was dragged to a new floor point. */
   onEditMoveEnd?: (poiId: string, floor: FloorPoint) => void;
+  /** Guidance along the active route changed (distance, next step, arrival); null when it ends. */
+  onGuidance?: (update: GuidanceUpdate | null) => void;
 };
 
 type ViewerOptions = {
@@ -118,6 +134,9 @@ export class PlayCanvasViewer {
   private chevronMaterial: StandardMaterial | null = null;
   private chevrons: Entity[] = [];
   private beaconRing: Entity | null = null;
+  /** Turn-by-turn guidance along the active route. */
+  private guidance: { poiId: string; following: boolean; arrived: boolean; offSince: number | null; reroutedAt: number; lastKey: string } | null = null;
+  private followStop: (() => void) | null = null;
   /** D3: one status line per held keypress when movement is unverifiable. */
   private movementNoticePending = false;
   private readonly resizeObserver: ResizeObserver;
@@ -463,8 +482,8 @@ export class PlayCanvasViewer {
     const drawn = slicePolyline(route.path, this.routeDrawLength);
     const { positions, indices } = ribbonMesh(drawn, ROUTE_WIDTH_M, this.floorY + 0.04);
     if (ribbon.mesh) {
+      // Meshes are reference-counted: removing the render component frees the old mesh.
       ribbon.entity.removeComponent('render');
-      ribbon.mesh.destroy();
       ribbon.mesh = null;
     }
     if (indices.length === 0) return;
@@ -516,8 +535,142 @@ export class PlayCanvasViewer {
     this.beaconRing = ring;
   }
 
+  /** Start turn-by-turn guidance to a POI (plans and draws the route if it is not already drawn). */
+  public startGuidance(poiId: string): boolean {
+    if (!this.activeRoute || this.activeRoute.poiId !== poiId || this.activeRoute.preview) {
+      if (!this.routeTo(poiId)) return false;
+      this.revealRouteTape();
+    }
+    this.guidance = { poiId, following: false, arrived: false, offSince: null, reroutedAt: 0, lastKey: '' };
+    this.updateGuidance();
+    return true;
+  }
+
+  public stopGuidance(): void {
+    this.followStop?.();
+    this.followStop = null;
+    if (!this.guidance) return;
+    this.guidance = null;
+    this.callbacks.onGuidance?.(null);
+  }
+
+  /**
+   * Walk the camera along the route at walking speed, looking a little ahead, until arrival. Any
+   * movement key (or entering pointer lock) hands control back to the visitor.
+   */
+  public followRoute(): boolean {
+    const route = this.activeRoute;
+    const guidance = this.guidance;
+    if (!route || !guidance || guidance.arrived) return false;
+    this.followStop?.();
+    const eyeY = this.currentPosition()[1];
+    let along = routeProgress(route.path, this.currentPosition()[0], this.currentPosition()[2]).along;
+    guidance.following = true;
+    const stop = this.startMotion((deltaMs) => {
+      if (this.activeRoute !== route) return true;
+      along = Math.min(route.length, along + (WALK_SPEED * deltaMs) / 1000);
+      const at = pointAtDistance(route.path, along);
+      const ahead = pointAtDistance(route.path, along + 1.5);
+      this.yawPivot.setPosition(at.x, eyeY - PLAYER_HEIGHT, at.z);
+      if (Math.hypot(ahead.x - at.x, ahead.z - at.z) > 0.05) {
+        const { yawDegrees } = faceAngles([at.x, eyeY, at.z], [ahead.x, eyeY, ahead.z]);
+        const current = this.yawPivot.getEulerAngles().y;
+        this.yawPivot.setEulerAngles(0, lerpAngleDeg(current, yawDegrees, Math.min(1, deltaMs / 250)), 0);
+      }
+      this.pitchPivot.setLocalEulerAngles(lerp(this.pitchPivot.getLocalEulerAngles().x, 0, Math.min(1, deltaMs / 400)), 0, 0);
+      this.lastLookAt = performance.now(); // the walk sets the view; no filmed-direction nudging meanwhile
+      this.emitPosition();
+      if (along < route.length) return false;
+      ended();
+      return true;
+    }, (kill) => this.armCameraKill(() => {
+      kill();
+      ended();
+    }));
+    // However following ends (arrival, a movement key, Stop following, a cleared route), say so once.
+    let done = false;
+    const ended = () => {
+      if (done) return;
+      done = true;
+      if (this.followStop === stopFollowing) this.followStop = null;
+      if (this.guidance) {
+        this.guidance.following = false;
+        this.guidance.lastKey = '';
+      }
+      this.updateGuidance();
+    };
+    const stopFollowing = () => {
+      stop();
+      ended();
+    };
+    this.followStop = stopFollowing;
+    this.updateGuidance();
+    return true;
+  }
+
+  /** Stop auto-walking; guidance continues from where the camera is. */
+  public stopFollowing(): void {
+    this.followStop?.();
+  }
+
+  /** Per frame: progress along the route, re-route when the visitor leaves it, and arrival. */
+  private updateGuidance(): void {
+    const guidance = this.guidance;
+    const route = this.activeRoute;
+    if (!guidance || !route || guidance.arrived) return;
+    const poi = this.pois.find((candidate) => candidate.id === guidance.poiId);
+    if (!poi) {
+      this.stopGuidance();
+      return;
+    }
+    const [x, , z] = this.currentPosition();
+    const progress = routeProgress(route.path, x, z);
+    const now = performance.now();
+    if (progress.arrived) {
+      guidance.arrived = true;
+      this.followStop?.();
+      this.chevrons.forEach((chevron) => chevron.destroy());
+      this.chevrons = [];
+      this.chevronMesh = null; // freed with the last chevron
+      this.callbacks.onStatus(`Arrived at ${poi.label}`);
+      this.emitGuidance(guidance, poi.label, 'arrived', 0, route.length, 'You have arrived');
+      return;
+    }
+    if (progress.offRoute && !guidance.following) {
+      guidance.offSince ??= now;
+      if (now - guidance.offSince > 500) {
+        // More than 1 m off the route for half a second: plan again from here.
+        guidance.offSince = null;
+        if (this.routeTo(guidance.poiId)) {
+          guidance.reroutedAt = now;
+          this.callbacks.onStatus(`Re-routed to ${poi.label}`);
+        }
+        return;
+      }
+    } else {
+      guidance.offSince = null;
+    }
+    this.emitGuidance(
+      guidance,
+      poi.label,
+      guidance.following ? 'following' : 'guiding',
+      progress.remaining,
+      route.length,
+      formatInstruction(nextInstruction(route.path, progress.along)),
+    );
+  }
+
+  private emitGuidance(guidance: NonNullable<PlayCanvasViewer['guidance']>, label: string, status: GuidanceUpdate['status'], remaining: number, total: number, instruction: string): void {
+    const rerouted = performance.now() - guidance.reroutedAt < 2500;
+    const key = `${status}|${instruction}|${remaining.toFixed(1)}|${rerouted}`;
+    if (key === guidance.lastKey) return;
+    guidance.lastKey = key;
+    this.callbacks.onGuidance?.({ poiId: guidance.poiId, label, status, remaining, total, instruction, walkTime: formatWalkTime(remaining), rerouted });
+  }
+
   /** Per frame: scroll the chevrons toward the destination and pulse the beacon ring. */
   private updateRouteOverlay(): void {
+    this.updateGuidance();
     const route = this.activeRoute;
     if (!route) return;
     const seconds = performance.now() / 1000;
@@ -674,10 +827,13 @@ export class PlayCanvasViewer {
    */
   clearRoute(): void {
     this.tapeRevealStop?.();
-    this.routeRibbon?.mesh?.destroy();
+    this.followStop?.();
+    this.followStop = null;
+    // Destroying the entities frees their (reference-counted) meshes, including the shared chevron mesh.
     this.routeRibbon = null;
     this.routeEntity.children.slice().forEach((child) => child.destroy());
     this.chevrons = [];
+    this.chevronMesh = null;
     this.beaconRing = null;
     this.activeRoute = null;
   }
