@@ -4,7 +4,7 @@ import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
-import { findRoute, measureRouteMetres, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
+import { measureRouteMetres, planRoute, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
 import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
 import type { PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { useWorkspaceStore } from '../../state/workspaceContext';
@@ -470,8 +470,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       setRouteState({ status: 'error', detail: 'Navigation data is unavailable for this scene.', reason: 'missing-nav' });
       return;
     }
-    const goal = worldToCell(bundle.navigation, selectedPoi.approachPoint);
-    const result = findRoute(bundle.navigation, cell, goal);
+    const result = planRoute(bundle.navigation, position, selectedPoi.approachPoint);
     if (!result.ok) {
       // Honest failure: the strip carries the A* detail verbatim; the engine's
       // status line is left alone so the shell pill never shows route errors.
@@ -497,11 +496,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     // routeTo refused: it recomputed from its live pose, so report that
     // actual outcome instead of the optimistic one.
     const pose = viewerRef.current?.getPose();
-    const live = findRoute(
-      bundle.navigation,
-      pose ? worldToCell(bundle.navigation, pose.position) : cell,
-      goal,
-    );
+    const live = planRoute(bundle.navigation, pose ? pose.position : position, selectedPoi.approachPoint);
     if (live.ok) {
       // Unreachable: routeTo just ran this identical query and returned
       // false. Nothing was drawn, so report no plot rather than a fake one.

@@ -6,10 +6,6 @@ export type RouteResult =
   | { ok: true; cells: GridCell[]; world: Vec3[] }
   | { ok: false; reason: 'invalid-start' | 'invalid-goal' | 'unreachable' | 'invalid-grid'; detail: string };
 
-function key(cell: GridCell): string {
-  return `${cell.x}:${cell.z}`;
-}
-
 function isInside(grid: NavigationGrid, cell: GridCell): boolean {
   return cell.x >= 0 && cell.x < grid.width && cell.z >= 0 && cell.z < grid.height;
 }
@@ -153,6 +149,62 @@ function neighbors(grid: NavigationGrid, cell: GridCell): GridCell[] {
     .map(({ cell: candidate }) => candidate);
 }
 
+/**
+ * Binary min-heap of grid cell indices keyed by f = g + h. Ties go to the lower h (closer to the goal),
+ * then the lower index, so routes stay deterministic.
+ */
+class OpenHeap {
+  private readonly items: number[] = [];
+  private readonly f: Float64Array;
+  private readonly h: Float64Array;
+  public constructor(f: Float64Array, h: Float64Array) {
+    this.f = f;
+    this.h = h;
+  }
+  public get size(): number {
+    return this.items.length;
+  }
+  private less(a: number, b: number): boolean {
+    return this.f[a] < this.f[b] || (this.f[a] === this.f[b] && (this.h[a] < this.h[b] || (this.h[a] === this.h[b] && a < b)));
+  }
+  public push(index: number): void {
+    const items = this.items;
+    items.push(index);
+    let i = items.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!this.less(items[i], items[parent])) break;
+      [items[i], items[parent]] = [items[parent], items[i]];
+      i = parent;
+    }
+  }
+  public pop(): number {
+    const items = this.items;
+    const top = items[0];
+    const last = items.pop() as number;
+    if (items.length > 0) {
+      items[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < items.length && this.less(items[l], items[m])) m = l;
+        if (r < items.length && this.less(items[r], items[m])) m = r;
+        if (m === i) break;
+        [items[i], items[m]] = [items[m], items[i]];
+        i = m;
+      }
+    }
+    return top;
+  }
+}
+
+/**
+ * A* over the 8-connected grid (octile heuristic, no diagonal corner cutting, unknown cells blocked)
+ * between two exact cells. The open set is a binary heap with lazy deletion, so a search costs
+ * O(n log n) in the cells it touches. Use planRoute() to route between world positions with snapping.
+ */
 export function findRoute(grid: NavigationGrid, start: GridCell, goal: GridCell): RouteResult {
   const maxIndex = grid.width * grid.height;
   const allIndices = [...grid.blocked, ...grid.unknown];
@@ -170,44 +222,91 @@ export function findRoute(grid: NavigationGrid, start: GridCell, goal: GridCell)
     return { ok: false, reason: 'invalid-goal', detail: 'The destination does not have a verified walkable approach point.' };
   }
 
-  const open = new Map<string, GridCell>([[key(start), start]]);
-  const cameFrom = new Map<string, string>();
-  const cost = new Map<string, number>([[key(start), 0]]);
+  const width = grid.width;
+  const g = new Float64Array(maxIndex).fill(Infinity);
+  const f = new Float64Array(maxIndex).fill(Infinity);
+  const h = new Float64Array(maxIndex);
+  const cameFrom = new Int32Array(maxIndex).fill(-1);
+  const closed = new Uint8Array(maxIndex);
+  const open = new OpenHeap(f, h);
+  const startIndex = start.z * width + start.x;
+  const goalIndex = goal.z * width + goal.x;
+  g[startIndex] = 0;
+  h[startIndex] = heuristic(start, goal);
+  f[startIndex] = h[startIndex];
+  open.push(startIndex);
 
   while (open.size > 0) {
-    const current = [...open.values()].sort((a, b) => {
-      const scoreA = (cost.get(key(a)) ?? Infinity) + heuristic(a, goal);
-      const scoreB = (cost.get(key(b)) ?? Infinity) + heuristic(b, goal);
-      return scoreA - scoreB || a.z - b.z || a.x - b.x;
-    })[0];
-
-    if (!current) break;
-    const currentKey = key(current);
-    if (current.x === goal.x && current.z === goal.z) {
-      const cells: GridCell[] = [current];
-      let cursor = currentKey;
-      while (cameFrom.has(cursor)) {
-        cursor = cameFrom.get(cursor) as string;
-        const [x, z] = cursor.split(':').map(Number);
-        cells.unshift({ x, z });
-      }
+    const currentIndex = open.pop();
+    if (closed[currentIndex]) continue; // stale heap entry (lazy deletion)
+    if (currentIndex === goalIndex) {
+      const cells: GridCell[] = [];
+      for (let cursor = currentIndex; cursor !== -1; cursor = cameFrom[cursor]) cells.push({ x: cursor % width, z: Math.floor(cursor / width) });
+      cells.reverse();
       return { ok: true, cells, world: cells.map((cell) => cellToWorld(grid, cell)) };
     }
-
-    open.delete(currentKey);
+    closed[currentIndex] = 1;
+    const current = { x: currentIndex % width, z: Math.floor(currentIndex / width) };
     for (const next of neighbors(grid, current)) {
-      const nextKey = key(next);
+      const nextIndex = next.z * width + next.x;
+      if (closed[nextIndex]) continue;
       const stepCost = next.x !== current.x && next.z !== current.z ? DIAGONAL_STEP_COST : ORTHOGONAL_STEP_COST;
-      const newCost = (cost.get(currentKey) ?? Infinity) + stepCost;
-      if (newCost < (cost.get(nextKey) ?? Infinity)) {
-        cameFrom.set(nextKey, currentKey);
-        cost.set(nextKey, newCost);
-        open.set(nextKey, next);
+      const tentative = g[currentIndex] + stepCost;
+      if (tentative < g[nextIndex]) {
+        g[nextIndex] = tentative;
+        h[nextIndex] = heuristic(next, goal);
+        f[nextIndex] = tentative + h[nextIndex];
+        cameFrom[nextIndex] = currentIndex;
+        open.push(nextIndex);
       }
     }
   }
 
   return { ok: false, reason: 'unreachable', detail: 'No collision-safe route connects the current position to this destination.' };
+}
+
+/** Default snapping reach for planRoute: a visitor or approach point within 1.5 m of walkable floor. */
+export const SNAP_RADIUS_M = 1.5;
+
+/**
+ * Walkable cell nearest (straight-line, between cell centres) to a world position, within `maxMetres`;
+ * null when there is none that close.
+ */
+export function snapToWalkable(grid: NavigationGrid, position: Vec3, maxMetres = SNAP_RADIUS_M): GridCell | null {
+  const cell = worldToCell(grid, position);
+  if (isWalkable(grid, cell)) return cell;
+  const reach = Math.ceil(maxMetres / grid.cellSize) + 1;
+  let best: GridCell | null = null;
+  let bestDistance = Infinity;
+  for (let z = cell.z - reach; z <= cell.z + reach; z += 1) {
+    for (let x = cell.x - reach; x <= cell.x + reach; x += 1) {
+      if (!isWalkable(grid, { x, z })) continue;
+      const [cx, , cz] = cellToWorld(grid, { x, z });
+      const distance = Math.hypot(cx - position[0], cz - position[2]);
+      if (distance <= maxMetres && distance < bestDistance) {
+        best = { x, z };
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Route between two world positions: both ends snap to the nearest walkable cell within
+ * SNAP_RADIUS_M (so a visitor brushing a wall, or a POI approach point just off the floor, still
+ * routes), then A* runs between the snapped cells.
+ */
+export function planRoute(grid: NavigationGrid, from: Vec3, to: Vec3, snapMetres = SNAP_RADIUS_M): RouteResult {
+  const start = snapToWalkable(grid, from, snapMetres);
+  if (!start) {
+    return { ok: false, reason: 'invalid-start', detail: `No walkable point nearby: you are more than ${snapMetres} m from the walkable floor.` };
+  }
+  const goal = snapToWalkable(grid, to, snapMetres);
+  if (!goal) {
+    return { ok: false, reason: 'invalid-goal', detail: `No walkable point nearby: the destination is more than ${snapMetres} m from the walkable floor.` };
+  }
+  return findRoute(grid, start, goal);
 }
 
 export function findPoi(pois: Poi[], poiId: string): Poi | undefined {
@@ -248,7 +347,7 @@ export function searchPois(pois: Poi[], query: string): Poi[] {
  * or null when either end is off the walkable area or no route connects them.
  */
 export function walkingDistance(grid: NavigationGrid, from: Vec3, poi: Pick<Poi, 'approachPoint'>): number | null {
-  const route = findRoute(grid, worldToCell(grid, from), worldToCell(grid, poi.approachPoint));
+  const route = planRoute(grid, from, poi.approachPoint);
   return route.ok ? measureRouteMetres(route.world) : null;
 }
 

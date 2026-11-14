@@ -292,7 +292,8 @@ describe('walking distance', () => {
     expect(metres).not.toBeNull();
     expect(metres!).toBeGreaterThan(4.5);
   });
-  it('is null when the destination is not walkable', () => {
-    expect(walkingDistance(grid, [0.5, 1.6, 0.5], { approachPoint: [2.5, 1.6, 1.5] })).toBeNull();
+  it('snaps a destination just off the walkable floor, and is null when none is nearby', () => {
+    expect(walkingDistance(grid, [0.5, 1.6, 0.5], { approachPoint: [2.5, 1.6, 1.5] })).not.toBeNull(); // blocked cell, floor 1 m away
+    expect(walkingDistance(grid, [0.5, 1.6, 0.5], { approachPoint: [20, 1.6, 20] })).toBeNull();
   });
 });

@@ -13,7 +13,7 @@ import {
   Vec3 as PcVec3,
 } from 'playcanvas';
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
-import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
+import { filmedHeading, isWalkable, planRoute, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
@@ -395,9 +395,7 @@ export class PlayCanvasViewer {
       this.callbacks.onStatus('Navigation data is unavailable for this scene');
       return false;
     }
-    const start = worldToCell(this.navigation, this.currentPosition());
-    const goal = worldToCell(this.navigation, poi.approachPoint);
-    const result = findRoute(this.navigation, start, goal);
+    const result = planRoute(this.navigation, this.currentPosition(), poi.approachPoint);
     this.clearRoute();
     if (!result.ok) {
       this.callbacks.onStatus(result.detail);
