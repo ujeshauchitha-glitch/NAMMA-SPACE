@@ -16,10 +16,11 @@ import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../type
 import { filmedHeading, isWalkable, planRoute, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
+import { chevronDistances, pointAtDistance, polylineLength, ribbonMesh, slicePolyline } from '../lib/routeGeometry';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
-import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
+import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
 
 type ViewerCallbacks = {
@@ -48,6 +49,9 @@ type ViewerOptions = {
 };
 
 const CAMERA_FOV = 68;
+const ROUTE_WIDTH_M = 0.22;
+const CHEVRON_SPACING_M = 0.9;
+const CHEVRON_SPEED_M_S = 0.7;
 const PIN_COLOR = new Color(0.96, 0.57, 0.2);
 const PIN_SELECTED_COLOR = new Color(1, 0.78, 0.3);
 
@@ -105,6 +109,15 @@ export class PlayCanvasViewer {
   private readonly sceneMaterials: StandardMaterial[] = [];
   private readonly loadedAssets: Asset[] = [];
   private routeMaterial: StandardMaterial | null = null;
+  /** The drawn route: smoothed floor polyline to a POI; preview routes are fainter and have no chevrons. */
+  private activeRoute: { poiId: string; path: FloorPoint[]; length: number; preview: boolean } | null = null;
+  private routeRibbon: { entity: Entity; mesh: Mesh | null } | null = null;
+  /** How much of the route is drawn (grows during the reveal). */
+  private routeDrawLength = Infinity;
+  private chevronMesh: Mesh | null = null;
+  private chevronMaterial: StandardMaterial | null = null;
+  private chevrons: Entity[] = [];
+  private beaconRing: Entity | null = null;
   /** D3: one status line per held keypress when movement is unverifiable. */
   private movementNoticePending = false;
   private readonly resizeObserver: ResizeObserver;
@@ -240,7 +253,10 @@ export class PlayCanvasViewer {
 
     this.app.on('update', (dt: number) => this.update(dt));
     // After every update and motion tween: size pins and place labels for the frame about to render.
-    this.app.on('prerender', () => this.updatePoiOverlay());
+    this.app.on('prerender', () => {
+      this.updatePoiOverlay();
+      this.updateRouteOverlay();
+    });
     this.app.start();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas.parentElement ?? this.canvas);
@@ -388,7 +404,12 @@ export class PlayCanvasViewer {
     this.callbacks.onStatus(`Focused on ${poi.label}`);
   }
 
-  public routeTo(poiId: string): boolean {
+  /**
+   * Plan a route from the current position to a POI and draw it: one continuous ribbon on the floor,
+   * chevrons scrolling toward the destination, and a beacon there. A preview is drawn fainter and
+   * without chevrons (a destination picked from search, before guidance starts).
+   */
+  public routeTo(poiId: string, options: { preview?: boolean } = {}): boolean {
     const poi = this.pois.find((candidate) => candidate.id === poiId);
     if (!poi) return false;
     if (!this.navigation) {
@@ -401,27 +422,122 @@ export class PlayCanvasViewer {
       this.callbacks.onStatus(result.detail);
       return false;
     }
-    this.routeMaterial?.destroy();
-    const material = new StandardMaterial();
-    material.diffuse = new Color(0.95, 0.55, 0.18);
-    material.emissive = new Color(0.3, 0.08, 0.01);
-    material.update();
-    this.routeMaterial = material;
-    result.world.forEach((point, index) => {
-      if (index === 0) return;
-      const previous = result.world[index - 1];
-      const segment = new Entity(`route-${index}`);
-      segment.addComponent('render', { type: 'box', material });
-      const dx = point[0] - previous[0];
-      const dz = point[2] - previous[2];
-      const length = Math.hypot(dx, dz);
-      segment.setPosition((point[0] + previous[0]) / 2, 0.09, (point[2] + previous[2]) / 2);
-      segment.setEulerAngles(0, Math.atan2(-dz, dx) * 180 / Math.PI, 0);
-      segment.setLocalScale(Math.max(length, 0.12), 0.035, 0.12);
-      this.routeEntity.addChild(segment);
-    });
-    this.callbacks.onStatus(`Route ready · ${result.cells.length} verified cells to ${poi.label}`);
+    const path = result.path.map((point): FloorPoint => [point[0], point[2]]);
+    this.activeRoute = { poiId, path, length: polylineLength(path), preview: options.preview === true };
+    this.routeDrawLength = Infinity;
+    this.buildRouteVisuals();
+    this.callbacks.onStatus(`Route ready · ${this.activeRoute.length.toFixed(1)} m to ${poi.label}`);
     return true;
+  }
+
+  /** The drawn route as floor points (smoothed), or null. */
+  public getRoutePath(): FloorPoint[] | null {
+    return this.activeRoute?.path ?? null;
+  }
+
+  private buildRouteVisuals(): void {
+    const route = this.activeRoute;
+    if (!route) return;
+    const colour = route.preview ? new Color(0.45, 0.6, 0.12) : new Color(0.7, 0.93, 0.22);
+    if (!this.routeMaterial) this.routeMaterial = new StandardMaterial();
+    const material = this.routeMaterial;
+    material.useLighting = false;
+    material.diffuse = new Color(0, 0, 0);
+    material.emissive = colour;
+    // Opaque, so it is drawn before the (transparent) splats and writes depth: furniture standing in front
+    // of the route still hides it, while the floor splats just under it and the haze around it do not.
+    material.cull = CULLFACE_NONE;
+    material.update();
+    const ribbon = new Entity('route-ribbon');
+    this.routeEntity.addChild(ribbon);
+    this.routeRibbon = { entity: ribbon, mesh: null };
+    this.updateRibbonMesh();
+    if (!route.preview) this.buildChevrons(route.length);
+    this.buildBeacon(route.path[route.path.length - 1], colour);
+  }
+
+  private updateRibbonMesh(): void {
+    const route = this.activeRoute;
+    const ribbon = this.routeRibbon;
+    if (!route || !ribbon || !this.routeMaterial) return;
+    const drawn = slicePolyline(route.path, this.routeDrawLength);
+    const { positions, indices } = ribbonMesh(drawn, ROUTE_WIDTH_M, this.floorY + 0.04);
+    if (ribbon.mesh) {
+      ribbon.entity.removeComponent('render');
+      ribbon.mesh.destroy();
+      ribbon.mesh = null;
+    }
+    if (indices.length === 0) return;
+    const mesh = new Mesh(this.app.graphicsDevice);
+    mesh.setPositions(positions);
+    mesh.setIndices(indices);
+    mesh.update();
+    ribbon.mesh = mesh;
+    ribbon.entity.addComponent('render', { meshInstances: [new MeshInstance(mesh, this.routeMaterial)] });
+  }
+
+  private buildChevrons(length: number): void {
+    if (!this.chevronMesh) {
+      // A flat arrowhead pointing along +z, 24 cm long.
+      const mesh = new Mesh(this.app.graphicsDevice);
+      mesh.setPositions([0, 0, 0.14, -0.09, 0, -0.1, 0, 0, -0.02, 0.09, 0, -0.1]);
+      mesh.setIndices([0, 1, 2, 0, 2, 3]);
+      mesh.update();
+      this.chevronMesh = mesh;
+      const material = new StandardMaterial();
+      material.useLighting = false;
+      material.diffuse = new Color(0, 0, 0);
+      material.emissive = new Color(1, 1, 1);
+      material.cull = CULLFACE_NONE;
+      material.update();
+      this.chevronMaterial = material;
+    }
+    const count = Math.max(0, Math.ceil(length / CHEVRON_SPACING_M) + 1);
+    for (let i = 0; i < count; i += 1) {
+      const chevron = new Entity(`route-chevron-${i}`);
+      chevron.addComponent('render', { meshInstances: [new MeshInstance(this.chevronMesh, this.chevronMaterial!)] });
+      this.routeEntity.addChild(chevron);
+      this.chevrons.push(chevron);
+    }
+  }
+
+  private buildBeacon([x, z]: FloorPoint, colour: Color): void {
+    const pole = this.createPrimitive('route-beacon-pole', 'cylinder', [x, this.floorY + 0.9, z], [0.05, 1.8, 0.05], colour);
+    const ring = this.createPrimitive('route-beacon-ring', 'cylinder', [x, this.floorY + 0.05, z], [0.6, 0.01, 0.6], colour);
+    [pole, ring].forEach((entity) => {
+      const material = entity.render?.meshInstances[0]?.material as StandardMaterial | undefined;
+      if (material) {
+        material.useLighting = false;
+        material.emissive = colour;
+        material.update();
+      }
+      this.routeEntity.addChild(entity);
+    });
+    this.beaconRing = ring;
+  }
+
+  /** Per frame: scroll the chevrons toward the destination and pulse the beacon ring. */
+  private updateRouteOverlay(): void {
+    const route = this.activeRoute;
+    if (!route) return;
+    const seconds = performance.now() / 1000;
+    const drawnLength = Math.min(route.length, this.routeDrawLength);
+    const slots = chevronDistances(drawnLength, CHEVRON_SPACING_M, this.prefersReducedMotion() ? 0 : seconds * CHEVRON_SPEED_M_S);
+    this.chevrons.forEach((chevron, i) => {
+      const distance = slots[i];
+      if (distance === undefined) {
+        chevron.enabled = false;
+        return;
+      }
+      const at = pointAtDistance(route.path, distance);
+      chevron.enabled = true;
+      chevron.setPosition(at.x, this.floorY + 0.06, at.z);
+      chevron.setEulerAngles(0, (at.heading * 180) / Math.PI, 0);
+    });
+    if (this.beaconRing) {
+      const pulse = this.prefersReducedMotion() ? 1 : 0.8 + 0.25 * Math.sin(seconds * 3);
+      this.beaconRing.setLocalScale(0.6 * pulse, 0.01, 0.6 * pulse);
+    }
   }
 
   public destroy(): void {
@@ -557,7 +673,13 @@ export class PlayCanvasViewer {
    * strip (review F1). No control flow of any existing method changed.
    */
   clearRoute(): void {
+    this.tapeRevealStop?.();
+    this.routeRibbon?.mesh?.destroy();
+    this.routeRibbon = null;
     this.routeEntity.children.slice().forEach((child) => child.destroy());
+    this.chevrons = [];
+    this.beaconRing = null;
+    this.activeRoute = null;
   }
 
   private buildFixtureScene(): void {
@@ -1020,42 +1142,22 @@ export class PlayCanvasViewer {
   }
 
   /**
-   * Progressive route-tape reveal (600 ms in-out) over the tape routeTo just
-   * built: the lime core is held depth-off (always-on-top layer, §6.4) and
-   * segments draw in by index — the draw-progress of this box tape. If the
-   * tape is cleared/rebuilt mid-reveal the old reveal cancels itself.
+   * Progressive route reveal (600 ms in-out): the ribbon grows from the visitor to the destination.
+   * Reduced motion draws it at once. A route cleared or replaced mid-reveal cancels the reveal.
    */
   public revealRouteTape(durationMs = 600): void {
     this.tapeRevealStop?.();
-    const segments = this.routeEntity.children.slice() as Entity[]; // tape children are entities at runtime
-    if (segments.length === 0) return;
-
-    const material = this.routeMaterial;
-    if (material) {
-      material.diffuse = new Color(0.7, 0.93, 0.22); // §6.4 lime core
-      material.emissive = new Color(0.16, 0.26, 0.02);
-      material.depthTest = false; // always-on-top tape layer
-      material.update();
-    }
-
-    if (resolveTweenDuration(durationMs, this.prefersReducedMotion()) === 0) return; // instant cut: tape already fully built
-
-    segments.forEach((segment) => {
-      if (segment.render) segment.render.enabled = false;
-    });
+    const route = this.activeRoute;
+    if (!route) return;
+    if (resolveTweenDuration(durationMs, this.prefersReducedMotion()) === 0) return;
     let tween = createTween(durationMs);
     this.tapeRevealStop = this.startMotion((deltaMs) => {
+      if (this.activeRoute !== route) return true;
       const stepped = advanceTween(tween, deltaMs);
       tween = stepped.tween;
-      if (!segments.every((segment) => this.routeEntity.children.includes(segment))) return true; // tape rebuilt mid-draw
-      const visible = revealCount(easeInOutCubic(stepped.progress), segments.length);
-      segments.forEach((segment, index) => {
-        if (segment.render) segment.render.enabled = index < visible;
-      });
+      this.routeDrawLength = stepped.done ? Infinity : route.length * easeInOutCubic(stepped.progress);
+      this.updateRibbonMesh();
       if (stepped.done) {
-        segments.forEach((segment) => {
-          if (segment.render) segment.render.enabled = true;
-        });
         this.tapeRevealStop = null;
         return true;
       }
