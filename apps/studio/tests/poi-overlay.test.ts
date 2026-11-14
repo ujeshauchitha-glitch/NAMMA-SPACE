@@ -5,6 +5,7 @@ import {
   PIN_MAX_PX,
   PIN_MIN_PX,
   focalLengthPx,
+  hitTestScreen,
   labelOpacity,
   layoutLabels,
   pinScreenPx,
@@ -67,5 +68,22 @@ describe('label layout', () => {
       label('b', 700, 300, 4),
     ], viewport);
     expect(out.map((l) => [l.id, l.visible])).toEqual([['behind', false], ['offscreen', false], ['faded', false], ['a', true], ['b', true]]);
+  });
+});
+
+describe('screen hit test', () => {
+  const targets = [
+    { id: 'near', x: 100, y: 100, radius: 10, distance: 2 },
+    { id: 'far', x: 104, y: 100, radius: 6, distance: 9 },
+    { id: 'labelled', x: 400, y: 300, radius: 6, distance: 5, label: [360, 270, 440, 290] as [number, number, number, number] },
+  ];
+  it('hits a pin within its radius plus slop, nearest POI first', () => {
+    expect(hitTestScreen(targets, 103, 101)).toBe('near');
+    expect(hitTestScreen(targets, 100, 117)).toBe(null);
+    expect(hitTestScreen(targets, 100, 115)).toBe('near'); // 10 px radius + 6 px slop
+  });
+  it('hits a label anywhere inside its rectangle', () => {
+    expect(hitTestScreen(targets, 365, 275)).toBe('labelled');
+    expect(hitTestScreen(targets, 500, 500)).toBe(null);
   });
 });

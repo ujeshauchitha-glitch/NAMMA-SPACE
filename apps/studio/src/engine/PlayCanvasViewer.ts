@@ -11,7 +11,7 @@ import {
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { filmedHeading, findRoute, isWalkable, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
-import { focalLengthPx, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel } from '../lib/poiOverlay';
+import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { advanceTween, createTween, easeInOutCubic, easeOutExpo, lerp, lerpAngleDeg, revealCount, resolveTweenDuration } from './tween';
@@ -21,6 +21,10 @@ type ViewerCallbacks = {
   onStatus: (message: string) => void;
   onPosition: (position: Vec3, cell: GridCell) => void;
   onPointerLock: (locked: boolean) => void;
+  /** A POI pin or label was clicked (or clicked through the crosshair under pointer lock). */
+  onPoiClick?: (poiId: string, viaCrosshair: boolean) => void;
+  /** The POI under the cursor (or the crosshair) changed. */
+  onPoiHover?: (poiId: string | null) => void;
 };
 
 type ViewerOptions = {
@@ -65,6 +69,11 @@ export class PlayCanvasViewer {
   /** One HTML label per POI, with its measured size (labels are positioned every frame). */
   private readonly labelEls = new Map<string, { el: HTMLDivElement; width: number; height: number }>();
   private selectedPoiId: string | null = null;
+  /** Pin and label screen targets from the last rendered frame, for click and hover hit tests. */
+  private hitTargets: ScreenTarget[] = [];
+  private hoveredPoiId: string | null = null;
+  /** Cursor position over the canvas (CSS px) while the pointer is not locked. */
+  private pointerPx: [number, number] | null = null;
   /** Per-POI pin size multiplier driven by the selection pulse. */
   private readonly pinPulse = new Map<string, number>();
   private readonly callbacks: ViewerCallbacks;
@@ -94,6 +103,27 @@ export class PlayCanvasViewer {
     this.pitchPivot.setLocalEulerAngles(Math.max(-this.maxPitch, Math.min(this.maxPitch, pitch)), 0, 0);
   };
   private readonly onPointerLockChange = () => this.callbacks.onPointerLock(document.pointerLockElement === this.canvas);
+  private readonly onCanvasPointerMove = (event: MouseEvent) => {
+    if (document.pointerLockElement === this.canvas) return;
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointerPx = [event.clientX - rect.left, event.clientY - rect.top];
+  };
+  private readonly onCanvasPointerLeave = () => {
+    this.pointerPx = null;
+  };
+  /** Click: under pointer lock the crosshair (screen centre) picks, otherwise the cursor does. */
+  private readonly onCanvasClick = (event: MouseEvent) => {
+    const locked = document.pointerLockElement === this.canvas;
+    const rect = this.canvas.getBoundingClientRect();
+    const [px, py] = locked ? [rect.width / 2, rect.height / 2] : [event.clientX - rect.left, event.clientY - rect.top];
+    const poiId = hitTestScreen(this.hitTargets, px, py);
+    if (poiId) {
+      this.callbacks.onPoiClick?.(poiId, locked);
+      return;
+    }
+    // Empty scene: a click enters the walkthrough, as the HUD hint says.
+    if (!locked) this.enterWalkthrough();
+  };
 
   public constructor(options: ViewerOptions) {
     this.canvas = options.canvas;
@@ -156,6 +186,9 @@ export class PlayCanvasViewer {
     window.addEventListener('keyup', this.onKeyUp);
     document.addEventListener('mousemove', this.onMouseMove);
     document.addEventListener('pointerlockchange', this.onPointerLockChange);
+    this.canvas.addEventListener('mousemove', this.onCanvasPointerMove);
+    this.canvas.addEventListener('mouseleave', this.onCanvasPointerLeave);
+    this.canvas.addEventListener('click', this.onCanvasClick);
     this.resize();
     this.reset();
     // Dev builds only: lets a person (or a test) place the camera from the console, e.g. to compare
@@ -191,6 +224,25 @@ export class PlayCanvasViewer {
       material.update();
     });
     this.labelEls.forEach(({ el }, id) => el.classList.toggle('is-selected', id === poiId));
+    this.applyHoverStyle();
+  }
+
+  private setHovered(poiId: string | null): void {
+    if (poiId === this.hoveredPoiId) return;
+    this.hoveredPoiId = poiId;
+    this.applyHoverStyle();
+    this.canvas.style.cursor = poiId && document.pointerLockElement !== this.canvas ? 'pointer' : '';
+    this.callbacks.onPoiHover?.(poiId);
+  }
+
+  private applyHoverStyle(): void {
+    this.labelEls.forEach(({ el }, id) => el.classList.toggle('is-hovered', id === this.hoveredPoiId));
+    this.poiEntities.forEach((marker, id) => {
+      const material = marker.render?.meshInstances[0]?.material as StandardMaterial | undefined;
+      if (!material || id === this.selectedPoiId) return;
+      material.emissive = id === this.hoveredPoiId ? new Color(0.55, 0.3, 0.05) : new Color(0.25, 0.08, 0.01);
+      material.update();
+    });
   }
 
   /** Replace the POI set (e.g. after editing) without reloading the scene. */
@@ -200,6 +252,8 @@ export class PlayCanvasViewer {
     this.labelEls.forEach(({ el }) => el.remove());
     this.labelEls.clear();
     this.pois = pois;
+    this.hitTargets = [];
+    this.hoveredPoiId = null;
     this.buildPoiMarkers();
     if (this.selectedPoiId && !pois.some((poi) => poi.id === this.selectedPoiId)) this.selectedPoiId = null;
     this.selectPoi(this.selectedPoiId);
@@ -269,6 +323,9 @@ export class PlayCanvasViewer {
     window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+    this.canvas.removeEventListener('mousemove', this.onCanvasPointerMove);
+    this.canvas.removeEventListener('mouseleave', this.onCanvasPointerLeave);
+    this.canvas.removeEventListener('click', this.onCanvasClick);
     document.exitPointerLock();
     this.loadedAssets.forEach((asset) => {
       asset.unload();
@@ -532,6 +589,7 @@ export class PlayCanvasViewer {
     const eye = this.camera.getPosition();
     const forward = this.camera.forward;
     const projected: ProjectedLabel[] = [];
+    const targets: ScreenTarget[] = [];
     const screen = new PcVec3();
     this.pois.forEach((poi) => {
       const marker = this.poiEntities.get(poi.id);
@@ -544,6 +602,10 @@ export class PlayCanvasViewer {
       const selected = poi.id === this.selectedPoiId;
       const diameter = pinWorldDiameter(distance, focal) * (selected ? 1.3 : 1) * (this.pinPulse.get(poi.id) ?? 1);
       marker.setLocalScale(diameter, diameter, diameter);
+      const behind = dx * forward.x + dy * forward.y + dz * forward.z <= 0;
+      cameraComponent.worldToScreen(new PcVec3(x, y, z), screen);
+      const pinPx = pinScreenPx(distance, focal) * (selected ? 1.3 : 1);
+      if (!behind) targets.push({ id: poi.id, x: screen.x, y: screen.y, radius: pinPx / 2, distance });
       const label = this.labelEls.get(poi.id);
       if (!label) return;
       if (label.width === 0) {
@@ -554,14 +616,12 @@ export class PlayCanvasViewer {
         label.height = label.el.offsetHeight;
         label.el.style.visibility = '';
       }
-      cameraComponent.worldToScreen(new PcVec3(x, y, z), screen);
-      const pinPx = pinScreenPx(distance, focal) * (selected ? 1.3 : 1);
       projected.push({
         id: poi.id,
         x: screen.x,
         y: screen.y - pinPx / 2 - 4,
         distance,
-        behind: dx * forward.x + dy * forward.y + dz * forward.z <= 0,
+        behind,
         width: label.width,
         height: label.height,
         pinned: selected,
@@ -574,7 +634,14 @@ export class PlayCanvasViewer {
       if (!placed.visible) return;
       label.el.style.opacity = placed.opacity.toFixed(2);
       label.el.style.transform = `translate(${(placed.x - label.width / 2).toFixed(1)}px, ${(placed.y - label.height).toFixed(1)}px)`;
+      const target = targets.find((candidate) => candidate.id === placed.id);
+      if (target) target.label = [placed.x - label.width / 2, placed.y - label.height, placed.x + label.width / 2, placed.y];
     });
+    this.hitTargets = targets;
+    // Hover follows the crosshair under pointer lock and the cursor otherwise.
+    const locked = document.pointerLockElement === this.canvas;
+    const probe: [number, number] | null = locked ? [width / 2, height / 2] : this.pointerPx;
+    this.setHovered(probe ? hitTestScreen(targets, probe[0], probe[1]) : null);
   }
 
   private addBox(name: string, position: [number, number, number], scale: [number, number, number], color: Color): void {

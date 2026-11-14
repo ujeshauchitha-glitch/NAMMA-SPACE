@@ -77,3 +77,26 @@ export function layoutLabels(labels: ProjectedLabel[], viewport: { width: number
   }
   return labels.map((label) => result.get(label.id)!);
 }
+
+export type ScreenTarget = {
+  id: string;
+  /** Pin centre and on-screen radius, CSS pixels. */
+  x: number;
+  y: number;
+  radius: number;
+  /** Visible label rectangle [left, top, right, bottom], if any. */
+  label?: [number, number, number, number];
+  /** Camera distance, metres; the nearest hit wins. */
+  distance: number;
+};
+
+/** POI id under a screen point: on a pin (with a few px of slop) or on its label; nearest POI wins. */
+export function hitTestScreen(targets: ScreenTarget[], px: number, py: number, slopPx = 6): string | null {
+  let best: ScreenTarget | null = null;
+  for (const target of targets) {
+    const onPin = Math.hypot(px - target.x, py - target.y) <= target.radius + slopPx;
+    const onLabel = target.label !== undefined && px >= target.label[0] && px <= target.label[2] && py >= target.label[1] && py <= target.label[3];
+    if ((onPin || onLabel) && (!best || target.distance < best.distance)) best = target;
+  }
+  return best?.id ?? null;
+}

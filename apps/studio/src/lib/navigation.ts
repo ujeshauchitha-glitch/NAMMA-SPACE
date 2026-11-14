@@ -242,3 +242,12 @@ export function searchPois(pois: Poi[], query: string): Poi[] {
     .sort((a, b) => b.score - a.score || a.poi.label.localeCompare(b.poi.label))
     .map(({ poi }) => poi);
 }
+
+/**
+ * Walking distance in metres from a world position to a POI's approach point along the navigation grid,
+ * or null when either end is off the walkable area or no route connects them.
+ */
+export function walkingDistance(grid: NavigationGrid, from: Vec3, poi: Pick<Poi, 'approachPoint'>): number | null {
+  const route = findRoute(grid, worldToCell(grid, from), worldToCell(grid, poi.approachPoint));
+  return route.ok ? measureRouteMetres(route.world) : null;
+}

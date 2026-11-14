@@ -4,7 +4,7 @@ import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
-import { findRoute, measureRouteMetres, searchPois, worldToCell, type GridCell } from '../../lib/navigation';
+import { findRoute, measureRouteMetres, searchPois, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
 import type { SceneBundle, Vec3 } from '../../types/scene';
 import type { PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { useWorkspaceStore } from '../../state/workspaceContext';
@@ -13,6 +13,7 @@ import { SceneSkeleton } from './SceneSkeleton';
 import { SceneErrorPanel } from './SceneErrorPanel';
 import { PoiSearch } from './PoiSearch';
 import { DestinationDetail } from './DestinationDetail';
+import { PoiCard } from './PoiCard';
 import { SceneDossier } from './SceneDossier';
 import { Hud } from './Hud';
 import { usePointerLock } from './usePointerLock';
@@ -71,6 +72,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+  // POI card opened from the 3D view (pin, label or zone click), and the POI under the cursor/crosshair.
+  const [cardPoiId, setCardPoiId] = useState<string | null>(null);
+  const [hoveredPoiId, setHoveredPoiId] = useState<string | null>(null);
   const [position, setPosition] = useState<Vec3>([0, 0, 0]);
   const [cell, setCell] = useState<GridCell>({ x: 0, z: 0 });
   const [viewerStatus, setViewerStatus] = useState('Loading scene bundle…');
@@ -259,6 +263,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
       if (event.key !== 'Escape') return;
       if (document.pointerLockElement !== null) return;
       if (!selectedPoiId) return;
+      setCardPoiId(null);
       setSelectedPoiId(null);
       viewerRef.current?.selectPoi(null);
       viewerRef.current?.clearRoute();
@@ -276,7 +281,18 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     viewerRef.current?.clearRoute();
   }, [selectedPoiId, sceneUrl]);
 
+  // A different selection (e.g. from search) closes a card opened for another POI.
+  useEffect(() => {
+    setCardPoiId((current) => (current && current !== selectedPoiId ? null : current));
+  }, [selectedPoiId]);
+
   const selectedPoi = bundle?.pois.find((poi) => poi.id === selectedPoiId) ?? null;
+  const cardPoi = bundle?.pois.find((poi) => poi.id === cardPoiId) ?? null;
+  // Recomputed when the visitor moves to another grid cell, not on every sub-cell step.
+  const cardWalkMetres = useMemo(
+    () => (cardPoi && bundle?.navigation ? walkingDistance(bundle.navigation, position, cardPoi) : undefined),
+    [cardPoi, bundle?.navigation, cell.x, cell.z],
+  );
   const results = useMemo(() => searchPois(bundle?.pois ?? [], query), [bundle?.pois, query]);
   const hasGlbVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'glb' || asset.kind === 'gltf') ?? false;
   const hasSplatVisual = bundle?.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog') ?? false;
@@ -304,6 +320,16 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const handleViewerStatus = useCallback((status: string) => {
     setViewerStatus(status);
   }, []);
+  // Stable identities: the engine mount effect depends on these callbacks.
+  const handlePoiClick = useCallback((poiId: string, viaCrosshair: boolean) => {
+    setSelectedPoiId(poiId);
+    setCardPoiId(poiId);
+    viewerRef.current?.selectPoi(poiId);
+    viewerRef.current?.pulseSelection(poiId);
+    // The card needs the mouse: a crosshair click releases pointer lock.
+    if (viaCrosshair) document.exitPointerLock();
+  }, []);
+  const handlePoiHover = useCallback((poiId: string | null) => setHoveredPoiId(poiId), []);
   // T17 · compass needle samples the live pose; [] keeps a stable identity.
   const getYaw = useCallback(() => viewerRef.current?.getPose().yawDegrees ?? null, []);
 
@@ -444,9 +470,24 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     onPosition={handlePosition}
                     onStatus={handleViewerStatus}
                     labelLayerRef={labelLayerRef}
+                    onPoiClick={handlePoiClick}
+                    onPoiHover={handlePoiHover}
                   />
                 )}
                 <div ref={labelLayerRef} className={styles.labelLayer} aria-hidden="true" />
+                {isWalkthroughActive && (
+                  <div className={`${styles.crosshair} ${hoveredPoiId ? styles.crosshairActive : ''}`} aria-hidden="true" />
+                )}
+                {cardPoi && (
+                  <PoiCard
+                    poi={cardPoi}
+                    walkMetres={cardWalkMetres}
+                    disabled={!isViewerReady}
+                    onRoute={handleRoute}
+                    onGoTo={handleJump}
+                    onClose={() => setCardPoiId(null)}
+                  />
+                )}
                 {!isViewerReady && (
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}

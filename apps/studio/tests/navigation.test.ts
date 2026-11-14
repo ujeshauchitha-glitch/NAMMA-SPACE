@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filmedHeading, findRoute, inflateNavigationGrid, measureRouteMetres, searchPois, worldToCell } from '../src/lib/navigation';
+import { filmedHeading, findRoute, inflateNavigationGrid, measureRouteMetres, searchPois, walkingDistance, worldToCell } from '../src/lib/navigation';
 import type { NavigationGrid, Poi } from '../src/types/scene';
 
 const grid: NavigationGrid = {
@@ -282,5 +282,17 @@ describe('filmed view directions', () => {
   it('does nothing where the grid has no view data', () => {
     expect(filmedHeading(views, { x: 1, z: 0 }, deg(180))).toBeNull();
     expect(filmedHeading(grid, { x: 0, z: 0 }, deg(180))).toBeNull();
+  });
+});
+
+describe('walking distance', () => {
+  it('follows the route around the wall, not the straight line', () => {
+    // wall at x = 2, z = 1..5 (cells 9, 16, 23, 30, 37); from (0.5, 2.5) to (4.5, 2.5) the walk detours
+    const metres = walkingDistance(grid, [0.5, 1.6, 2.5], { approachPoint: [4.5, 1.6, 2.5] });
+    expect(metres).not.toBeNull();
+    expect(metres!).toBeGreaterThan(4.5);
+  });
+  it('is null when the destination is not walkable', () => {
+    expect(walkingDistance(grid, [0.5, 1.6, 0.5], { approachPoint: [2.5, 1.6, 1.5] })).toBeNull();
   });
 });

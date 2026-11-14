@@ -187,6 +187,92 @@
   color: #10140a;
 }
 
+.labelLayer :global(.poi-label.is-hovered) {
+  outline: 2px solid var(--accent-lime);
+}
+
+/* Centre crosshair under pointer lock: clicking picks whatever POI it sits on. */
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.crosshairActive {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  background: transparent;
+  border: 2px solid var(--accent-lime);
+}
+
+.poiCard {
+  position: absolute;
+  left: 12px;
+  top: 72px;
+  width: min(320px, calc(100% - 24px));
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-raised, #fbfbf8);
+  border: var(--border-strong, 1px solid #c9ccc2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  z-index: 3;
+}
+
+.poiCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.poiCardCategory {
+  margin: 0;
+  font: var(--text-meta, 450 11px/1.4 monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted, #5d6259);
+}
+
+.poiCardTitle {
+  margin: 2px 0 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.poiCardClose {
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+.poiCardText {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.poiCardWalk {
+  margin: 8px 0 0;
+  font: var(--text-meta, 450 11px/1.4 monospace);
+}
+
+.poiCardActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 /* error state replaces the viewport, not the app (§5.13) */
 .errorPanel {
   display: grid;

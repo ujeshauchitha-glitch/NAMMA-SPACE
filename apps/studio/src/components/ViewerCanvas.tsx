@@ -14,6 +14,8 @@ type ViewerCanvasProps = {
   onStatus: (status: string) => void;
   /** Overlay element for the engine's HTML POI labels. */
   labelLayerRef?: RefObject<HTMLDivElement | null>;
+  onPoiClick?: (poiId: string, viaCrosshair: boolean) => void;
+  onPoiHover?: (poiId: string | null) => void;
 };
 
 /**
@@ -25,7 +27,7 @@ type ViewerCanvasProps = {
  */
 let liveViewerCount = 0;
 
-export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus, labelLayerRef }: ViewerCanvasProps) {
+export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewerReady, onViewerDestroyed, onPosition, onStatus, labelLayerRef, onPoiClick, onPoiHover }: ViewerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [contextConflict, setContextConflict] = useState(false);
 
@@ -51,6 +53,8 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
           onPosition,
           onStatus,
           onPointerLock: () => undefined,
+          onPoiClick,
+          onPoiHover,
         },
       });
       onViewerReady(viewer);
@@ -63,7 +67,7 @@ export function ViewerCanvas({ manifest, manifestUrl, navigation, pois, onViewer
       viewer?.destroy();
       onViewerDestroyed();
     };
-  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois, labelLayerRef]);
+  }, [manifest, navigation, onPosition, onStatus, onViewerDestroyed, onViewerReady, pois, labelLayerRef, onPoiClick, onPoiHover]);
 
   if (contextConflict) {
     // Honest refusal — never a second silent WebGL context.
