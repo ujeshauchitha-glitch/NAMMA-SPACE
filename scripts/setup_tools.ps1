@@ -2,7 +2,7 @@
 # half-finished downloads/extractions are redone, and any failing step stops the script with an error.
 #   COLMAP 4.2.1 (CUDA build) -> tools\colmap         camera poses + sparse model   https://github.com/colmap/colmap
 #   Brush 0.3.0               -> tools\brush          Gaussian-splat training (WebGPU, no CUDA toolkit)
-#   splat-transform 3.10.3    -> tools\splat-transform  .ply -> .sog/.spz for the web (needs Node.js >= 22)
+#   splat-transform 3.11.2    -> tools\splat-transform  .ply -> .sog/.spz for the web (needs Node.js >= 22)
 #   ffmpeg, Node.js           -> winget, if missing
 #   Python venv               -> .venv (opencv-python-headless, numpy, scipy; ultralytics only for --mask-people)
 $ErrorActionPreference = 'Stop'
@@ -69,7 +69,7 @@ if ((Get-NodeMajor) -lt 22) {
 $st = Join-Path $tools 'splat-transform'
 if (-not (Test-Path (Join-Path $st '.complete'))) {
     Remove-Item -Recurse -Force $st -ErrorAction SilentlyContinue
-    Invoke-Checked 'npm install splat-transform' { npm install --prefix $st --no-audit --no-fund '@playcanvas/splat-transform@3.10.3' }
+    Invoke-Checked 'npm install splat-transform' { npm install --prefix $st --no-audit --no-fund '@playcanvas/splat-transform@3.11.2' }
     New-Item -ItemType File (Join-Path $st '.complete') | Out-Null
 }
 

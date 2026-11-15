@@ -72,7 +72,7 @@ sh("python --version; nvcc --version | tail -2 || true; ffmpeg -version | head -
 if shutil.which("ffmpeg") is None:
     sh("apt-get -qq update && apt-get -qq install -y ffmpeg")
 
-pkgs = [f"pycolmap-cuda12=={PINS['pycolmap-cuda12']}", f"gsplat=={PINS['gsplat']}", "plyfile"]
+pkgs = [f"pycolmap-cuda12=={PINS['pycolmap-cuda12']}", f"gsplat=={PINS['gsplat']}"]
 if MASK_PEOPLE:
     pkgs.append(f"ultralytics=={PINS['ultralytics']}")
 sh(f"pip install -q {' '.join(pkgs)}")
