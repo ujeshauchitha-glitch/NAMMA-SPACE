@@ -19,6 +19,7 @@ import { ControlsHint } from './ControlsHint';
 import { DEFAULT_SCENE_NAME, visibleScenes } from './sceneOptions';
 import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
+import { Minimap } from './Minimap';
 import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
 import { approachIsWalkable, clearDraft, createPoi, exportPois, importPois, loadDraft, movePoi, saveDraft, type EditorContext } from '../../lib/poiEditor';
 import { PoiSpatialIndex, type FloorPoint } from '../../lib/poiIndex';
@@ -71,6 +72,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [searchCategory, setSearchCategory] = useState<PoiCategory | null>(null);
   // Set by a search pick so the selection effect previews that POI's route after clearing the old one.
   const previewOnSelectRef = useRef<string | null>(null);
+  // Set by a minimap floor click made while a POI is selected: routed once the selection effect has cleared.
+  const floorRouteRef = useRef<FloorPoint | null>(null);
   /** Search pick: turn to face the POI if it is in view and draw its route as a preview (no guidance). */
   const previewSelection = (poiId: string) => {
     viewerRef.current?.faceIfInView(poiId);
@@ -313,6 +316,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     // A destination picked from search gets its route previewed once the old one is cleared.
     if (selectedPoiId && previewOnSelectRef.current === selectedPoiId) previewSelection(selectedPoiId);
     previewOnSelectRef.current = null;
+    if (floorRouteRef.current) routeToFloor(floorRouteRef.current);
+    floorRouteRef.current = null;
   }, [selectedPoiId, sceneUrl]);
 
   // A different selection (e.g. from search) closes a card opened for another POI.
@@ -573,6 +578,28 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     setGuidance(null);
   };
 
+  /** Minimap: walkable floor clicked, route there and start guidance ("Route here" for a floor point). */
+  const routeToFloor = (point: FloorPoint) => {
+    setRouteState({ status: 'idle' });
+    viewerRef.current?.routeToFloor(point);
+  };
+  const handleMapFloor = (point: FloorPoint) => {
+    setCardPoiId(null);
+    if (selectedPoiId) {
+      // Clearing the selection clears the route too; route to the point after that.
+      floorRouteRef.current = point;
+      setSelectedPoiId(null);
+      viewerRef.current?.selectPoi(null);
+      return;
+    }
+    routeToFloor(point);
+  };
+  const getMapPose = useCallback(() => {
+    const pose = viewerRef.current?.getPose();
+    return pose ? { x: pose.position[0], z: pose.position[2], yawDegrees: pose.yawDegrees } : null;
+  }, []);
+  const getMapRoute = useCallback(() => viewerRef.current?.getRoutePath() ?? null, []);
+
   const handleJump = () => {
     if (!selectedPoi) return;
     viewerRef.current?.jumpToSmooth(selectedPoi.id);
@@ -681,6 +708,17 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}
                 {bundle && isViewerReady && <ControlsHint />}
+                {bundle?.navigation && isViewerReady && (
+                  <Minimap
+                    grid={bundle.navigation}
+                    pois={scenePois}
+                    selectedId={selectedPoiId}
+                    getPose={getMapPose}
+                    getRoute={getMapRoute}
+                    onSelectPoi={selectPoi}
+                    onRouteToFloor={handleMapFloor}
+                  />
+                )}
                 {bundle && (
                   <Hud
                     sceneLabel={bundle.manifest.displayName}

@@ -79,6 +79,9 @@ const PLAYER_HEIGHT = 1.65;
 const WALK_SPEED = 1.4; // normal indoor walking pace, m/s
 const LOOK_SPEED = 0.12;
 
+/** Guidance target id used for a floor point picked on the minimap. */
+export const MAP_POINT_ID = 'map-point';
+
 export class PlayCanvasViewer {
   private readonly app: Application;
   private readonly camera: Entity;
@@ -132,6 +135,7 @@ export class PlayCanvasViewer {
   private readonly loadedAssets: Asset[] = [];
   private routeMaterial: StandardMaterial | null = null;
   /** The drawn route: smoothed floor polyline to a POI; preview routes are fainter and have no chevrons. */
+  private mapPoint: Poi | null = null;
   private activeRoute: { poiId: string; path: FloorPoint[]; length: number; preview: boolean } | null = null;
   private routeRibbon: { entity: Entity; mesh: Mesh | null } | null = null;
   /** How much of the route is drawn (grows during the reveal). */
@@ -482,7 +486,7 @@ export class PlayCanvasViewer {
    * without chevrons (a destination picked from search, before guidance starts).
    */
   public routeTo(poiId: string, options: { preview?: boolean } = {}): boolean {
-    const poi = this.pois.find((candidate) => candidate.id === poiId);
+    const poi = this.findTarget(poiId);
     if (!poi) return false;
     if (!this.navigation) {
       this.callbacks.onStatus('Navigation data is unavailable for this scene');
@@ -501,6 +505,28 @@ export class PlayCanvasViewer {
     this.buildRouteVisuals();
     this.callbacks.onStatus(`Route ready · ${this.activeRoute.length.toFixed(1)} m to ${poi.label}`);
     return true;
+  }
+
+  /** A POI by id, or the floor point last picked on the minimap (MAP_POINT_ID). */
+  private findTarget(poiId: string): Poi | undefined {
+    if (poiId === MAP_POINT_ID) return this.mapPoint ?? undefined;
+    return this.pois.find((candidate) => candidate.id === poiId);
+  }
+
+  /**
+   * Route to (and guide towards) a walkable floor point, e.g. one clicked on the minimap. The point stands
+   * in for a POI labelled "Map point" so the route, beacon and guidance work unchanged.
+   */
+  public routeToFloor([x, z]: FloorPoint): boolean {
+    const eyeY = this.currentPosition()[1];
+    this.mapPoint = {
+      id: MAP_POINT_ID, label: 'Map point', category: 'other', position: [x, eyeY, z], approachPoint: [x, eyeY, z],
+      aliases: [], confidence: 1, source: 'operator',
+    };
+    this.stopGuidance();
+    if (!this.routeTo(MAP_POINT_ID)) return false;
+    this.revealRouteTape();
+    return this.startGuidance(MAP_POINT_ID);
   }
 
   /** The drawn route as floor points (smoothed), or null. */
@@ -672,7 +698,7 @@ export class PlayCanvasViewer {
     const guidance = this.guidance;
     const route = this.activeRoute;
     if (!guidance || !route || guidance.arrived) return;
-    const poi = this.pois.find((candidate) => candidate.id === guidance.poiId);
+    const poi = this.findTarget(guidance.poiId);
     if (!poi) {
       this.stopGuidance();
       return;
