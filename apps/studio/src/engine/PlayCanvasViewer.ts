@@ -24,6 +24,7 @@ import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiamet
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { cropBox, cropModifier } from './splatCrop';
+import { idleYawStep, SPLAT_MAX_PITCH_DEG, viewGuideEnabled } from '../lib/viewGuide';
 import { advanceTween, createTween, easeInOutCubic, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
 
@@ -77,9 +78,6 @@ const PIN_SELECTED_COLOR = new Color(1, 0.78, 0.3);
 const PLAYER_HEIGHT = 1.65;
 const WALK_SPEED = 1.4; // normal indoor walking pace, m/s
 const LOOK_SPEED = 0.12;
-/** After the mouse rests this long, a view facing an unfilmed direction eases back toward a filmed one. */
-const GUIDE_DELAY_MS = 350;
-const GUIDE_RATE = 2.5; // per second: about 90% of the way back in one second
 
 export class PlayCanvasViewer {
   private readonly app: Application;
@@ -93,6 +91,9 @@ export class PlayCanvasViewer {
   private readonly maxPixelRatio: number;
   /** Captures are filmed with the phone roughly level, so steep views (ceiling, floor) are mostly unfilmed. */
   private readonly maxPitch: number;
+  private readonly viewGuide: boolean;
+  /** Called on every look input (drag or locked mouse): explicit camera motions stop when the visitor looks. */
+  private readonly lookListeners = new Set<() => void>();
   private frameTime = 1 / 60;
   private framesSinceResize = 0;
   private lastLookAt = 0;
@@ -160,6 +161,7 @@ export class PlayCanvasViewer {
 
   private look(movementX: number, movementY: number): void {
     this.lastLookAt = performance.now();
+    [...this.lookListeners].forEach((listener) => listener());
     this.yawPivot.rotateLocal(0, -movementX * LOOK_SPEED, 0);
     this.pitchPivot.rotateLocal(-movementY * LOOK_SPEED, 0, 0);
     const pitch = this.pitchPivot.getLocalEulerAngles().x;
@@ -266,7 +268,9 @@ export class PlayCanvasViewer {
     // Splats rendered into a multisampled target are several times more expensive (PlayCanvas warns
     // about this), so MSAA is only used for mesh scenes.
     const hasSplat = this.manifest.visualAssets.some((asset) => asset.kind === 'ply' || asset.kind === 'sog');
-    this.maxPitch = hasSplat ? 35 : 82;
+    this.maxPitch = hasSplat ? SPLAT_MAX_PITCH_DEG : 82;
+    // The idle drift toward filmed directions is off unless ?guide=1 (see lib/viewGuide.ts).
+    this.viewGuide = typeof window !== 'undefined' && viewGuideEnabled(window.location.search);
     this.app = new Application(this.canvas, {
       graphicsDeviceOptions: { antialias: !hasSplat, alpha: false },
     });
@@ -826,19 +830,20 @@ export class PlayCanvasViewer {
     }
   }
 
-  /**
-   * A splat streaks when seen from a direction the phone never faced, so when the visitor rests the
-   * mouse looking that way, turn them gently back toward the nearest direction filmed from where they stand.
-   */
+  /** Optional idle drift toward a filmed direction (?guide=1 only; see lib/viewGuide.ts). */
   private guideView(dt: number): void {
-    if (!this.navigation || performance.now() - this.lastLookAt < GUIDE_DELAY_MS) return;
+    if (!this.viewGuide || !this.navigation) return;
     const forward = this.yawPivot.forward;
     const heading = Math.atan2(forward.x, forward.z);
-    const target = filmedHeading(this.navigation, worldToCell(this.navigation, this.currentPosition()), heading);
-    if (target === null) return;
+    const step = idleYawStep({
+      enabled: true,
+      msSinceLook: performance.now() - this.lastLookAt,
+      heading,
+      filmedHeading: filmedHeading(this.navigation, worldToCell(this.navigation, this.currentPosition()), heading),
+      dt,
+    });
     // Yaw and heading grow together (forward = (-sin yaw, -cos yaw)), so turn yaw by the heading gap.
-    const gap = Math.atan2(Math.sin(target - heading), Math.cos(target - heading));
-    this.yawPivot.rotateLocal(0, (gap * 180 / Math.PI) * (1 - Math.exp(-GUIDE_RATE * dt)), 0);
+    if (step !== 0) this.yawPivot.rotateLocal(0, step, 0);
   }
 
   /** Lower the render resolution when frames are slow (< 30 fps) and raise it back when fast (> 50 fps). */
@@ -1290,8 +1295,9 @@ export class PlayCanvasViewer {
     return stop;
   }
 
-  /** Camera kill-switch: pointer-lock entry or WASD/arrow keydown ends the tween. */
+  /** Camera kill-switch: pointer-lock entry, WASD/arrow keydown or looking around (drag) ends the tween. */
   private armCameraKill(kill: () => void): () => void {
+    this.lookListeners.add(kill);
     const onKey = (event: KeyboardEvent): void => {
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
         kill();
@@ -1303,6 +1309,7 @@ export class PlayCanvasViewer {
     window.addEventListener('keydown', onKey);
     document.addEventListener('pointerlockchange', onLock);
     return () => {
+      this.lookListeners.delete(kill);
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerlockchange', onLock);
     };
