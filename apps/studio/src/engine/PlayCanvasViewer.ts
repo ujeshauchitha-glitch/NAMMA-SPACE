@@ -13,7 +13,7 @@ import {
   Vec3 as PcVec3,
 } from 'playcanvas';
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
-import { filmedHeading, isWalkable, planRoute, worldToCell, type GridCell } from '../lib/navigation';
+import { filmedHeading, isWalkable, planRoute, poiInView, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
 import { FADE_CUT_MS, fadeCutOpacity, flightDurationMs, flightPose, planFlight } from '../lib/routeFlight';
@@ -439,7 +439,8 @@ export class PlayCanvasViewer {
     const result = planRoute(this.navigation, this.currentPosition(), poi.approachPoint);
     this.clearRoute();
     if (!result.ok) {
-      this.callbacks.onStatus(result.detail);
+      // A preview (a search pick) fails quietly: the card already says there is no route from here.
+      if (!options.preview) this.callbacks.onStatus(result.detail);
       return false;
     }
     const path = result.path.map((point): FloorPoint => [point[0], point[2]]);
@@ -1293,6 +1294,37 @@ export class PlayCanvasViewer {
       if (elapsed < durationMs) return false;
       this.callbacks.onStatus(`Focused on ${poi.label}`);
       return true;
+    }, (kill) => this.armCameraKill(kill));
+    return true;
+  }
+
+  /**
+   * Turn (not move) the camera to face a POI when it is in view from here (unobstructed on the grid and
+   * within 20 m). Eased over 450 ms; a movement key or pointer lock cancels; reduced motion snaps.
+   * Returns whether it turned.
+   */
+  public faceIfInView(poiId: string): boolean {
+    const poi = this.pois.find((candidate) => candidate.id === poiId);
+    if (!poi || !this.navigation) return false;
+    const eye = this.currentPosition();
+    if (Math.hypot(poi.position[0] - eye[0], poi.position[2] - eye[2]) < 0.05) return false;
+    if (!poiInView(this.navigation, eye, poi)) return false;
+    const target = faceAngles(eye, poi.position);
+    const from = this.getPose();
+    this.cameraMotionStop?.();
+    this.lastLookAt = performance.now();
+    if (this.prefersReducedMotion()) {
+      this.lookAt(poi.position);
+      return true;
+    }
+    let elapsed = 0;
+    this.cameraMotionStop = this.startMotion((deltaMs) => {
+      elapsed = Math.min(450, elapsed + deltaMs);
+      const t = easeInOutCubic(elapsed / 450);
+      this.yawPivot.setEulerAngles(0, lerpAngleDeg(from.yawDegrees, target.yawDegrees, t), 0);
+      this.pitchPivot.setLocalEulerAngles(lerpAngleDeg(from.pitchDegrees, target.pitchDegrees, t), 0, 0);
+      this.lastLookAt = performance.now();
+      return elapsed >= 450;
     }, (kill) => this.armCameraKill(kill));
     return true;
   }

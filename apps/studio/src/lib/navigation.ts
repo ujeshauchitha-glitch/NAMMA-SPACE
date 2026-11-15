@@ -446,3 +446,16 @@ export function smoothPath(grid: NavigationGrid, points: Vec3[]): Vec3[] {
   }
   return result;
 }
+
+/** How far away a POI can be and still count as "in view" (m). */
+export const IN_VIEW_MAX_M = 20;
+
+/**
+ * Whether a POI can be seen from `eye`: within IN_VIEW_MAX_M and an unobstructed grid line of sight
+ * to its approach point or to its position (a POI on furniture sits in a blocked cell, so its
+ * approach point stands in for it).
+ */
+export function poiInView(grid: NavigationGrid, eye: Vec3, poi: Pick<Poi, 'position' | 'approachPoint'>, maxMetres = IN_VIEW_MAX_M): boolean {
+  if (Math.hypot(poi.position[0] - eye[0], poi.position[2] - eye[2]) > maxMetres) return false;
+  return lineOfSight(grid, eye, poi.approachPoint) || lineOfSight(grid, eye, poi.position);
+}

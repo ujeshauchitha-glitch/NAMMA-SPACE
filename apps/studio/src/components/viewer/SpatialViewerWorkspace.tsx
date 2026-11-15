@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
 import { measureRouteMetres, planRoute, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
-import { rankPois, suggestLabels, type PoiCategory } from '../../lib/poiSearch';
+import { matchesNearest, nearestByWalking, parseQuery, rankPois, suggestLabels, type PoiCategory } from '../../lib/poiSearch';
 import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
 import type { GuidanceUpdate, PlayCanvasViewer } from '../../engine/PlayCanvasViewer';
 import { GuidancePanel } from './GuidancePanel';
@@ -77,6 +77,13 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState<PoiCategory | null>(null);
+  // Set by a search pick so the selection effect previews that POI's route after clearing the old one.
+  const previewOnSelectRef = useRef<string | null>(null);
+  /** Search pick: turn to face the POI if it is in view and draw its route as a preview (no guidance). */
+  const previewSelection = (poiId: string) => {
+    viewerRef.current?.faceIfInView(poiId);
+    viewerRef.current?.routeTo(poiId, { preview: true });
+  };
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   // POI card opened from the 3D view (pin, label or zone click), and the POI under the cursor/crosshair.
   const [cardPoiId, setCardPoiId] = useState<string | null>(null);
@@ -309,6 +316,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     viewerRef.current?.stopGuidance();
     viewerRef.current?.clearRoute();
     setGuidance(null);
+    // A destination picked from search gets its route previewed once the old one is cleared.
+    if (selectedPoiId && previewOnSelectRef.current === selectedPoiId) previewSelection(selectedPoiId);
+    previewOnSelectRef.current = null;
   }, [selectedPoiId, sceneUrl]);
 
   // A different selection (e.g. from search) closes a card opened for another POI.
@@ -337,10 +347,16 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     };
   }, [bundle?.navigation, scenePois, cell.x, cell.z]);
   // Ranked by relevance then walking distance; an empty search lists everything nearest-first.
-  const results = useMemo(
-    () => rankPois(scenePois, query, { category: searchCategory, distanceOf }),
-    [scenePois, query, searchCategory, distanceOf],
-  );
+  // "nearest X": the spatial index feeds candidates in straight-line order and routing stops early.
+  const results = useMemo(() => {
+    const parsed = parseQuery(query);
+    if (parsed.kind === 'nearest') {
+      const accept = (poi: (typeof scenePois)[number]) => (!searchCategory || poi.category === searchCategory) && matchesNearest(parsed, poi);
+      return nearestByWalking(poiIndex, position[0], position[2], accept, distanceOf, 5).results;
+    }
+    return rankPois(scenePois, query, { category: searchCategory, distanceOf });
+    // position is read through distanceOf's cell key; re-ranked per grid cell, not per sub-cell step.
+  }, [scenePois, poiIndex, query, searchCategory, distanceOf]);
   const searchCategories = useMemo(() => {
     const counts = new Map<PoiCategory, number>();
     for (const poi of scenePois) counts.set(poi.category, (counts.get(poi.category) ?? 0) + 1);
@@ -489,10 +505,18 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     if (isViewerReady) viewerRef.current?.selectPoi(selectedPoiId);
   }, [isViewerReady, selectedPoiId]);
 
+  /** A search result picked: select it, open its card, face it if in view and preview its route. */
   const selectPoi = (poiId: string) => {
-    setSelectedPoiId(poiId);
+    setCardPoiId(poiId);
     viewerRef.current?.selectPoi(poiId);
     viewerRef.current?.pulseSelection(poiId);
+    if (poiId === selectedPoiId) {
+      // Same destination again: the selection effect will not run, so preview here (unless guiding).
+      if (!guidance) previewSelection(poiId);
+      return;
+    }
+    previewOnSelectRef.current = poiId;
+    setSelectedPoiId(poiId);
   };
 
   const handleQueryChange = (nextQuery: string) => {
@@ -740,6 +764,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               onCategoryChange={setSearchCategory}
               suggestions={searchSuggestions.labels}
               suggestionsKind={searchSuggestions.kind}
+              onActivate={handleRoute}
             />
             {selectedPoi && (
               <DestinationDetail
