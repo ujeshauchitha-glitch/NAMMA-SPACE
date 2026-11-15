@@ -80,7 +80,7 @@ export const DEFAULT_TONES: GridTones = {
 };
 
 /** RGBA bytes, one pixel per grid cell (row z, column x): walkable, obstacle and unfilmed in three tones. */
-export function gridPixels(grid: NavigationGrid, tones: GridTones = DEFAULT_TONES): Uint8ClampedArray {
+export function gridPixels(grid: NavigationGrid, tones: GridTones = DEFAULT_TONES): Uint8ClampedArray<ArrayBuffer> {
   const pixels = new Uint8ClampedArray(grid.width * grid.height * 4);
   for (let i = 0; i < grid.width * grid.height; i += 1) pixels.set(tones.walkable, i * 4);
   for (const index of grid.unknown) if (index < grid.width * grid.height) pixels.set(tones.unknown, index * 4);
