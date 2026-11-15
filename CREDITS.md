@@ -55,5 +55,15 @@ PyPI entry for the pinned version. Versions are the ones installed or pinned in 
 | [Eyeful Tower](https://github.com/facebookresearch/EyefulTower) "apartment" scene (Meta; VR-NeRF, Xu et al., SIGGRAPH Asia 2023) | MIT (full text in `apps/studio/public/scenes/apartment/LICENSE-EyefulTower.txt`) | the Apartment scene: we trained the splat and derived navigation and places from it |
 | Classroom and workshop captures | ours | the Classroom and Workshop room scenes, `tests/sample_data/` |
 
-Namma Space's own code does not include a separate licence file yet; the team should choose one before
-publishing it for reuse.
+## Namma Space's own licence
+
+Our code is released under the **MIT licence** ([LICENSE](LICENSE)), copyright 2026 the four team members. Two
+third-party pieces carry different terms, and neither changes that:
+
+- **Ultralytics YOLOv8 (AGPL-3.0) is optional and offline.** It runs only when the pipeline is called with
+  `--mask-people`, on the reconstruction machine, to mask people out of training frames. It is not imported by
+  the web app, not shipped to browsers and nothing of it ends up in a scene bundle. Anyone who redistributes
+  the pipeline *with* Ultralytics installed must follow the AGPL for that part.
+- **GSAP is free to use but not open source.** The web app uses it for UI motion under GreenSock's
+  "Standard no-charge" licence ([gsap.com/standard-license](https://gsap.com/standard-license)); it is a
+  dependency, not part of our MIT-licensed code.

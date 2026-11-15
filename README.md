@@ -28,7 +28,7 @@ Route here and Follow route. **Immersive mode** locks the mouse for looking; `Es
 | **Spatial Indexing & POI Tagging** | POIs with an approach point snapped to walkable floor and optional floor-zone polygons; a uniform-grid spatial index (hit tests, within-radius, nearest-k); in-world pins and labels with collision-free label layout and distance fading; an in-app POI editor (place, move, draw zones, import/export `pois.json`); schema validation of every bundle | [docs/POIS_AND_SPATIAL_INDEX.md](docs/POIS_AND_SPATIAL_INDEX.md) · `apps/studio/src/lib/poiIndex.ts`, `poiOverlay.ts`, `poiEditor.ts` |
 | **Pathfinding Accuracy** | A* on the scene's occupancy grid (8-connected, no corner cutting, blocked *and* unknown cells avoided, clearance baked into the grid), binary-heap open set (39x faster than the sort-per-pop version on the classroom), start/goal snapping (≤1.5 m), string-pulled smoothing that never leaves walkable cells (300 random property-test grids), live progress, re-route when > 1 m off the path, arrival within 0.75 m | [docs/PATHFINDING.md](docs/PATHFINDING.md) · `src/lib/navigation.ts`, `routeGeometry.ts`, `routeGuidance.ts` |
 | **Search UI & Transition** | Typo-tolerant ranked search (prefix > substring > fuzzy edit distance) over label, aliases, category and description; category chips; walking distance (route length, not straight line) on every result; `nearest <category>` answered through the spatial index; full keyboard use (`/`, arrows, Enter, Esc); camera turns to face a picked place; Go to view flies **along the route** (≤3 s, eased) or fades when no route exists; floor ribbon with moving chevrons and a destination beacon | [docs/SEARCH.md](docs/SEARCH.md) · `src/lib/poiSearch.ts`, `routeFlight.ts`, `components/viewer/PoiSearch.tsx` |
-| **Code Cleanliness & Repository Setup** | One app (`apps/studio`), one pipeline (`pipeline/`); typed scene contract (zod); 800+ unit tests, Playwright e2e, 120+ pipeline tests; CI on every push; pinned, credited third-party tools | this README · [CREDITS.md](CREDITS.md) · `.github/workflows/ci.yml` |
+| **Code Cleanliness & Repository Setup** | One app (`apps/studio`), one pipeline (`pipeline/`); typed scene contract (zod); 800+ unit tests, Playwright e2e, 120+ pipeline tests; CI on every push; pinned, credited third-party tools; MIT licence | this README · [CREDITS.md](CREDITS.md) · [LICENSE](LICENSE) · `.github/workflows/ci.yml` |
 
 ## Architecture
 
@@ -147,3 +147,9 @@ have **98.2 % line and 91.5 % branch coverage**; all of `src/lib` has 91.4 % lin
 - **Phones:** touch look and tap work; there is no virtual joystick, so walking means Follow route.
 
 Open problems and next steps: [docs/OPEN_ISSUES.md](docs/OPEN_ISSUES.md). Third-party tools and licences: [CREDITS.md](CREDITS.md).
+
+## Licence
+
+MIT, copyright 2026 the four team members: see [LICENSE](LICENSE). Third-party tools keep their own licences
+([CREDITS.md](CREDITS.md)); note that Ultralytics YOLOv8 (AGPL-3.0) is optional and used offline only, for
+`--mask-people` in the pipeline, and that GSAP, used for UI motion, is free to use but not open source.
