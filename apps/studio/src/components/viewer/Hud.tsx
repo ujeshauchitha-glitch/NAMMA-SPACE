@@ -174,7 +174,7 @@ export function Hud({
           <kbd>A</kbd>
           <kbd>S</kbd>
           <kbd>D</kbd>
-          <span className={styles.hintMeta}>move · click scene for mouse look · Esc exits walkthrough · F fullscreen</span>
+          <span className={styles.hintMeta}>{isWalkthroughActive ? 'move · mouse looks · Esc leaves immersive mode' : 'move · drag to look · / search · click a label · F fullscreen'}</span>
         </span>
       </div>
 
@@ -186,8 +186,10 @@ export function Hud({
             disabled={!isViewerReady}
             onClick={handleEnterWalkthrough}
             trailingIcon={<Jump />}
+            aria-pressed={isWalkthroughActive}
+            title="Immersive mode: lock the mouse to look around (Esc to leave). Dragging the scene also looks."
           >
-            {isWalkthroughActive ? 'Walkthrough active' : 'Enter walkthrough'}
+            Immersive mode
           </Button>
           <Button
             variant="icon"

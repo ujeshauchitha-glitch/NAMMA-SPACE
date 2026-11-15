@@ -19,6 +19,7 @@ import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } fro
 import { FADE_CUT_MS, fadeCutOpacity, flightDurationMs, flightPose, planFlight } from '../lib/routeFlight';
 import { faceAngles, formatInstruction, formatWalkTime, nextInstruction, routeProgress } from '../lib/routeGuidance';
 import { chevronDistances, pointAtDistance, polylineLength, ribbonMesh, slicePolyline } from '../lib/routeGeometry';
+import { isClick, moveGesture, startGesture, type LookGesture } from '../lib/lookGesture';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
@@ -116,7 +117,9 @@ export class PlayCanvasViewer {
   /** Zone outline being drawn in the editor (open polyline). */
   private draftZone: FloorPoint[] = [];
   /** Right-button drag looks around without pointer lock. */
-  private dragLooking = false;
+  /** Drag-to-look in progress (left/right mouse drag or one finger), and whether the last press was a drag. */
+  private lookGesture: LookGesture | null = null;
+  private suppressClick = false;
   /** Per-POI pin size multiplier driven by the selection pulse. */
   private readonly pinPulse = new Map<string, number>();
   private readonly callbacks: ViewerCallbacks;
@@ -166,7 +169,6 @@ export class PlayCanvasViewer {
     if (document.pointerLockElement === this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
     this.pointerPx = [event.clientX - rect.left, event.clientY - rect.top];
-    if (this.dragLooking) this.look(event.movementX, event.movementY);
     const down = this.editDown;
     if (down && down.poiId && (down.moved || Math.hypot(this.pointerPx[0] - down.px, this.pointerPx[1] - down.py) > 3)) {
       down.moved = true;
@@ -181,17 +183,12 @@ export class PlayCanvasViewer {
   };
   private readonly onCanvasMouseDown = (event: MouseEvent) => {
     if (document.pointerLockElement === this.canvas) return;
-    if (event.button === 2) {
-      this.dragLooking = true;
-      return;
-    }
     if (event.button !== 0 || !this.editMode) return;
     const rect = this.canvas.getBoundingClientRect();
     const [px, py] = [event.clientX - rect.left, event.clientY - rect.top];
     this.editDown = { px, py, poiId: hitTestScreen(this.hitTargets, px, py), moved: false, floor: null };
   };
   private readonly onWindowMouseUp = (event: MouseEvent) => {
-    if (event.button === 2) this.dragLooking = false;
     const down = this.editDown;
     if (event.button !== 0 || !down) return;
     this.editDown = null;
@@ -201,6 +198,37 @@ export class PlayCanvasViewer {
     }
     this.callbacks.onEditClick?.(this.floorPointAt(down.px, down.py), this.poiAtScreen(down.px, down.py));
   };
+  /**
+   * Drag to look without pointer lock: left drag (outside edit mode), right drag, or one finger. A press
+   * that does not move past the threshold stays a click/tap and selects POIs as before.
+   */
+  private readonly onCanvasPointerDown = (event: PointerEvent) => {
+    if (document.pointerLockElement === this.canvas || this.lookGesture) return;
+    const leftLook = event.button === 0 && (!this.editMode || event.pointerType === 'touch');
+    if (!leftLook && event.button !== 2) return;
+    this.canvas.focus({ preventScroll: true }); // WASD works straight away, no lock needed
+    this.lookGesture = startGesture(event.pointerId, event.clientX, event.clientY, event.button === 2 ? 'mouse' : event.pointerType);
+    if (event.button === 2) this.lookGesture.dragging = true;
+    try { this.canvas.setPointerCapture(event.pointerId); } catch { /* synthetic events have no capture */ }
+  };
+  private readonly onCanvasPointerDrag = (event: PointerEvent) => {
+    const gesture = this.lookGesture;
+    if (!gesture || gesture.pointerId !== event.pointerId || document.pointerLockElement === this.canvas) return;
+    const step = moveGesture(gesture, event.clientX, event.clientY);
+    this.lookGesture = step.gesture;
+    if (step.dx !== 0 || step.dy !== 0) {
+      this.look(step.dx, step.dy);
+      this.canvas.style.cursor = 'grabbing';
+    }
+  };
+  private readonly onCanvasPointerEnd = (event: PointerEvent) => {
+    const gesture = this.lookGesture;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    this.lookGesture = null;
+    this.suppressClick = !isClick(gesture); // the click that follows a drag is not a selection
+    if (this.canvas.style.cursor === 'grabbing') this.canvas.style.cursor = '';
+    try { this.canvas.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+  };
   private readonly onContextMenu = (event: MouseEvent) => event.preventDefault();
   private readonly onCanvasPointerLeave = () => {
     this.pointerPx = null;
@@ -208,6 +236,10 @@ export class PlayCanvasViewer {
   /** Click: under pointer lock the crosshair (screen centre) picks, otherwise the cursor does. */
   private readonly onCanvasClick = (event: MouseEvent) => {
     if (this.editMode) return; // edit-mode clicks are handled on mouseup (click vs drag)
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
     const locked = document.pointerLockElement === this.canvas;
     const rect = this.canvas.getBoundingClientRect();
     const [px, py] = locked ? [rect.width / 2, rect.height / 2] : [event.clientX - rect.left, event.clientY - rect.top];
@@ -216,8 +248,8 @@ export class PlayCanvasViewer {
       this.callbacks.onPoiClick?.(poiId, locked);
       return;
     }
-    // Empty scene: a click enters the walkthrough, as the HUD hint says.
-    if (!locked) this.enterWalkthrough();
+    // Empty scene: just take keyboard focus (WASD). Pointer lock is the optional immersive mode.
+    if (!locked) this.canvas.focus({ preventScroll: true });
   };
 
   public constructor(options: ViewerOptions) {
@@ -290,6 +322,12 @@ export class PlayCanvasViewer {
     this.canvas.addEventListener('click', this.onCanvasClick);
     this.canvas.addEventListener('mousedown', this.onCanvasMouseDown);
     this.canvas.addEventListener('contextmenu', this.onContextMenu);
+    this.canvas.addEventListener('pointerdown', this.onCanvasPointerDown);
+    this.canvas.addEventListener('pointermove', this.onCanvasPointerDrag);
+    this.canvas.addEventListener('pointerup', this.onCanvasPointerEnd);
+    this.canvas.addEventListener('pointercancel', this.onCanvasPointerEnd);
+    // One-finger drags look around instead of scrolling or zooming the page.
+    this.canvas.style.touchAction = 'none';
     window.addEventListener('mouseup', this.onWindowMouseUp);
     this.resize();
     this.reset();
@@ -299,12 +337,21 @@ export class PlayCanvasViewer {
     this.callbacks.onStatus('Ready to explore');
   }
 
+  /** Immersive mode toggle: leave pointer lock if it is on, otherwise enter it. */
+  public toggleImmersive(): void {
+    if (document.pointerLockElement === this.canvas) {
+      document.exitPointerLock();
+      return;
+    }
+    this.enterWalkthrough();
+  }
+
   public enterWalkthrough(): void {
     // Full screen is the workspace's own toggle (F / HUD button), so it keeps the HUD around the canvas.
     // Some embedded browsers refuse pointer lock; WASD still works while the canvas has focus.
     this.canvas.focus();
     void Promise.resolve(this.canvas.requestPointerLock()).catch(() => undefined);
-    this.callbacks.onStatus('Walkthrough active · WASD to move · Esc to release');
+    this.callbacks.onStatus('Immersive mode · move the mouse to look · WASD to move · Esc to leave');
   }
 
   public reset(): void {
@@ -708,6 +755,10 @@ export class PlayCanvasViewer {
     this.canvas.removeEventListener('click', this.onCanvasClick);
     this.canvas.removeEventListener('mousedown', this.onCanvasMouseDown);
     this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+    this.canvas.removeEventListener('pointerdown', this.onCanvasPointerDown);
+    this.canvas.removeEventListener('pointermove', this.onCanvasPointerDrag);
+    this.canvas.removeEventListener('pointerup', this.onCanvasPointerEnd);
+    this.canvas.removeEventListener('pointercancel', this.onCanvasPointerEnd);
     window.removeEventListener('mouseup', this.onWindowMouseUp);
     document.exitPointerLock();
     this.loadedAssets.forEach((asset) => {

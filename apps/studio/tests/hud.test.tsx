@@ -79,12 +79,14 @@ describe('Hud markup (§5.19)', () => {
     for (const key of ['W', 'A', 'S', 'D']) {
       expect(html).toContain(`<kbd>${key}</kbd>`);
     }
-    expect(html).toContain('Esc exits walkthrough');
+    expect(html).toContain('drag to look');
+    expect(html).toContain('/ search');
+    expect(markup(<Hud {...HUD_PROPS} isWalkthroughActive />)).toContain('Esc leaves immersive mode');
   });
 
-  it('toggles the walkthrough button label with the lock state', () => {
-    expect(markup(<Hud {...HUD_PROPS} />)).toContain('Enter walkthrough');
-    expect(markup(<Hud {...HUD_PROPS} isWalkthroughActive />)).toContain('Walkthrough active');
+  it('shows immersive mode as a toggle that reflects the lock state', () => {
+    expect(markup(<Hud {...HUD_PROPS} />)).toMatch(/aria-pressed="false"[^>]*>.*Immersive mode/s);
+    expect(markup(<Hud {...HUD_PROPS} isWalkthroughActive />)).toMatch(/aria-pressed="true"[^>]*>.*Immersive mode/s);
   });
 
   it('ships both focusable buttons with their data hooks', () => {

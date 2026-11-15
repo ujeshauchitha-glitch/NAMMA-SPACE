@@ -57,7 +57,7 @@ test.describe('Spatial viewer HUD (T17)', () => {
     await page.clock.install();
 
     await synthesizeLock(page, true);
-    await expect(page.getByRole('button', { name: 'Walkthrough active' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Immersive mode', pressed: true })).toBeVisible();
     await expect(page.getByTestId('hud-hint')).toHaveAttribute('data-hint-visible', 'true');
 
     // The exact 3999/4000 boundary is unit-tested in tests/use-pointer-lock.test.tsx.
@@ -69,7 +69,7 @@ test.describe('Spatial viewer HUD (T17)', () => {
 
     await synthesizeLock(page, false);
     await expect(page.getByTestId('hud-hint')).toHaveAttribute('data-hint-visible', 'true');
-    await expect(page.getByRole('button', { name: 'Enter walkthrough' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Immersive mode' })).toBeFocused();
   });
 
   test('stage exposes role="application" and the visually-hidden polite live region (AC 3–4)', async ({ page }) => {

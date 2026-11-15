@@ -69,7 +69,7 @@ test.describe('Namma Space browser journey', () => {
     const page = await context.newPage();
     await page.goto('/');
     await expect(page.getByRole('searchbox', { name: 'Search points of interest' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Enter walkthrough/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Immersive mode/ })).toBeVisible();
 
     // The staging affordance lives in Capture Studio since T12.
     await page.goto('/?workspace=capture');

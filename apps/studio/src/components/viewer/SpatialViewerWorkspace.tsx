@@ -692,7 +692,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     isViewerReady={isViewerReady}
                     isFullscreen={isFullscreen}
                     onToggleFullscreen={toggleFullscreen}
-                    onEnterWalkthrough={() => viewerRef.current?.enterWalkthrough()}
+                    onEnterWalkthrough={() => viewerRef.current?.toggleImmersive()}
                     onReset={() => viewerRef.current?.reset()}
                     getYaw={getYaw}
                   />
