@@ -78,6 +78,7 @@ describe('formatPoiSubline (§5.14 mandatory subline)', () => {
     expect(formatPoiSubline(registrationDesk, 3.24)).toBe('SERVICE · 3.2 m walk · 0.96 · OPERATOR');
     expect(formatPoiSubline(registrationDesk, null)).toBe('SERVICE · no route · 0.96 · OPERATOR');
     expect(formatPoiSubline(registrationDesk)).toBe('SERVICE · 0.96 · OPERATOR');
+    expect(formatPoiSubline(registrationDesk, 3.24, false)).toBe('SERVICE · 3.2 m walk'); // visitor view
     expect(formatPoiSubline(mainHall)).toBe('ROOM · 0.99 · SYNTHETIC');
   });
 });

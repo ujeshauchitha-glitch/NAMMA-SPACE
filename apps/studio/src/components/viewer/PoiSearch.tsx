@@ -42,6 +42,8 @@ export type PoiSearchProps = {
   suggestionsKind?: 'did-you-mean' | 'nearby';
   /** Enter on the already-selected row (start guidance). */
   onActivate?: (poiId: string) => void;
+  /** Authoring view: confidence and source in each row. */
+  authoring?: boolean;
 };
 
 /**
@@ -58,10 +60,14 @@ export function nextActiveIndex(current: number, count: number, delta: number): 
   return next;
 }
 
-/** Row subline: `CATEGORY · walking distance · confidence · SOURCE`. Distance is omitted when unknown. */
-export function formatPoiSubline(poi: Poi, metres?: number | null): string {
+/**
+ * Row subline: `CATEGORY · walking distance`, plus `· confidence · SOURCE` in the authoring view.
+ * Distance is omitted when unknown.
+ */
+export function formatPoiSubline(poi: Poi, metres?: number | null, authoring = true): string {
   const walk = metres === undefined ? '' : metres === null ? ' · no route' : ` · ${formatDistance(metres)} walk`;
-  return `${poi.category.toUpperCase()}${walk} · ${poi.confidence.toFixed(2)} · ${poi.source.toUpperCase()}`;
+  const provenance = authoring ? ` · ${poi.confidence.toFixed(2)} · ${poi.source.toUpperCase()}` : '';
+  return `${poi.category.toUpperCase()}${walk}${provenance}`;
 }
 
 export function PoiSearch({
@@ -77,6 +83,7 @@ export function PoiSearch({
   suggestions = [],
   suggestionsKind = 'did-you-mean',
   onActivate,
+  authoring = true,
 }: PoiSearchProps) {
   const listboxId = useId();
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -161,7 +168,7 @@ export function PoiSearch({
               <CategoryIcon className={styles.poiIcon} />
               <span className={styles.poiCopy}>
                 <strong>{poi.label}</strong>
-                <small>{formatPoiSubline(poi, metres)}</small>
+                <small>{formatPoiSubline(poi, metres, authoring)}</small>
               </span>
               <ChevronRight className={styles.poiArrow} />
             </button>

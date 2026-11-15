@@ -4,6 +4,7 @@ import { StatusPill } from '../ui/StatusPill';
 import { Button } from '../ui/Button';
 import { Maximize, Minimize } from '../icons/icons';
 import { loadSceneBundle } from '../../lib/sceneLoader';
+import { isAuthoringView } from '../../lib/authoring';
 import { measureRouteMetres, planRoute, walkingDistance, worldToCell, type GridCell } from '../../lib/navigation';
 import { matchesNearest, nearestByWalking, parseQuery, rankPois, suggestLabels, type PoiCategory } from '../../lib/poiSearch';
 import type { Poi, SceneBundle, Vec3 } from '../../types/scene';
@@ -92,6 +93,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [guidance, setGuidance] = useState<GuidanceUpdate | null>(null);
   // In-app POI editor (toggle, or ?edit=1). A draft lives in localStorage per scene and, while it
   // exists, replaces the scene's shipped POIs everywhere in this browser.
+  // Internal QA/provenance details and authoring tools are only shown with ?edit=1 or ?debug=1.
+  const [authoring] = useState(() => typeof window !== 'undefined' && isAuthoringView(window.location.search));
   const [editMode, setEditMode] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1');
   const [draftPois, setDraftPois] = useState<Poi[] | null>(null);
   const [editTool, setEditTool] = useState<EditorTool>('select');
@@ -602,13 +605,17 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   {SCENE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-              <StatusPill state={bundle?.quality.status === 'passed' ? 'validated' : 'needs-review'}>
-                {bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}
-              </StatusPill>
-              <Button variant={editMode ? 'primary' : 'quiet'} aria-pressed={editMode} onClick={() => setEditMode((on) => !on)}>
-                {editMode ? 'Done editing' : 'Edit POIs'}
-              </Button>
-              <Button variant="quiet" onClick={() => void loadScene()}>Reload bundle</Button>
+              {authoring && (
+                <>
+                  <StatusPill state={bundle?.quality.status === 'passed' ? 'validated' : 'needs-review'}>
+                    {bundle?.quality.status === 'passed' ? 'Scene validated' : 'Review required'}
+                  </StatusPill>
+                  <Button variant={editMode ? 'primary' : 'quiet'} aria-pressed={editMode} onClick={() => setEditMode((on) => !on)}>
+                    {editMode ? 'Done editing' : 'Edit POIs'}
+                  </Button>
+                  <Button variant="quiet" onClick={() => void loadScene()}>Reload bundle</Button>
+                </>
+              )}
             </div>
           </header>
 
@@ -765,6 +772,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               suggestions={searchSuggestions.labels}
               suggestionsKind={searchSuggestions.kind}
               onActivate={handleRoute}
+              authoring={authoring}
             />
             {selectedPoi && (
               <DestinationDetail
@@ -775,20 +783,23 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                 onRoute={handleRoute}
                 onJump={handleJump}
                 onClearRoute={handleClearRoute}
+                authoring={authoring}
               />
             )}
           </section>
 
-          <section className={styles.panel}>
-            <div className={styles.panelHeading}>
-              <div>
-                <p className={styles.eyebrow}>Scene dossier</p>
-                <h2 className={styles.panelTitle}>Verified provenance</h2>
+          {authoring && (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}>
+                <div>
+                  <p className={styles.eyebrow}>Scene dossier</p>
+                  <h2 className={styles.panelTitle}>Verified provenance</h2>
+                </div>
+                <span className={styles.panelIndex}>02</span>
               </div>
-              <span className={styles.panelIndex}>02</span>
-            </div>
-            <SceneDossier bundle={bundle} />
-          </section>
+              <SceneDossier bundle={bundle} />
+            </section>
+          )}
         </aside>
       </div>
     </WorkspacePanel>

@@ -27,6 +27,8 @@ export type DestinationDetailProps = {
   onRoute: () => void;
   onJump: () => void;
   onClearRoute: () => void;
+  /** Authoring view: confidence, approach point, room and source. */
+  authoring?: boolean;
 };
 
 export function DestinationDetail({
@@ -37,6 +39,7 @@ export function DestinationDetail({
   onRoute,
   onJump,
   onClearRoute,
+  authoring = false,
 }: DestinationDetailProps) {
   const isUnreachable = routeState.status === 'error' && routeState.reason === 'unreachable';
   const actionsDisabled = disabled || !hasNavigation;
@@ -47,19 +50,21 @@ export function DestinationDetail({
       <div className={styles.selectionTitleRow}>
         <strong className={styles.selectionTitle}>{poi.label}</strong>
         <span className={styles.categoryTag}>{poi.category}</span>
-        <span className={styles.confidenceTag}>{poi.confidence.toFixed(2)}</span>
+        {authoring && <span className={styles.confidenceTag}>{poi.confidence.toFixed(2)}</span>}
       </div>
       <p className={styles.selectionBody}>{poi.description}</p>
-      <MetadataKV
-        entries={[
-          { key: 'APPROACH POINT', value: formatPosition(poi.approachPoint), mono: true },
-          { key: 'ROOM', value: poi.roomId ?? '—' },
-          { key: 'SOURCE', value: poi.source.toUpperCase() },
-        ]}
-      />
-      <RouteStatus state={routeState} onClear={onClearRoute} onReplot={onRoute} />
+      {authoring && (
+        <MetadataKV
+          entries={[
+            { key: 'APPROACH POINT', value: formatPosition(poi.approachPoint), mono: true },
+            { key: 'ROOM', value: poi.roomId ?? '—' },
+            { key: 'SOURCE', value: poi.source.toUpperCase() },
+          ]}
+        />
+      )}
+      <RouteStatus state={routeState} onClear={onClearRoute} onReplot={onRoute} authoring={authoring} />
       {isUnreachable && (
-        <p className={styles.routeWarning}>▲ No walkable route — destination cell unreachable (blocked)</p>
+        <p className={styles.routeWarning}>{authoring ? '▲ No walkable route — destination cell unreachable (blocked)' : '▲ There is no walkable route to here from where you are.'}</p>
       )}
       <div className={styles.destinationActions}>
         <Button variant="primary" icon={<RouteIcon />} disabled={actionsDisabled} onClick={onRoute}>

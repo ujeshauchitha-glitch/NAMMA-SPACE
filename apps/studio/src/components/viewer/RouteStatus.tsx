@@ -22,9 +22,11 @@ export type RouteStatusProps = {
   state: RouteState;
   onClear: () => void;
   onReplot: () => void;
+  /** Authoring view: add the grid cell count and planner (A*) to the readout. */
+  authoring?: boolean;
 };
 
-export function RouteStatus({ state, onClear, onReplot }: RouteStatusProps) {
+export function RouteStatus({ state, onClear, onReplot, authoring = false }: RouteStatusProps) {
   const isError = state.status === 'error';
 
   return (
@@ -32,7 +34,7 @@ export function RouteStatus({ state, onClear, onReplot }: RouteStatusProps) {
       {state.status !== 'idle' && (
         <div className={styles.routeStrip}>
           <span className={styles.routeStripText}>
-            {isError ? `▲ ${state.detail}` : `✓ ROUTE · ${state.metres.toFixed(1)} m · ${state.cells} cells · A*`}
+            {isError ? `▲ ${state.detail}` : `✓ ROUTE · ${state.metres.toFixed(1)} m${authoring ? ` · ${state.cells} cells · A*` : ' walk'}`}
           </span>
           <span className={styles.routeStripActions}>
             <Button variant="icon" aria-label="Clear route" onClick={onClear}>

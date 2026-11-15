@@ -10,9 +10,9 @@ import { RouteStatus, type RouteState } from '../src/components/viewer/RouteStat
  * matching the poi-search/ui-primitives pattern.
  */
 
-function markup(state: RouteState): string {
+function markup(state: RouteState, authoring = false): string {
   return renderToStaticMarkup(
-    <RouteStatus state={state} onClear={() => {}} onReplot={() => {}} />,
+    <RouteStatus state={state} onClear={() => {}} onReplot={() => {}} authoring={authoring} />,
   );
 }
 
@@ -29,7 +29,9 @@ describe('RouteStatus live region (review F2)', () => {
     const html = markup({ status: 'ok', metres: 24.06, cells: 11 });
     expect(html).toContain('aria-live="polite"');
     // Display rounding happens here, once (review F5).
-    expect(html).toContain('✓ ROUTE · 24.1 m · 11 cells · A*');
+    expect(html).toContain('✓ ROUTE · 24.1 m walk');
+    expect(html).not.toContain('A*');
+    expect(markup({ status: 'ok', metres: 24.06, cells: 11 }, true)).toContain('✓ ROUTE · 24.1 m · 11 cells · A*');
   });
 
   it('places the A* failure detail verbatim inside the live region', () => {

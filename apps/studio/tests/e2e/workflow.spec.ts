@@ -51,7 +51,7 @@ test.describe('three-tab journey + IDB restore (T24)', () => {
     await expect(page.getByText('Selected destination')).toBeVisible();
 
     await page.getByRole('button', { name: /Plot route/ }).click();
-    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m · \d+ cells · A\*/)).toBeVisible();
+    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m walk/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Jump to view' }).click();
     await expect(page.getByText('Focused on Registration Desk')).toBeVisible();

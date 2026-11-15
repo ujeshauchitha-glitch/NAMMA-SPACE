@@ -17,17 +17,17 @@ test.describe('Route status strip (T16)', () => {
     await expect(page.getByText('Selected destination')).toBeVisible();
 
     await page.getByRole('button', { name: 'Plot route' }).click();
-    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m · \d+ cells · A\*/)).toBeVisible();
+    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m walk/)).toBeVisible();
 
     // Replot re-runs the same A* plot while the strip is showing.
     await page.getByRole('button', { name: 'Replot walking route' }).click();
-    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m · \d+ cells · A\*/)).toBeVisible();
+    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m walk/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Clear route' }).click();
     await expect(page.getByText(/ROUTE ·/)).toHaveCount(0);
     // Clearing hides the strip; the primary action remains the way back in.
     await page.getByRole('button', { name: 'Plot route' }).click();
-    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m · \d+ cells · A\*/)).toBeVisible();
+    await expect(page.getByText(/ROUTE · \d+(\.\d+)? m walk/)).toBeVisible();
   });
 
   test('reports an unavailable route instead of drawing a fake path', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Route status strip (T16)', () => {
     // A* detail verbatim in the strip, warning row per §5.15 — exactly one
     // copy each (strict-mode collision rule).
     await expect(page.getByText(/No collision-safe route connects/)).toHaveCount(1);
-    await expect(page.getByText('▲ No walkable route — destination cell unreachable (blocked)')).toHaveCount(1);
+    await expect(page.getByText('▲ There is no walkable route to here from where you are.')).toHaveCount(1);
     // No fake success readout.
     await expect(page.getByText(/ROUTE ·/)).toHaveCount(0);
   });
