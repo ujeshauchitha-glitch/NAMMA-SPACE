@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Navigation grid authoring tool.
 
-Reads geometry bounds from a geometry-report.json (output of process_geometry.py
-or ply_to_glb.py run with --report) and generates a nav-data.json occupancy grid
+Reads geometry bounds from a geometry-report.json ({"bounds": {"min": [...], "max": [...]}}) and generates a nav-data.json occupancy grid
 compatible with the Namma Space NavigationSchema (src/types/scene.ts).
 
 Schema output format (matching NavigationSchema in scene.ts):
@@ -191,7 +190,7 @@ def prompt_obstacles_interactive(nav: dict) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--geometry-report", type=Path,
-                        help="Path to geometry-report.json from process_geometry.py.")
+                        help="Path to a geometry-report.json with bounds.")
     parser.add_argument("--output", type=Path, required=True,
                         help="Output path for nav-data.json.")
     parser.add_argument("--cell-size", type=float, default=0.25,
@@ -221,7 +220,7 @@ def main() -> int:
     elif args.geometry_report:
         if not args.geometry_report.is_file():
             print(f"ERROR: geometry-report not found: {args.geometry_report}", file=sys.stderr)
-            print("Tip: run process_geometry.py first, or use --bounds XMIN YMIN ZMIN XMAX YMAX ZMAX", file=sys.stderr)
+            print("Tip: pass --bounds XMIN YMIN ZMIN XMAX YMAX ZMAX", file=sys.stderr)
             return 2
         try:
             minimum, maximum = load_bounds_from_report(args.geometry_report)

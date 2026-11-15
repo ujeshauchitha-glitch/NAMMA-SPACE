@@ -184,26 +184,7 @@ def main() -> int:
     else:
         print("[PASS] vitest suite inventory — all 17 spec-listed suites present")
 
-    preflight = subprocess.run(["python3", "scripts/reconstruct_colmap.py", "preflight", "--json"], cwd=ROOT, text=True, capture_output=True, check=False)
-    if preflight.stdout:
-        print(preflight.stdout, end="")
-    if preflight.stderr:
-        print(preflight.stderr, end="", file=sys.stderr)
-    if preflight.returncode != 0:
-        results["reconstruction preflight"] = "failed"
-        print(f"[FAIL] reconstruction preflight — exit code {preflight.returncode}")
-    else:
-        report = json.loads(preflight.stdout)
-        missing_required = [name for name in ("colmap",) if not report["tools"][name]["available"]]
-        missing_optional = [name for name in ("nvidia-smi",) if not report["tools"][name]["available"]]
-        results["reconstruction preflight"] = "blocked" if missing_required else "passed"
-        if missing_required:
-            suffix = f"; optional diagnostics missing: {', '.join(missing_optional)}" if missing_optional else ""
-            print(f"[BLOCKED] reconstruction preflight — missing required tools: {', '.join(missing_required)}{suffix}")
-        elif missing_optional:
-            print(f"[PASS] reconstruction preflight — optional diagnostics missing: {', '.join(missing_optional)}")
-        else:
-            print("[PASS] reconstruction preflight")
+    # Reconstruction dependencies are checked by the pipeline itself: python pipeline/run_pipeline.py --doctor
 
     results["browser E2E"] = run("browser E2E", ["npm", "run", "test:e2e"])
     print("\nQuality gate summary:")

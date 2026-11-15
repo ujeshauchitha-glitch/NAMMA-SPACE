@@ -183,13 +183,11 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <span className={styles.stepTag}>TEST 1</span>
                   <div>
                     <strong>Walkthrough & First-Person Controls (Tab 02):</strong>
-                    <p>Switch between the 5 verified demonstration scenes from the header dropdown:</p>
+                    <p>Switch scenes from the header dropdown:</p>
                     <ul>
-                      <li><code>Captured Workshop Room (70 Photos)</code>: Full digital twin reconstructed from 70 genuine smartphone photos with architectural concrete floor, corrugated metal walls, wall-mounted sink with yellow shelf, blue travel suitcase, and 2,966 calibrated feature points!</li>
-                      <li><code>Nerfstudio Benchmark · Poster (226 Cameras)</code>: Photorealistic multi-view spatial twin from official Nerfstudio capture (226 registered cameras, hardwood floor, gallery walls, folding chair holding the 'PROTECT Your Mental Health' framed poster, 12,977 calibrated 3D points, and 90 KB SOG splat)!</li>
-                      <li><code>Synthetic Splat fixture (SOG)</code>: 3D Gaussian Splat model rendered via PlayCanvas WebGL.</li>
-                      <li><code>Procedural fixture</code>: Synthetic architectural box room with verified navigation.</li>
-                      <li><code>Generated GLB fixture</code>: Mesh model with collision bounds.</li>
+                      <li><code>Classroom</code>: our own phone capture, a Gaussian splat with a measured navigation grid (the default).</li>
+                      <li><code>Workshop room</code>: our 70-photo capture (sparse model).</li>
+                      <li><code>Apartment</code>: an external benchmark dataset (Meta Eyeful Tower, MIT licence).</li>
                     </ul>
                     <p>Click <strong>Full Screen</strong> (or press <kbd>F</kbd>) for an immersive edge-to-edge view. Drag the scene to look around (one finger on a phone). Walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. <strong>Immersive mode</strong> locks the mouse for looking; <kbd>Esc</kbd> leaves it.</p>
                   </div>
@@ -280,12 +278,14 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <strong>Why can't Vercel run this directly?</strong> Vercel serverless functions have a 250 MB execution size limit, a 15–60s timeout, and zero NVIDIA GPUs.
                 </p>
                 <p>
-                  <strong>Production System Architecture:</strong> In production, uploading a video sends the file to an S3 bucket which fires a webhook to a GPU worker pool (Modal Labs, RunPod, or AWS EC2 with NVIDIA RTX/A10G). The worker extracts frames with FFmpeg, solves poses with COLMAP, trains the 3D Gaussian Splat with Brush, compresses it to SOG format, and pushes the scene directly into the viewer!
+                  <strong>Production System Architecture:</strong> In production, uploading a video sends the file to an S3 bucket which fires a webhook to a GPU worker pool (Modal Labs, RunPod, or AWS EC2 with NVIDIA RTX/A10G). The worker extracts frames with FFmpeg, solves poses with COLMAP, trains the 3D Gaussian Splat with Brush or gsplat, compresses it to SOG format, and pushes the scene directly into the viewer!
                 </p>
                 <p>
                   <strong>Local / Hackathon Execution:</strong> You run the exact worker locally with:
                   <br />
-                  <code>python3 apps/studio/scripts/run_pipeline.py clip.mp4 --out public/scenes/my_room</code>
+                  <code>python pipeline/run_pipeline.py clip.mp4 --out work/my_room --profile preview</code>
+                  <br />
+                  or the Kaggle notebook in <code>notebooks/kaggle_reconstruct.ipynb</code> (free T4 GPU).
                 </p>
               </div>
             </div>

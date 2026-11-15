@@ -1,7 +1,7 @@
 # Namma Space: Technical Abstract (Round 1)
 
 > **Source document for the required PDF (max 5 pages).** Adapted from the draft that
-> was stranded on `origin/ujesha/local-viewer-pipeline` (commit `c305a36`, 26 Oct 2026)
+> was drafted on a side branch (commit `c305a36`, 26 Oct 2026)
 > and rewritten against verified reality on **29 Oct 2026**. Every number below is
 > either measured in this repository or explicitly labelled as a blocker/untested.
 > **Fields marked `[FILL]` must be completed by the team before PDF export — they are

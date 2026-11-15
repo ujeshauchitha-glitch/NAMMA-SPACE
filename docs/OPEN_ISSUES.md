@@ -43,11 +43,11 @@ These cannot be automated:
 `pipeline/scene_bundle.py` assumes the phone was held 1.45 m above the floor. On the classroom this gives a 2.65 m room height, which is plausible. The manifest says `scaleStatus: "estimated"`. Still open, and optional: a printed marker in the room for a measured scale.
 
 ## 6. [DONE] Walls and collision
-`pipeline/scene_bundle.py` writes a navigation grid: 10 cm cells, desks and walls blocked with a 25 cm clearance, and areas far from the filmed path marked unknown. The studio viewer (branch `ujesha/viewer-unify`) stops you at walls and slides you along them. Checked on the classroom: walking straight ahead stops at arm's length from the bookshelf.
+`pipeline/scene_bundle.py` writes a navigation grid: 10 cm cells, desks and walls blocked with a 25 cm clearance, and areas far from the filmed path marked unknown. The studio viewer stops you at walls and slides you along them. Checked on the classroom: walking straight ahead stops at arm's length from the bookshelf.
 
 ## 7. [P2] Finish the merge into one branch
 **Decision (29 Oct): the studio app (Ashwin's PlayCanvas viewer) is the viewer.** It renders our classroom `.sog` correctly and already has metres, routing, POI search and a HUD, all of which Round 2 needs. The Spark viewer (`viewer/`) is kept only until this card is done.
-**Task:** on `ujesha/viewer-unify` (based on `integration/r1`), replace `reconstruction/pipeline/` with `pipeline/` from `ujesha/round1-fixes`, together with its tests. Make `run_pipeline.py` publish copy `work/<run>/bundle` into `public/scenes/<name>/`. Port two features from the Spark viewer: the touch controls and adaptive resolution. Then remove `spark-viewer/` and `viewer/`.
+**Done in Round 2:** the studio is the only viewer and `pipeline/` the only pipeline; the old `viewer/` and `reconstruction/` code is gone.
 **Done when:** one branch, one viewer, and a pipeline run opens in the studio app at `/?scene=/scenes/<name>/manifest.json` with no manual step.
 **Not yet measured:** frame rate. Both viewers ran at about 2 fps while COLMAP was using the CPU, and the browser was on the integrated GPU. Measure again on an idle machine before deleting the Spark viewer.
 

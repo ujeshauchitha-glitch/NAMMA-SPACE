@@ -12,8 +12,8 @@ Stages (each is skipped if its output exists; use --force to redo):
             executable (Windows setup) or pycolmap (Linux/Kaggle: pip install pycolmap-cuda12), chosen by --sfm.
   train     Brush (Windows default), gsplat (Linux default; CUDA PyTorch) or Nerfstudio splatfacto + checks
   compress  .ply -> .sog (or .spz) under --max-mb with splat-transform; always re-run
-  publish   compressed splat + scene.json into work/<name>/web/ and viewer/dev-assets/models/ (dev server only).
-            The raw .ply is never copied into the viewer.
+  publish   studio scene bundle (manifest, compressed splat, navigation grid, start POI) in work/<name>/bundle/.
+            The raw .ply is never published.
 
 Profiles (--profile): preview = <=720p frames, 7k steps, 0.75M splats (aim: <=30 min on a Kaggle T4);
 final = 1080p, 30k steps, 1.5M splats. Explicit flags override the profile. report.json records every
@@ -347,45 +347,21 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
 
 
 # ---------------------------------------------------------------- publish
-DEV_MODELS = ROOT / "viewer" / "dev-assets" / "models"  # git-ignored; served by `npm run dev` only
-
-
 def publish(web_splat: Path, title: str, report: Report, work: Path, sparse: Path | None = None) -> None:
-    """Write scene.json next to the compressed splat and copy both to the dev server for inspection.
-
-    With the COLMAP model (`sparse`) the scene is aligned automatically from the camera poses.
-
-    Production never reads these: viewer/public/models/scene.json points at the uploaded copy on external storage.
-    """
-    centre = report.data.get("splat", {}).get("centre", [0, 0, 0])
-    cfg = {"title": title, "splat": f"dev-assets/models/{web_splat.name}",
-           "spawn": [0, 0, 0], "spawnYaw": 0, "eyeHeight": 1.6, "rotation": [3.141592653589793, 0, 0], "scale": 1,
-           "_note": f"AUTO-GENERATED, UNALIGNED. Model centre {centre}. Set spawn/scale/rotation by hand; see docs/SOP.md."}
-    if sparse is not None:
-        try:
-            import room_coverage
-            _, _, cams, axes = room_coverage.load_model(sparse, work / "coverage" / "sparse_txt")
-            align = room_coverage.viewer_alignment(cams, axes)
-            cfg.update({k: align[k] for k in ("rotation", "spawn", "spawnYaw", "eyeHeight", "bounds", "walkPath", "walkRadius")})
-            cfg["_note"] = ("AUTO-ALIGNED from camera poses: floor levelled, spawn at a real camera position, bounds "
-                            "around the walked path. Scale is NOT metric (scale 1 = COLMAP units).")
-        except Exception as e:
-            print(f"publish: auto-alignment failed ({e}); scene.json left unaligned")
-        # Bundle for the studio viewer: metric (estimated) scale and a navigation grid for collision.
-        try:
-            import scene_bundle
-            report.data["bundle"] = scene_bundle.build(sparse, web_splat, work / "bundle", title)
-            print(f"publish: studio bundle -> {work / 'bundle'} (copy to public/scenes/<name>/ in the studio app)")
-        except Exception as e:
-            print(f"publish: studio bundle failed ({e})")
-    (web_splat.parent / "scene.json").write_text(json.dumps(cfg, indent=2))
-    shutil.rmtree(DEV_MODELS, ignore_errors=True)
-    DEV_MODELS.mkdir(parents=True)
-    shutil.copy2(web_splat, DEV_MODELS / web_splat.name)
-    shutil.copy2(web_splat.parent / "scene.json", DEV_MODELS / "scene.json")
-    aligned = "auto-aligned" if "bounds" in cfg else "needs manual alignment"
-    print(f"publish: {web_splat} -> viewer/dev-assets/models/ (scene.json {aligned})\n"
-          f"  inspect: cd viewer; npm run dev  ->  http://localhost:5173/?scene=dev-assets/models/scene.json")
+    """Build the studio scene bundle (manifest, splat, navigation grid, start POI, quality report) in
+    work/<name>/bundle/ from the COLMAP model. Copy that folder to apps/studio/public/scenes/<name>/ to open it."""
+    if sparse is None:
+        print("publish: no COLMAP model, so no scene bundle (the compressed splat is in web/)")
+        return
+    try:
+        import scene_bundle
+        report.data["bundle"] = scene_bundle.build(sparse, web_splat, work / "bundle", title)
+    except Exception as e:  # noqa: BLE001 (a bundle failure must not lose the trained splat)
+        report.check("bundle", False, f"scene bundle failed: {e}", "warn")
+        return
+    print(f"publish: studio bundle -> {work / 'bundle'}\n"
+          f"  inspect: copy it to apps/studio/public/scenes/{work.name}/, run `npm run dev` in apps/studio, open\n"
+          f"  http://localhost:5173/?scene=/scenes/{work.name}/manifest.json&edit=1")
 
 
 # ---------------------------------------------------------------- environment
@@ -636,9 +612,9 @@ def main() -> int:
         report.data["status"] = AWAITING_INSPECTION
         report.save()
         print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
-              f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n"
-              "Next: check viewer/dev-assets/models/scene.json, run `npm run dev` in viewer/, open\n"
-              "  http://localhost:5173/?scene=dev-assets/models/scene.json, walk the whole room, then\n"
+              f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n  {work / 'bundle'} (studio scene bundle)\n"
+              f"Next: copy the bundle to apps/studio/public/scenes/{work.name}/, run `npm run dev` in apps/studio, open\n"
+              f"  http://localhost:5173/?scene=/scenes/{work.name}/manifest.json, walk the whole room, then\n"
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
     except PipelineError as e:

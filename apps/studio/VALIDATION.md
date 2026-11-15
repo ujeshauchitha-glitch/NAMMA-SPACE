@@ -1,6 +1,6 @@
 # Validation record
 
-**Record date:** 29 October 2026 (runs 03:52–04:21 IST, branch `ashwinwork`, working tree — concurrent workstreams active, see churn note under *Automated results*).
+**Record date:** 29 October 2026 (runs 03:52–04:21 IST, the Round 1 integration branch (merged into `round1/viewer-pipeline`), working tree — concurrent workstreams active, see churn note under *Automated results*).
 This record supersedes the 24 October 2026 record; older measurements are kept only where explicitly dated. Every command below was executed for this record unless a source (commit/message/log) is named.
 
 ## Environment (verified 29 Oct 2026)
@@ -175,7 +175,7 @@ Landed 29 Oct (T24 session). Full `npm run test:e2e` ran **green twice in a row*
 
 ## T27 — Final release gate (full battery, recorded)
 
-**Run:** 30 Oct 2026, 13:19–13:28 IST, branch `ashwinwork`, working tree (follow-up 1/2 edits included: `tests/e2e/pairing.ts` opt-in `phoneProfile`, `tests/e2e/webrtc-loopback.spec.ts` returning-phone re-check, comment-only edits in `tests/pairing-hydrate.test.ts`, this file). Every number below comes from a command executed for this record. (A partial battery also ran 29 Oct 16:00–16:03 IST before a session interruption — identical results for typecheck/lint/scenes/preflight/pytest; the 30 Oct numbers supersede.)
+**Run:** 30 Oct 2026, 13:19–13:28 IST, the Round 1 integration branch (merged into `round1/viewer-pipeline`), working tree (follow-up 1/2 edits included: `tests/e2e/pairing.ts` opt-in `phoneProfile`, `tests/e2e/webrtc-loopback.spec.ts` returning-phone re-check, comment-only edits in `tests/pairing-hydrate.test.ts`, this file). Every number below comes from a command executed for this record. (A partial battery also ran 29 Oct 16:00–16:03 IST before a session interruption — identical results for typecheck/lint/scenes/preflight/pytest; the 30 Oct numbers supersede.)
 
 ### Automated results
 

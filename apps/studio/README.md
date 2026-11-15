@@ -77,15 +77,7 @@ python3 scripts/prepare_capture.py ./capture.mp4 \
   --limit 120
 ```
 
-Frame preparation is not reconstruction. When COLMAP is installed, run the sparse baseline against prepared frames:
-
-```bash
-npm run reconstruct:colmap -- \
-  --frames ./capture-output/frames \
-  --output ./capture-output/colmap
-```
-
-Dense reconstruction and mesh processing are optional, dependency-sensitive stages. See [PIPELINE.md](./PIPELINE.md) for stage requirements, outputs, and scene-bundle generation.
+Frame preparation is not reconstruction. Reconstruction (poses, Gaussian splat training, compression, scene bundle) is the repository's `pipeline/`: see the root [README](../../README.md#reconstruct-your-own-space), [docs/TRAINING.md](../../docs/TRAINING.md) and the Kaggle notebook in `notebooks/`.
 
 ## Live Scan and capture
 
@@ -99,13 +91,12 @@ The repository includes camera permission/error handling, a camera preview compo
 - **3D viewer:** PlayCanvas, loaded lazily when the viewer opens.
 - **Local browser data:** IndexedDB-backed persistence.
 - **Pairing:** WebRTC data channel with signalling over a Vite development WebSocket relay.
-- **Processing:** Python command-line tools; COLMAP for reconstruction and optional Open3D geometry processing.
+- **Processing:** Python command-line tools here for capture ingest and scene validation; reconstruction lives in the root `pipeline/`.
 - **Tests:** Vitest, Testing Library, and Playwright.
 
 ## Known limitations
 
-- The included viewer scene is synthetic; no real smartphone capture has been reconstructed into a scene in this repository.
-- COLMAP, suitable capture data, and a configured reconstruction worker are required for real reconstruction. The project does not pretend these are available when they are not.
+- Reconstruction needs an NVIDIA GPU (locally or on Kaggle); there is no hosted processing worker.
 - Phone pairing and camera/frame-transfer code are not yet integrated into a complete capture workflow.
 - LAN signalling and self-signed HTTPS are development facilities, not a production deployment.
 - Automatic semantic extraction, hosted processing, multi-floor navigation, and AR are not implemented.
@@ -113,7 +104,6 @@ The repository includes camera permission/error handling, a camera preview compo
 ## Project documentation
 
 - [Capture SOP](./CAPTURE_SOP.md) — recording and preparing useful input media.
-- [Pipeline guide](./PIPELINE.md) — implemented processing stages and dependency boundaries.
 - [Architecture](./ARCHITECTURE.md) — scene contracts and system boundaries.
 - [Validation record](./VALIDATION.md) — automated and manual validation evidence.
 - [Project scope](./PROJECT_SCOPE.md) and [roadmap](./ROADMAP.md) — milestones and planned work.

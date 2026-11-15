@@ -8,7 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "pipeline"))
 
-SYNTHETIC_PLY = ROOT / "viewer" / "dev-assets" / "fixtures" / "SYNTHETIC" / "synthetic_room.ply"
+SYNTHETIC_PLY = ROOT / "tests" / "fixtures" / "synthetic_room" / "synthetic_room.ply"
 TINY_MODEL = ROOT / "tests" / "fixtures" / "tiny_colmap_model"
 
 

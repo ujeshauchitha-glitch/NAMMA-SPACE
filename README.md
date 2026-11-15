@@ -25,7 +25,6 @@ Click **Enter walkthrough** on the live site, then use the controls below. Nothi
 | `tests/sample_data/` | A 36 s clip of our real classroom capture, plus small synthetic inputs, with run instructions |
 | `docs/` | Capture SOP, Windows step-by-step guide, status and open issues |
 | `docs/submission/` | Round 1 Technical Abstract and links PDFs, with their HTML sources |
-| `viewer/` | Our earlier Spark-based viewer, kept for reference; the live site uses `apps/studio/` |
 
 ## Scenes on the live site
 

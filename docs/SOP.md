@@ -56,7 +56,7 @@ One video per room or one per floor, named `<space>_<room>.mp4`, plus an optiona
 | Structure-from-motion | COLMAP | SIFT features, sequential matching, incremental mapping, undistortion | ~5-15 min for ~500 frames |
 | Splat training | Brush (WebGPU) | 30k steps 3D Gaussian Splatting | ~15-30 min |
 | Compress | splat-transform 3.10.3 | `.ply` → `.sog` (fallback `.spz`) under 50 MB: drops SH bands, then decimates only if still too big | ~1 min |
-| Publish | script | compressed splat + `scene.json` into `work/<name>/web/` and `viewer/dev-assets/models/` for local inspection; the raw `.ply` never goes into the viewer | seconds |
+| Publish | script | studio scene bundle (manifest, compressed splat, navigation grid, start POI) in `work/<name>/bundle/`; copy it to `apps/studio/public/scenes/<name>/` to walk it; the raw `.ply` is never published | seconds |
 
 *Times are estimates; measured values go in the abstract after the first full run.*
 

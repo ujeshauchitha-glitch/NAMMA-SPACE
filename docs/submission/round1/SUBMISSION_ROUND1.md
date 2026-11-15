@@ -1,7 +1,7 @@
 # Namma Space — Round 1 submission package (index)
 
 **Competition:** Techfest 2026-27, IIT Bombay — Round 1
-**Deadline:** **31 Oct 2026** · **Branch:** `ashwinwork` · **This document:** verified
+**Deadline:** **31 Oct 2026** · **Branch:** `round1/viewer-pipeline` (the Round 1 work was merged there) · **This document:** verified
 **29 Oct 2026** against the repository and the sprint logs (`logs/round1-rescue/`).
 
 > **Honest headline.** The software is green and demonstrable end-to-end on synthetic
@@ -184,7 +184,7 @@ Pipeline on a capture (needs COLMAP; `--cpu` without CUDA) — see `docs/SOP.md`
 
 ## 7. Sprint provenance
 
-Rescue sprint `logs/round1-rescue/` (29 Oct 2026, branch `ashwinwork`), workstreams B–G.
+Rescue sprint (29 Oct 2026), workstreams B–G; its working logs were removed from the repository in Round 2.
 Key commits: `7f4f060` (COLMAP flags) · `a4299f5` (SIMPLE_RADIAL root-cause fix) ·
 `6a7654a` (ZIP ingest) · `6df7d8c` (A*) · `d4acf04` (scene contract/integrity) ·
 `a56eaa1` (Live Scan journey) · `74a112b` (coverage visualizer + leak fix) ·

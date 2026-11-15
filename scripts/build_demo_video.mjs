@@ -212,7 +212,7 @@ const SECTIONS = [
     kind: 'slide',
     caption: 'Everything is public',
     narration:
-      'Everything in this video is public. The viewer is live at namma-space-studio dot vercel dot app. The repository is NAMMA SPACE on GitHub, branch ashwinwork, with the setup commands, the capture standard operating procedure, the reconstruction pipeline, and synthetic sample data in the tests folder. Thank you for watching.',
+      'Everything in this video is public. The viewer is live at namma-space-studio dot vercel dot app. The repository is NAMMA SPACE on GitHub, with the setup commands, the capture standard operating procedure, the reconstruction pipeline, and synthetic sample data in the tests folder. Thank you for watching.',
     html: () => linksSlide(),
   },
 ];
@@ -318,7 +318,7 @@ function linksSlide() {
     body: `<div class="rows">
       <div class="row"><b>Live viewer</b><span class="mono">namma-space-studio.vercel.app</span></div>
       <div class="row"><b>Splat viewer</b><span class="mono">namma-space-pearl.vercel.app</span></div>
-      <div class="row"><b>Repository</b><span class="mono">github.com/ujeshauchitha-glitch/NAMMA-SPACE · branch ashwinwork</span></div>
+      <div class="row"><b>Repository</b><span class="mono">github.com/ujeshauchitha-glitch/NAMMA-SPACE</span></div>
       <div class="row"><b>Docs</b><span class="mono">docs/SOP.md · docs/HANDOFF_UJESHA.md · docs/SUBMISSION_ROUND1.md</span></div>
     </div>`,
   });

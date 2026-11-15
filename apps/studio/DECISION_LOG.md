@@ -125,7 +125,7 @@
 ### D-017 — SIMPLE_RADIAL camera model for real captures
 
 - **Status:** Accepted
-- **Decision:** Real captures are calibrated with COLMAP's **SIMPLE_RADIAL** single-camera model; the team's root pipeline passes it explicitly (`pipeline/run_pipeline.py`). The studio adapter (`scripts/reconstruct_colmap.py`) sets no `--ImageReader.camera_model` and therefore uses COLMAP's SIMPLE_RADIAL default (verified against `colmap feature_extractor -h` on 29 Oct).
+- **Decision:** Real captures are calibrated with COLMAP's **SIMPLE_RADIAL** single-camera model; the team's root pipeline passes it explicitly (`pipeline/run_pipeline.py`). The studio's former COLMAP adapter (removed in Round 2; `pipeline/` is the only reconstruction path) relied on COLMAP's SIMPLE_RADIAL default.
 - **Reason:** forcing OPENCV (two focal lengths + four distortion coefficients) fails initial-pair selection and bundle adjustment on real photos. On identical inputs: OPENCV → 2/70 then 20/70 registered; SIMPLE_RADIAL → 50–59/70 (isolation run, 29 Oct; the `use_gpu` flag was exonerated). The OPENCV path reproduced the exact "2 frames / 3 %" signature behind the earlier 2/73 "unusable capture" verdict, so that verdict was at least partly a pipeline bug.
 - **Evidence:** commit `a4299f5` (regression test pins the `feature_extractor` argv; `image_undistorter` empirically verified model-agnostic, SIMPLE_RADIAL → PINHOLE, exit 0); `logs/round1-rescue/EVENT_LOG.md` (03:12 and 03:43 IST, 29 Oct).
 

@@ -7,19 +7,16 @@
 # Local tooling binaries
 /tools/
 
-# Root viewer app (separate legacy app)
-/viewer/
-
 # Tests
 /tests/
 
 # Docs / submission artifacts
 /docs/
-/submission/
-/logs/
 
-# Pipeline scripts (not needed for web build)
+# Pipeline scripts and notebooks (not needed for web build)
 /pipeline/
+/notebooks/
+/scripts/
 
 # Node modules
 node_modules/

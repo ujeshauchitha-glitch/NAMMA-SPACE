@@ -20,7 +20,7 @@ The rows above used the **SYNTHETIC** fixture. The first real reconstruction (a 
 
 Note: the splat checks cannot tell a real reconstruction from a synthetic file; only the human inspection gate can.
 
-## Added 2026-10-28 (integration/round1), tested only with stubs on macOS
+## Added 2026-10-28, tested only with stubs on macOS
 | Change | How verified |
 |---|---|
 | Frame-count rule shared by `--check` and extraction | unit run with a stubbed ffprobe: 25 s and 30 s rejected at 3 fps, 31 s and 45 s accepted |

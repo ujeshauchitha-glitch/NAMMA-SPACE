@@ -50,7 +50,7 @@ web splat falls back to a compressed PLY (`pipeline/compressed_ply.py`), which t
 ## Moving between machines
 ```text
 work/<name>/dataset/   <- copy this folder (images/ + sparse/) to the training machine
-work/<name>/splat_*/   <- copy the resulting .ply back, then `npm run dev` in viewer/
+work/<name>/splat_*/   <- copy the resulting .ply back; the run then compresses it and writes work/<name>/bundle/
 ```
 To train an already-processed dataset, point `--out` at the copied work folder; finished stages are skipped.
 
