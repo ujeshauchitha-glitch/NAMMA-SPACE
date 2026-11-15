@@ -99,6 +99,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const [cell, setCell] = useState<GridCell>({ x: 0, z: 0 });
   const [viewerStatus, setViewerStatus] = useState('Loading scene bundle…');
   const [isViewerReady, setIsViewerReady] = useState(false);
+  // "Show walkable area" floor overlay (visitor-facing, off by default).
+  const [showWalkable, setShowWalkable] = useState(false);
   const [sceneUrl, setSceneUrl] = useState(resolveInitialSceneUrl);
   // T16 · last plot outcome for the route strip (§5.16) — idle until plotted.
   const [routeState, setRouteState] = useState<RouteState>({ status: 'idle' });
@@ -423,6 +425,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     if (isViewerReady) viewerRef.current?.setPois(scenePois);
   }, [isViewerReady, scenePois]);
   useEffect(() => {
+    if (isViewerReady) viewerRef.current?.setWalkableOverlay(showWalkable);
+  }, [isViewerReady, showWalkable]);
+  useEffect(() => {
     if (isViewerReady) viewerRef.current?.setEditMode(editMode);
   }, [isViewerReady, editMode]);
   useEffect(() => {
@@ -649,6 +654,17 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   Live spatial view {isFullscreen && '· Full Screen (Press F or Esc to exit)'}
                 </div>
                 <div className={styles.toolbarActions}>
+                  {hasNavigation && (
+                    <Button
+                      variant={showWalkable ? 'primary' : 'quiet'}
+                      aria-pressed={showWalkable}
+                      disabled={!isViewerReady}
+                      onClick={() => setShowWalkable((on) => !on)}
+                      title="Tint the floor where routes can go: everything else is an obstacle or was not filmed"
+                    >
+                      {showWalkable ? 'Hide walkable area' : 'Show walkable area'}
+                    </Button>
+                  )}
                   <Button
                     variant="quiet"
                     onClick={() => void toggleFullscreen()}

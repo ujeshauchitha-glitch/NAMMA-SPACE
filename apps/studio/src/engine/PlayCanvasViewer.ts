@@ -15,6 +15,7 @@ import {
 import type { AssetRef, NavigationGrid, Poi, SceneManifest, Vec3 } from '../types/scene';
 import { filmedHeading, isWalkable, planRoute, poiInView, worldToCell, type GridCell } from '../lib/navigation';
 import { resolveWalkableStep } from '../lib/movement';
+import { walkableMesh, walkableRuns } from '../lib/walkableOverlay';
 import { PoiSpatialIndex, rayFloorHit, triangulatePolygon, type FloorPoint } from '../lib/poiIndex';
 import { FADE_CUT_MS, fadeCutOpacity, flightDurationMs, flightPose, planFlight } from '../lib/routeFlight';
 import { faceAngles, formatInstruction, formatWalkTime, nextInstruction, routeProgress } from '../lib/routeGuidance';
@@ -136,6 +137,7 @@ export class PlayCanvasViewer {
   private routeMaterial: StandardMaterial | null = null;
   /** The drawn route: smoothed floor polyline to a POI; preview routes are fainter and have no chevrons. */
   private mapPoint: Poi | null = null;
+  private walkableOverlay: { entity: Entity; material: StandardMaterial } | null = null;
   private activeRoute: { poiId: string; path: FloorPoint[]; length: number; preview: boolean } | null = null;
   private routeRibbon: { entity: Entity; mesh: Mesh | null } | null = null;
   /** How much of the route is drawn (grows during the reveal). */
@@ -797,6 +799,7 @@ export class PlayCanvasViewer {
       this.app.assets.remove(asset);
     });
     this.routeMaterial?.destroy();
+    this.walkableOverlay?.material.destroy();
     this.app.destroy();
   }
 
@@ -1084,6 +1087,37 @@ export class PlayCanvasViewer {
     entity.addComponent('render', { meshInstances: [new MeshInstance(mesh, material)] });
     this.app.root.addChild(entity);
     this.zoneEntities.set(poiId, { entity, material });
+  }
+
+  /**
+   * "Show walkable area": a translucent floor overlay of the walkable cells (one quad per row run), so the
+   * space routes keep to is visible in the scene. Built on first use; hidden, not destroyed, when off.
+   */
+  public setWalkableOverlay(on: boolean): boolean {
+    if (!this.navigation) return false;
+    if (!this.walkableOverlay && on) {
+      const { positions, indices } = walkableMesh(this.navigation, walkableRuns(this.navigation), this.floorY + 0.015);
+      if (indices.length === 0) return false;
+      const mesh = new Mesh(this.app.graphicsDevice);
+      mesh.setPositions(positions);
+      mesh.setIndices(indices);
+      mesh.update();
+      const material = new StandardMaterial();
+      material.useLighting = false;
+      material.diffuse = new Color(0, 0, 0);
+      material.emissive = new Color(0.25, 0.75, 0.95);
+      material.opacity = 0.28;
+      material.blendType = BLEND_NORMAL;
+      material.depthWrite = false;
+      material.cull = CULLFACE_NONE;
+      material.update();
+      const entity = new Entity('walkable-overlay');
+      entity.addComponent('render', { meshInstances: [new MeshInstance(mesh, material)] });
+      this.app.root.addChild(entity);
+      this.walkableOverlay = { entity, material };
+    }
+    if (this.walkableOverlay) this.walkableOverlay.entity.enabled = on;
+    return true;
   }
 
   /** Edit mode only: approach points (stem from pin to floor, line to the approach cell) and the draft zone. */
