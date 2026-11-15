@@ -54,7 +54,7 @@ INPUT_VIDEO = ""            # e.g. "/kaggle/input/my-room/room.mp4"; empty = rep
 PROFILE = "preview"         # "preview" (≤720p, 7k steps, ~30 min target) or "final" (1080p, 30k steps)
 TITLE = "Kaggle reconstruction"
 MASK_PEOPLE = False         # True: YOLO-segment people out of the training frames (downloads weights)
-EXTRA_ARGS = []             # e.g. ["--exhaustive"], ["--max-splats", "1000000"], ["--force-train"] (retrain a cached
+EXTRA_ARGS = []             # e.g. ["--exhaustive"], ["--max-splats", "500000"], ["--force-train"] (retrain a cached
                             # splat), ["--sog-on-cpu"] (SOG without a WebGPU adapter: 30+ min; default is .compressed.ply)
 
 PINS = {json.dumps(PINS)}
@@ -116,6 +116,8 @@ CLONE = """# ---- clone the repository at the branch ---------------------------
 repo = "/kaggle/working/NAMMA-SPACE"
 if not os.path.exists(repo):
     sh(f"git clone -q --depth 1 --branch {BRANCH} {REPO} {repo}")
+else:  # rerun in the same session: update the code; frames, poses and masks in /kaggle/working/scene are reused
+    sh(f"git -C {repo} pull -q --ff-only origin {BRANCH}")
 sh(f"git -C {repo} log -1 --oneline")
 video = INPUT_VIDEO or f"{repo}/tests/sample_data/capture_short.mp4"
 print("input:", video, f"{os.path.getsize(video) / 1e6:.1f} MB")
@@ -126,6 +128,7 @@ out = f"{WORK}/scene"
 args = [sys.executable, f"{repo}/pipeline/run_pipeline.py", video, "--out", out, "--profile", PROFILE,
         "--title", TITLE, "--sfm", "pycolmap", "--trainer", "gsplat", *(["--mask-people"] if MASK_PEOPLE else []), *EXTRA_ARGS]
 os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5"
+print("$", " ".join(args), flush=True)  # check --mask-people is here when MASK_PEOPLE = True
 t_run = time.time()
 proc = subprocess.run(args)
 print(f"\\npipeline exit code {proc.returncode} after {(time.time() - t_run) / 60:.1f} min")
@@ -142,7 +145,11 @@ for k, s in rows:
 print("sfm:", json.dumps(report.get("sfm", {})))
 print("sfm timing:", json.dumps(report.get("sfm_timing", {})))
 print("global positioning:", json.dumps(report.get("sfm_global_attempts", [])))
-print("training:", json.dumps(report.get("train_stats", {})))
+print("mask_people:", json.dumps(report.get("mask_people")), "| preview cap:", json.dumps(report.get("train_scaled")))
+ts = report.get("train_stats", {})
+print("training:", json.dumps({k: v for k, v in ts.items() if k != "attempts"}))
+for at in ts.get("attempts", []):  # rollbacks after a divergence, the out-of-memory fallback
+    print("  attempt:", json.dumps(at))
 print("clean:", json.dumps(report.get("clean_splat", {})))
 print("web splat:", json.dumps(report.get("web_splat", {})))
 print("compress attempts:", json.dumps(report.get("compress_attempts", [])))

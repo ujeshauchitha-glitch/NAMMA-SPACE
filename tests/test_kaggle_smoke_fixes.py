@@ -184,39 +184,25 @@ def test_loss_monitor_flags_the_kaggle_divergence():
     assert nan.diverged()
 
 
-def test_guard_runs_only_for_long_enough_runs():
-    assert train_gsplat.TrainConfig(steps=7000).guard_step() == 1500
-    assert train_gsplat.TrainConfig(steps=60).guard_step() is None
+def test_guard_checks_every_500_steps_after_1500():
+    assert train_gsplat.TrainConfig(steps=7000).guard_steps() == list(range(1500, 7000, 500)) + [7000]
+    assert train_gsplat.TrainConfig(steps=60).guard_steps() == []
 
 
 def _diverged():
     m = train_gsplat.LossMonitor()
     _feed(m, [0.2] * 100 + [0.6] * 100)
-    return train_gsplat.TrainingDiverged("loss diverged by step 1500", m)
+    return train_gsplat.TrainingDiverged("loss diverged by step 1500", m, 1500)
 
 
-def test_restart_once_with_lower_learning_rates():
-    healthy = train_gsplat.LossMonitor()
-    _feed(healthy, [0.02] * 100)
-    seen, log = [], []
-
-    def attempt(cfg):
-        seen.append(cfg.lr_scale)
-        if len(seen) == 1:
-            raise _diverged()
-        return "params", healthy
-
-    params, monitor, used = train_gsplat.run_with_restart(attempt, train_gsplat.TrainConfig(steps=7000), log)
-    assert seen == [1.0, train_gsplat.RESTART_LR_SCALE] and used.lr_scale == train_gsplat.RESTART_LR_SCALE
-    assert [a["diverged"] is None for a in log] == [False, True]
-
-
-def test_second_divergence_fails_clearly():
-    def attempt(cfg):
+def test_every_divergence_up_to_the_limit_rolls_back_then_fails():
+    def attempt(cfg, resume, monitor, best):
         raise _diverged()
 
-    with pytest.raises(train_gsplat.TrainingDiverged, match="diverged twice"):
-        train_gsplat.run_with_restart(attempt, train_gsplat.TrainConfig(steps=7000), [])
+    log = []
+    with pytest.raises(train_gsplat.TrainingDiverged, match="diverged 3 times"):
+        train_gsplat.run_with_recovery(attempt, train_gsplat.TrainConfig(steps=7000), log)
+    assert [a["event"] for a in log] == ["diverged"] * (train_gsplat.MAX_ROLLBACKS + 1)
 
 
 def test_pipeline_reports_a_diverged_training_run(tmp_path, monkeypatch):

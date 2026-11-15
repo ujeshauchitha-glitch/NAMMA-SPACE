@@ -310,15 +310,21 @@ def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None
          "--output-dir", str(export)], log, "Nerfstudio export")
 
 
+# Training child's allocator: expandable segments avoid the fragmentation that made a 2.2 GiB block fail
+# with 12.3 GiB in use on the T4. torch >= 2.9 reads PYTORCH_ALLOC_CONF, older ones PYTORCH_CUDA_ALLOC_CONF.
+TRAIN_ENV = {"PYTORCH_ALLOC_CONF": "expandable_segments:True", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
+
+
 def train_gsplat(dataset: Path, export: Path, steps: int, log: Path, max_width: int = 1920,
-                 max_splats: int = 1_500_000) -> None:
+                 max_splats: int = 1_500_000, require_masks: bool = False) -> None:
     """gsplat (CUDA PyTorch), MCMC + scale/anisotropy regularisation + antialiasing; see train_gsplat.py.
     Run as a child process so the GPU memory is returned before compression and publishing."""
     stats = export / "train_stats.json"
     try:
         run([sys.executable, str(Path(__file__).with_name("train_gsplat.py")), str(dataset), str(export / "splat.ply"),
              "--steps", str(steps), "--max-width", str(max_width), "--max-splats", str(max_splats),
-             "--stats", str(stats)], log, "gsplat training")
+             "--stats", str(stats), *(["--require-masks"] if require_masks else [])], log, "gsplat training",
+            env=TRAIN_ENV)
     except PipelineError as e:
         info = json.loads(stats.read_text()) if stats.is_file() else {}
         if info.get("diverged"):
@@ -326,6 +332,10 @@ def train_gsplat(dataset: Path, export: Path, steps: int, log: Path, max_width: 
                                 f"{info.get('final_loss')}, minimum {info.get('min_loss')}). No splat was kept. "
                                 "Usual cause: a bad camera solution; check report.json sfm / sfm_global_positioning, "
                                 "or re-run with --mapper incremental.") from e
+        if info.get("oom"):
+            raise PipelineError(f"gsplat training ran out of GPU memory again after its fallback ({info['error']}); "
+                                "see report.json train_stats.attempts. Re-run with a smaller --max-splats or "
+                                "--width.") from e
         raise
 
 
@@ -340,6 +350,21 @@ PROFILES = {
     "final": {"fps": 3.0, "width": 1920, "steps": 30000, "max_splats": 1_500_000},
 }
 DEFAULTS = {"fps": 3.0, "width": 1920, "steps": 30000, "max_splats": 1_500_000}
+
+# Preview of a long walk: above PREVIEW_MANY_VIEWS registered views the preview's splat cap drops to
+# PREVIEW_MANY_VIEWS_SPLATS (unless --max-splats was given). The view count itself costs GPU memory
+# only through the scene it covers; the resolution stays (integer downscaling would halve it to 633 px).
+PREVIEW_MANY_VIEWS = 400
+PREVIEW_MANY_VIEWS_SPLATS = 500_000
+
+
+def preview_train_params(profile: str | None, params: dict, views: int | None, explicit_splats: bool) -> dict | None:
+    """The preview's splat cap for a long walk, or None if nothing changes."""
+    if profile != "preview" or explicit_splats or not views or views <= PREVIEW_MANY_VIEWS:
+        return None
+    if params["max_splats"] <= PREVIEW_MANY_VIEWS_SPLATS:
+        return None
+    return {"views": views, "max_splats": PREVIEW_MANY_VIEWS_SPLATS, "was": params["max_splats"]}
 
 
 def resolve_params(args: argparse.Namespace) -> dict:
@@ -390,7 +415,8 @@ def reusable_splat(report: Report, want: dict, trainer: str) -> tuple[Path | Non
 
 
 def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path,
-          max_width: int = 1920, max_splats: int = 1_500_000, force: bool = False) -> Path:
+          max_width: int = 1920, max_splats: int = 1_500_000, force: bool = False,
+          require_masks: bool = False) -> Path:
     export = work / f"splat_{trainer}"
     extra = {"max_width": max_width, "max_splats": max_splats} if trainer == "gsplat" else {}
     want = train_fingerprint(dataset, trainer, steps, extra)
@@ -408,11 +434,14 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
     export.mkdir(parents=True)
     check_dataset(dataset, report)
     if trainer == "gsplat":
-        train_gsplat(dataset, export, steps, log, max_width, max_splats)
         stats = export / "train_stats.json"
-        if stats.is_file():
-            report.data["train_stats"] = {k: v for k, v in json.loads(stats.read_text()).items()
-                                          if k not in ("config", "loss_history")}
+        try:
+            train_gsplat(dataset, export, steps, log, max_width, max_splats, require_masks)
+        finally:  # a failed run's stats (rollbacks, OOM fallback, error) belong in report.json too
+            if stats.is_file():
+                report.data["train_stats"] = {k: v for k, v in json.loads(stats.read_text()).items()
+                                              if k not in ("config", "loss_history")}
+                report.save()
     else:
         TRAINERS[trainer](dataset, export, steps, log)
     plys = sorted(export.rglob("*.ply"), key=lambda p: p.stat().st_mtime)
@@ -659,12 +688,22 @@ def main() -> int:
                         raise PipelineError(f"--mask-people needs ultralytics: pip install ultralytics ({e})") from e
                     shutil.rmtree(masked, ignore_errors=True)
                     report.data["mask_people"] = mask_people.main(dataset, masked)
+                n_masks, n_images = len(list_images(masked / "masks")), len(list_images(masked / "images"))
+                if n_masks != n_images or not n_images:
+                    raise PipelineError(f"mask_people wrote {n_masks} masks for {n_images} images in {masked}")
+                print(f"mask_people: {n_masks} masks; training on {masked}")
                 dataset = masked
-            report.stage("mask_people", t.seconds)
+            report.stage("mask_people", t.seconds, masks=n_masks)
 
+        scaled = preview_train_params(a.profile, params, sfm_info.get("registered_images"), a.max_splats is not None)
+        report.data["train_scaled"] = scaled
+        if scaled:
+            print(f"train: preview of {scaled['views']} views (> {PREVIEW_MANY_VIEWS}): splat cap "
+                  f"{scaled['was']:,} -> {scaled['max_splats']:,}")
+        max_splats = scaled["max_splats"] if scaled else params["max_splats"]
         with Timer() as t:
-            splat = train(dataset, work, params["steps"], a.trainer, report, log, params["width"], params["max_splats"],
-                          force=a.force_train)
+            splat = train(dataset, work, params["steps"], a.trainer, report, log, params["width"], max_splats,
+                          force=a.force_train, require_masks=a.mask_people)
         report.stage("train", t.seconds, steps=params["steps"])
 
         print("== clean splat")

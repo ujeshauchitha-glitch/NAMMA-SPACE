@@ -142,8 +142,9 @@ def colmap_gpu_options(version: tuple[int, int, int] | None) -> dict[str, str]:
     return COLMAP_GPU_OPTIONS[3 if major <= 3 else 4]
 
 
-def run(cmd: list[str], log: Path | None = None, stage: str = "") -> str:
-    """Run a command, stream its output, tee it to `log`, and raise PipelineError on failure."""
+def run(cmd: list[str], log: Path | None = None, stage: str = "", env: dict | None = None) -> str:
+    """Run a command, stream its output, tee it to `log`, and raise PipelineError on failure. `env` adds to
+    (or overrides) this process's environment for the child."""
     print(f"\n$ {' '.join(cmd)}", flush=True)
     lines: list[str] = []
     fh = open(log, "a", encoding="utf-8") if log else None
@@ -151,7 +152,7 @@ def run(cmd: list[str], log: Path | None = None, stage: str = "") -> str:
         if fh:
             fh.write(f"\n$ {' '.join(cmd)}\n")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                encoding="utf-8", errors="replace")
+                                encoding="utf-8", errors="replace", env={**os.environ, **env} if env else None)
         assert proc.stdout
         for line in proc.stdout:
             print(line, end="", flush=True)
