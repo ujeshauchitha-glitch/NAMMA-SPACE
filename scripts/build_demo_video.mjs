@@ -319,7 +319,7 @@ function linksSlide() {
       <div class="row"><b>Live viewer</b><span class="mono">namma-space-studio.vercel.app</span></div>
       <div class="row"><b>Splat viewer</b><span class="mono">namma-space-pearl.vercel.app</span></div>
       <div class="row"><b>Repository</b><span class="mono">github.com/ujeshauchitha-glitch/NAMMA-SPACE</span></div>
-      <div class="row"><b>Docs</b><span class="mono">docs/SOP.md · docs/HANDOFF_UJESHA.md · docs/SUBMISSION_ROUND1.md</span></div>
+      <div class="row"><b>Docs</b><span class="mono">docs/SOP.md · docs/TRAINING.md · docs/submission/round1/</span></div>
     </div>`,
   });
 }

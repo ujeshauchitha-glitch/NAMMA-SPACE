@@ -16,8 +16,8 @@ free, since the person filming walked there. Cells far from the filmed path are 
 splat is unreliable there, so the viewer does not walk into them.
 
 Views. For each walkable cell the grid also lists which way the phone faced from nearby (a bitmask of
-VIEW_SECTORS compass sectors). The viewer turns the visitor gently back when they look in a direction
-nobody filmed from there, since that is where the splat streaks.
+VIEW_SECTORS compass sectors). With ?guide=1 the viewer turns the visitor gently back when they rest looking
+in a direction nobody filmed from there, since that is where the splat streaks (off by default).
 """
 from __future__ import annotations
 

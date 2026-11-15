@@ -132,7 +132,7 @@ The contract is `apps/studio/src/types/scene.ts` (zod); `apps/studio/scripts/val
 
 ## Limitations
 
-- **Zones are not occluded.** Floor zones draw over furniture in front of them.
+- **Zones and labels are not occluded.** Floor zones and place labels draw over furniture in front of them.
 - **Scale is estimated** from an assumed 1.45 m camera height (about ±15 %) unless a scene states it is known.
 - **Splat artefacts.** Views far from where the phone went streak or blur; the floor ribbon can float slightly
   above a lumpy splat floor. The bounds crop hides the haze outside the room, but not large splats inside it.

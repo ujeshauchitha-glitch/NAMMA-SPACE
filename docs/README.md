@@ -1,22 +1,17 @@
-# Documentation index
+# Documentation
 
-Start with [`../PROJECT_STATE.md`](../PROJECT_STATE.md): what the repository contains today, verified.
-
-## Reconstruction pipeline and Spark viewer (this repo's `pipeline/`, `viewer/`)
-| Document | Purpose |
+| Page | What it covers |
 |---|---|
-| [`HANDOFF_UJESHA.md`](HANDOFF_UJESHA.md) | Step-by-step: setup, dry run, real capture, send outputs |
-| [`SOP.md`](SOP.md) | Capture procedure and pass criteria enforced by the pipeline |
-| [`TRAINING.md`](TRAINING.md) | Which machine runs which stage; Brush versus Nerfstudio; Linux/WSL2 notes |
-| [`TECH_STACK.md`](TECH_STACK.md) | What is in the stack, what is deferred, and why |
-| [`STATUS.md`](STATUS.md) | Tested versus untested features and known limitations |
-| [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Skeleton for the 3-5 minute video |
+| [POIS_AND_SPATIAL_INDEX.md](POIS_AND_SPATIAL_INDEX.md) | POI records, approach points, the spatial index, pins and labels, the in-app POI editor |
+| [SEARCH.md](SEARCH.md) | Search ranking (prefix, substring, fuzzy), walking-distance order, categories, `nearest …`, keyboard, what a pick does |
+| [PATHFINDING.md](PATHFINDING.md) | Navigation grid and clearance, snapping, A*, string-pulling, the benchmark, the route ribbon, guidance and re-routing |
+| [SOP.md](SOP.md) | Capture SOP: how to film a room so it reconstructs |
+| [TRAINING.md](TRAINING.md) | Where to run reconstruction: Windows (Brush), Linux and Kaggle (pycolmap + gsplat) |
+| [PAIRING.md](PAIRING.md) | Live Scan: pairing a phone with the studio over the LAN |
+| [OPEN_ISSUES.md](OPEN_ISSUES.md) | What is not done or not verified, and what to do next |
+| [submission/](submission/) | Submissions: Round 1 files in `submission/round1/` |
 
-## Studio app (Ashwin, `apps/studio/`)
-Its own documentation lives next to its code: `apps/studio/README.md`, `ARCHITECTURE.md`, `VALIDATION.md`, `CAPTURE_SOP.md`, `ROADMAP.md`, `DECISION_LOG.md`, `TECH_STACK_COMPARISON.md`, `CONTEXT.md` (Nilesh's session notes), `WINDOWS_SETUP.md`, and the task spec `apps/studio/docs/V1_SPEC.md` (defines T1-T27).
-
-## Not on this branch
-Round 1 submission material is in `docs/submission/round1/`.
-
-## Local-only folders (git-ignored)
-`tools/` (downloaded COLMAP, Brush, splat-transform), `work/` (per-run outputs), `.venv/` (Python environment).
+The studio app's own design records live next to its code: `apps/studio/README.md`, `ARCHITECTURE.md`,
+`DECISION_LOG.md`, `VALIDATION.md`, `CAPTURE_SOP.md` (photo capture for Capture Studio) and `apps/studio/docs/`
+(the V1 specification and design handoff that the code comments cite). Third-party tools and licences:
+[../CREDITS.md](../CREDITS.md).

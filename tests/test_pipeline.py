@@ -1,7 +1,7 @@
 """Tests for the reconstruction pipeline's validation, checks and gating logic.
 
 These test the CODE on synthetic inputs. None of them reconstruct a real room; a passing run here says
-nothing about reconstruction quality (see docs/STATUS.md).
+nothing about reconstruction quality (see docs/OPEN_ISSUES.md).
 
     py -3.12 -m pytest tests -q
 """

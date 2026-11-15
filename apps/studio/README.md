@@ -106,5 +106,5 @@ The repository includes camera permission/error handling, a camera preview compo
 - [Capture SOP](./CAPTURE_SOP.md) — recording and preparing useful input media.
 - [Architecture](./ARCHITECTURE.md) — scene contracts and system boundaries.
 - [Validation record](./VALIDATION.md) — automated and manual validation evidence.
-- [Project scope](./PROJECT_SCOPE.md) and [roadmap](./ROADMAP.md) — milestones and planned work.
-- [Decision log](./DECISION_LOG.md) and [technology comparison](./TECH_STACK_COMPARISON.md) — key technical choices.
+- [Decision log](./DECISION_LOG.md) — key technical choices.
+- Design notes for POIs, search and pathfinding: [`docs/`](../../docs/README.md) at the repository root.
