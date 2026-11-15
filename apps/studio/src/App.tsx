@@ -5,7 +5,6 @@ import { LiveScanWorkspace } from './components/workspace/LiveScanWorkspace';
 import { SpatialViewerWorkspace } from './components/viewer/SpatialViewerWorkspace';
 import { ToastRegion } from './components/ui/Toast';
 import { WelcomeGuideModal } from './components/shell/WelcomeGuideModal';
-import { shouldShowWelcomeGuide } from './components/shell/welcomeGuideState';
 import { DEFAULT_WORKSPACE, isWorkspaceId, type WorkspaceId } from './components/workspace/workspace';
 import { createAppPersistence } from './state/appPersistence';
 import { createEntityId, useWorkspaceBootstrap } from './state/bootstrap';
@@ -70,7 +69,9 @@ function AppInner({ dispatchRef }: { dispatchRef: RefObject<Dispatch<WorkspaceAc
 
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(resolveInitialWorkspace);
   const [pairToken] = useState<string | null>(() => readPairToken(window.location.search));
-  const [showGuide, setShowGuide] = useState(() => !pairToken && shouldShowWelcomeGuide());
+  // The full guide no longer opens on launch (it blocked the scene); a small dismissible controls hint
+  // in the viewer covers first visits, and the guide stays one click away in the shell.
+  const [showGuide, setShowGuide] = useState(false);
   const [sceneState, setSceneState] = useState('No scene loaded');
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 

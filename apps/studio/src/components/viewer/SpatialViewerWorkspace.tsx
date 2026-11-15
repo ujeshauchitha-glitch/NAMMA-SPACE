@@ -15,6 +15,7 @@ import { WorkspacePanel } from '../workspace/WorkspacePanel';
 import { SceneSkeleton } from './SceneSkeleton';
 import { SceneErrorPanel } from './SceneErrorPanel';
 import { PoiSearch } from './PoiSearch';
+import { ControlsHint } from './ControlsHint';
 import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
 import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
@@ -687,6 +688,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                 {!isViewerReady && (
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}
+                {bundle && isViewerReady && <ControlsHint />}
                 {bundle && (
                   <Hud
                     sceneLabel={bundle.manifest.displayName}

@@ -161,7 +161,7 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                   <li className={styles.stepItem}>
                     <span className={styles.stepNum}>5</span>
                     <div>
-                      <strong>Explore the generated scene:</strong> Walk through the environment with WASD/mouse look, search destinations, and follow calculated routes.
+                      <strong>Explore the generated scene:</strong> Walk through the environment with WASD and drag to look, search destinations, and follow calculated routes.
                     </div>
                   </li>
                 </ol>
@@ -191,7 +191,7 @@ export function WelcomeGuideModal({ open, onClose, onSelectWorkspace }: WelcomeG
                       <li><code>Procedural fixture</code>: Synthetic architectural box room with verified navigation.</li>
                       <li><code>Generated GLB fixture</code>: Mesh model with collision bounds.</li>
                     </ul>
-                    <p>Click <strong>Full Screen</strong> (or press <kbd>F</kbd>) for an immersive edge-to-edge view. Click the scene to lock mouse look. Walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. Press <kbd>Esc</kbd> to release.</p>
+                    <p>Click <strong>Full Screen</strong> (or press <kbd>F</kbd>) for an immersive edge-to-edge view. Drag the scene to look around (one finger on a phone). Walk with <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. <strong>Immersive mode</strong> locks the mouse for looking; <kbd>Esc</kbd> leaves it.</p>
                   </div>
                 </div>
 

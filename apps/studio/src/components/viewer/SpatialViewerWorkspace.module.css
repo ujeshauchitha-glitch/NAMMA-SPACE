@@ -733,3 +733,50 @@
   backdrop-filter: blur(8px);
   z-index: 50;
 }
+
+/* First-visit controls hint: one compact line across the top of the scene, under the HUD chips'
+   height, never covering the middle of the view. */
+.controlsHint {
+  position: absolute;
+  top: 78px; /* below the HUD's top chips */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 6px 6px 6px 14px;
+  border-radius: 999px;
+  background: rgba(14, 18, 16, 0.78);
+  color: #f4f6f1;
+  font: 500 12px/1.4 var(--font-ui);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.controlsHint ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.controlsHintClose {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+
+.controlsHintClose:focus-visible {
+  outline: 2px solid var(--accent-lime);
+  outline-offset: 2px;
+}
