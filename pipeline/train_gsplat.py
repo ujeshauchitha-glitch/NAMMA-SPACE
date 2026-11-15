@@ -15,8 +15,17 @@ Choices aimed at the "needle" streaks seen from off-path viewpoints:
     view and smear in the others.
 
 Hyperparameters follow gsplat v1.5.3 examples/simple_trainer.py ("mcmc" config: init_opa 0.5, init_scale
-0.1, opacity_reg 0.01, scale_reg 0.01; learning rates and the means LR decay to 1% over training). The
-world frame is NOT normalised: the PLY stays in COLMAP's frame so scene_bundle.py's alignment applies.
+0.1, opacity_reg 0.01, scale_reg 0.01; learning rates and the means LR decay to 1% over training). Those
+values assume a normalised world, so training runs in one: centred on the cameras and scaled so the camera
+path has radius 1 (see Normalisation). Unnormalised, the scale regulariser and MCMC's position noise (lr x
+noise_lr x covariance, i.e. proportional to extent^3) change with COLMAP's arbitrary scale. The exported PLY
+is mapped back to COLMAP's frame, so scene_bundle.py's alignment still applies.
+
+Divergence guard: a smoothed loss (mean of the last LOSS_WINDOW steps) is checked at GUARD_STEP; if it is
+more than DIVERGENCE_FACTOR x its running minimum, training restarts once with every learning rate x
+RESTART_LR_SCALE; a second divergence, or an unhealthy final loss, fails with exit code 3 and no PLY.
+In the 7k-step preview, MCMC refinement starts at step 116 (every 23 steps) and the SH degree rises at
+steps 233, 466 and 699; that is what switches on around step 500.
 
 Everything above `train()` is plain numpy and is unit tested without a GPU.
 """
@@ -39,6 +48,21 @@ SH_DEGREE = 3
 MAX_ANISOTROPY = 10.0
 SH_C0 = 0.28209479177387814
 
+# Divergence guard (see the module docstring). Healthy Kaggle preview runs ended at 0.016-0.017; the
+# diverged ones went 0.17-0.32 at step 501 -> 0.61 at 1001 and stayed there.
+LOSS_WINDOW = 100
+GUARD_STEP = 1500
+DIVERGENCE_FACTOR = 2.0
+RESTART_LR_SCALE = 0.3
+MAX_HEALTHY_FINAL_LOSS = 0.25
+DIVERGED_EXIT_CODE = 3
+
+
+class TrainingDiverged(RuntimeError):
+    def __init__(self, message: str, monitor: "LossMonitor"):
+        super().__init__(message)
+        self.monitor = monitor
+
 
 @dataclass
 class TrainConfig:
@@ -60,6 +84,11 @@ class TrainConfig:
     sh0_lr: float = 2.5e-3
     shN_lr: float = 2.5e-3 / 20
     seed: int = 42
+    lr_scale: float = 1.0        # multiplies every learning rate (RESTART_LR_SCALE on the restart)
+
+    def guard_step(self) -> int | None:
+        """Step at which the divergence guard looks; None for runs too short to judge (tests)."""
+        return GUARD_STEP if self.steps >= 2 * GUARD_STEP else None
 
     def scaled_schedule(self) -> dict:
         """MCMC refinement window scaled with the step count (gsplat's adjust_steps does the same)."""
@@ -114,6 +143,73 @@ def scene_scale(views: list[View]) -> float:
     """Radius of the camera path (gsplat's parser.scene_scale * 1.1): sets the means learning rate."""
     centres = np.array([v.cam_to_world[:3, 3] for v in views])
     return float(np.linalg.norm(centres - centres.mean(0), axis=1).max() * 1.1) or 1.0
+
+
+@dataclass
+class Normalisation:
+    """World -> training frame: x' = (x - centre) * scale. Uniform scale and no rotation, so quaternions and
+    SH are unchanged and log-scales shift by log(scale)."""
+    centre: np.ndarray
+    scale: float
+
+    @classmethod
+    def from_views(cls, views: list[View]) -> "Normalisation":
+        centres = np.array([v.cam_to_world[:3, 3] for v in views], np.float64)
+        return cls(centres.mean(0), 1.0 / scene_scale(views))
+
+    def points(self, xyz: np.ndarray) -> np.ndarray:
+        return ((np.asarray(xyz, np.float64) - self.centre) * self.scale).astype(np.float32)
+
+    def cam_to_world(self, c2w: np.ndarray) -> np.ndarray:
+        out = np.array(c2w, np.float64)
+        out[:3, 3] = (out[:3, 3] - self.centre) * self.scale
+        return out
+
+    def export(self, means: np.ndarray, log_scales: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Training frame -> COLMAP frame, for the PLY."""
+        return (np.asarray(means, np.float64) / self.scale + self.centre).astype(np.float32), \
+            (np.asarray(log_scales, np.float64) - math.log(self.scale)).astype(np.float32)
+
+
+class LossMonitor:
+    """Smoothed training loss (mean of the last `window` steps), its running minimum, and the checks the
+    divergence guard and the train-stage cache use."""
+
+    def __init__(self, window: int = LOSS_WINDOW, factor: float = DIVERGENCE_FACTOR):
+        self.window, self.factor = window, factor
+        self.recent: list[float] = []
+        self.smoothed: float | None = None
+        self.min: float | None = None
+        self.history: list[tuple[int, float]] = []  # (step, smoothed) every `window` steps
+
+    def add(self, step: int, loss: float) -> None:
+        self.recent.append(float(loss))
+        if len(self.recent) > self.window:
+            self.recent.pop(0)
+        if len(self.recent) == self.window:
+            self.smoothed = sum(self.recent) / self.window
+            if math.isfinite(self.smoothed):
+                self.min = self.smoothed if self.min is None else min(self.min, self.smoothed)
+            if (step + 1) % self.window == 0:
+                self.history.append((step + 1, round(self.smoothed, 5)))
+
+    def diverged(self) -> bool:
+        if self.smoothed is None:
+            return False
+        if not math.isfinite(self.smoothed):
+            return True
+        return self.min is not None and self.smoothed > self.factor * self.min
+
+    def healthy(self) -> bool | None:
+        """Final verdict: None if too few steps to tell."""
+        if self.smoothed is None:
+            return None
+        return not self.diverged() and self.smoothed <= MAX_HEALTHY_FINAL_LOSS
+
+    def summary(self) -> dict:
+        r = lambda v: None if v is None or not math.isfinite(v) else round(v, 5)
+        return {"final_loss": r(self.smoothed), "min_loss": r(self.min), "loss_window": self.window,
+                "healthy": self.healthy(), "loss_history": self.history}
 
 
 def knn_mean_distance(points: np.ndarray, k: int = 3) -> np.ndarray:
@@ -194,43 +290,100 @@ def load_image(view: View):
 
 
 def train(dataset: Path, out: Path, cfg: TrainConfig, log_every: int = 500, device: str = "cuda") -> dict:
-    """Train and export. `device` is "cuda" in real runs; tests pass "cpu" with a stand-in rasteriser."""
+    """Train and export. `device` is "cuda" in real runs; tests pass "cpu" with a stand-in rasteriser.
+    Raises TrainingDiverged (no PLY written) if training diverges twice or ends with an unhealthy loss."""
+    import torch
+
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("gsplat training needs a CUDA GPU")
+    views, pts, rgb = load_dataset(dataset, cfg.max_width)
+    norm = Normalisation.from_views(views)
+    print(f"gsplat: {len(views)} views at {views[0].width}x{views[0].height}, {len(pts)} SfM points, "
+          f"{cfg.steps} steps, cap {cfg.max_splats:,} splats, masks: {sum(v.mask is not None for v in views)}, "
+          f"camera-path radius {1 / norm.scale:.3g} model units (normalised to 1)", flush=True)
+    t0 = time.time()
+    # Images stay on the CPU as uint8 (a 2-minute 1080p walk is ~2 GB); one is copied to the GPU per step.
+    cache = [load_image(v) for v in views]
+    attempts = []
+
+    def attempt(c: TrainConfig) -> tuple[dict, LossMonitor]:
+        return _fit(views, cache, pts, rgb, norm, c, log_every, torch.device(device))
+
+    params, monitor, used = run_with_restart(attempt, cfg, attempts)
+    if monitor.healthy() is False:
+        raise TrainingDiverged(f"training ended with an unhealthy loss ({monitor.summary()['final_loss']}, "
+                               f"minimum {monitor.summary()['min_loss']})", monitor)
+    import torch.nn.functional as F
+    with torch.no_grad():
+        q = F.normalize(params["quats"], dim=-1)
+        means, log_scales = norm.export(params["means"].cpu().numpy(), params["scales"].cpu().numpy())
+        written = write_ply(out, means, log_scales, q.cpu().numpy(), params["opacities"].cpu().numpy(),
+                            params["sh0"].cpu().numpy(), params["shN"].cpu().numpy())
+        aniso = anisotropy(log_scales)
+    dev = torch.device(device)
+    stats = {"splats": written, "views": len(views), "resolution": [views[0].width, views[0].height],
+             "seconds": round(time.time() - t0, 1), "needles_over_max_anisotropy": int((aniso > MAX_ANISOTROPY).sum()),
+             "gpu": torch.cuda.get_device_name(0) if dev.type == "cuda" else "cpu",
+             "peak_gpu_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if dev.type == "cuda" else 0,
+             **monitor.summary(), "restarts": len(attempts) - 1, "attempts": attempts,
+             "lr_scale": used.lr_scale, "schedule": used.scaled_schedule(),
+             "normalisation": {"centre": np.round(norm.centre, 5).tolist(), "scale": norm.scale},
+             "config": asdict(used)}
+    print("gsplat:", json.dumps({k: v for k, v in stats.items() if k not in ("config", "loss_history")}))
+    return stats
+
+
+def run_with_restart(attempt, cfg: TrainConfig, log: list) -> tuple:
+    """attempt(cfg) -> (params, monitor), raising TrainingDiverged at the guard step. One restart with
+    lower learning rates; a second divergence is re-raised. `log` collects one summary per attempt."""
+    from dataclasses import replace
+    for n, c in enumerate([cfg, replace(cfg, lr_scale=cfg.lr_scale * RESTART_LR_SCALE)]):
+        try:
+            params, monitor = attempt(c)
+        except TrainingDiverged as e:
+            log.append({"lr_scale": c.lr_scale, "diverged": str(e), **e.monitor.summary()})
+            if n == 0:
+                print(f"gsplat: {e}; restarting once with learning rates x{RESTART_LR_SCALE}", flush=True)
+                continue
+            raise TrainingDiverged(f"training diverged twice (learning rates x1 and x{c.lr_scale:g}): {e}",
+                                   e.monitor) from e
+        log.append({"lr_scale": c.lr_scale, "diverged": None, **monitor.summary()})
+        return params, monitor, c
+    raise AssertionError("unreachable")
+
+
+def _fit(views: list[View], cache: list, pts: np.ndarray, rgb: np.ndarray, norm: Normalisation, cfg: TrainConfig,
+         log_every: int, dev) -> tuple:
+    """One training run in the normalised frame. Returns (params, LossMonitor)."""
     import torch
     import torch.nn.functional as F
     from gsplat import rasterization
     from gsplat.strategy import MCMCStrategy
 
-    if device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("gsplat training needs a CUDA GPU")
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
-    dev = torch.device(device)
-    views, pts, rgb = load_dataset(dataset, cfg.max_width)
     sched = cfg.scaled_schedule()
-    print(f"gsplat: {len(views)} views at {views[0].width}x{views[0].height}, {len(pts)} SfM points, "
-          f"{cfg.steps} steps, cap {cfg.max_splats:,} splats, masks: {sum(v.mask is not None for v in views)}", flush=True)
-    t0 = time.time()
-    # Images stay on the CPU as uint8 (a 2-minute 1080p walk is ~2 GB); one is copied to the GPU per step.
-    cache = [load_image(v) for v in views]
     Ks = torch.tensor(np.stack([v.K for v in views]), dtype=torch.float32, device=dev)
-    c2w = torch.tensor(np.stack([v.cam_to_world for v in views]), dtype=torch.float32, device=dev)
+    c2w = torch.tensor(np.stack([norm.cam_to_world(v.cam_to_world) for v in views]), dtype=torch.float32, device=dev)
     viewmats = torch.linalg.inv(c2w)
-    radius = scene_scale(views)
+    radius = 1.0  # the camera path radius after normalisation (scene_scale already includes gsplat's 1.1)
+    p = norm.points(pts)
 
-    n = len(pts)
-    log_scales = np.log(knn_mean_distance(pts) * cfg.init_scale)[:, None].repeat(3, 1)
+    n = len(p)
+    log_scales = np.log(knn_mean_distance(p) * cfg.init_scale)[:, None].repeat(3, 1)
     sh = np.zeros((n, (SH_DEGREE + 1) ** 2, 3), np.float32)
     sh[:, 0, :] = (rgb - 0.5) / SH_C0
     params = torch.nn.ParameterDict({
-        "means": torch.nn.Parameter(torch.tensor(pts, device=dev)),
+        "means": torch.nn.Parameter(torch.tensor(p, device=dev)),
         "scales": torch.nn.Parameter(torch.tensor(log_scales, device=dev)),
         "quats": torch.nn.Parameter(torch.rand((n, 4), device=dev)),
         "opacities": torch.nn.Parameter(torch.logit(torch.full((n,), cfg.init_opacity, device=dev))),
         "sh0": torch.nn.Parameter(torch.tensor(sh[:, :1], device=dev)),
         "shN": torch.nn.Parameter(torch.tensor(sh[:, 1:], device=dev)),
     })
-    lrs = {"means": cfg.means_lr * radius, "scales": cfg.scales_lr, "quats": cfg.quats_lr,
-           "opacities": cfg.opacities_lr, "sh0": cfg.sh0_lr, "shN": cfg.shN_lr}
+    k = cfg.lr_scale
+    lrs = {"means": cfg.means_lr * radius * k, "scales": cfg.scales_lr * k, "quats": cfg.quats_lr * k,
+           "opacities": cfg.opacities_lr * k, "sh0": cfg.sh0_lr * k, "shN": cfg.shN_lr * k}
     optimizers = {k: torch.optim.Adam([{"params": params[k], "lr": lr, "name": k}], eps=1e-15) for k, lr in lrs.items()}
     means_sched = torch.optim.lr_scheduler.ExponentialLR(optimizers["means"], gamma=0.01 ** (1.0 / cfg.steps))
     strategy = MCMCStrategy(cap_max=cfg.max_splats, refine_start_iter=sched["refine_start_iter"],
@@ -238,6 +391,9 @@ def train(dataset: Path, out: Path, cfg: TrainConfig, log_every: int = 500, devi
     strategy.check_sanity(params, optimizers)
     state = strategy.initialize_state()
     log_aniso = math.log(MAX_ANISOTROPY)
+    monitor = LossMonitor()
+    guard = cfg.guard_step()
+    t0 = time.time()
 
     order = np.random.permutation(len(views))
     for step in range(cfg.steps):
@@ -269,23 +425,17 @@ def train(dataset: Path, out: Path, cfg: TrainConfig, log_every: int = 500, devi
             opt.zero_grad(set_to_none=True)
         means_sched.step()
         strategy.step_post_backward(params, optimizers, state, step, info, lr=means_sched.get_last_lr()[0])
+        monitor.add(step, loss.item())
         if step % log_every == 0 or step == cfg.steps - 1:
             el = time.time() - t0
-            print(f"gsplat: step {step + 1}/{cfg.steps} loss {loss.item():.4f} splats {len(params['means']):,} "
-                  f"{el / 60:.1f} min (~{el / (step + 1) * (cfg.steps - step - 1) / 60:.0f} min left)", flush=True)
-
-    with torch.no_grad():
-        q = F.normalize(params["quats"], dim=-1)
-        written = write_ply(out, params["means"].cpu().numpy(), params["scales"].cpu().numpy(), q.cpu().numpy(),
-                            params["opacities"].cpu().numpy(), params["sh0"].cpu().numpy(), params["shN"].cpu().numpy())
-        aniso = anisotropy(params["scales"].cpu().numpy())
-    stats = {"splats": written, "views": len(views), "resolution": [views[0].width, views[0].height],
-             "seconds": round(time.time() - t0, 1), "needles_over_max_anisotropy": int((aniso > MAX_ANISOTROPY).sum()),
-             "gpu": torch.cuda.get_device_name(0) if dev.type == "cuda" else "cpu",
-             "peak_gpu_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if dev.type == "cuda" else 0,
-             "config": asdict(cfg)}
-    print("gsplat:", json.dumps({k: v for k, v in stats.items() if k != "config"}))
-    return stats
+            print(f"gsplat: step {step + 1}/{cfg.steps} loss {loss.item():.4f} smoothed "
+                  f"{monitor.smoothed if monitor.smoothed is not None else float('nan'):.4f} splats "
+                  f"{len(params['means']):,} {el / 60:.1f} min (~{el / (step + 1) * (cfg.steps - step - 1) / 60:.0f} "
+                  f"min left)", flush=True)
+        if guard is not None and step + 1 == guard and monitor.diverged():
+            raise TrainingDiverged(f"loss diverged by step {guard}: smoothed {monitor.smoothed:.4f} > "
+                                   f"{DIVERGENCE_FACTOR:g} x running minimum {monitor.min:.4f}", monitor)
+    return params, monitor
 
 
 def main() -> None:
@@ -298,8 +448,16 @@ def main() -> None:
     ap.add_argument("--no-antialias", action="store_true")
     ap.add_argument("--stats", type=Path, help="write training stats JSON here")
     a = ap.parse_args()
-    stats = train(a.dataset, a.out, TrainConfig(steps=a.steps, max_width=a.max_width, max_splats=a.max_splats,
-                                                antialiased=not a.no_antialias))
+    a.out.unlink(missing_ok=True)  # a PLY from an earlier run must never stand in for this one
+    try:
+        stats = train(a.dataset, a.out, TrainConfig(steps=a.steps, max_width=a.max_width, max_splats=a.max_splats,
+                                                    antialiased=not a.no_antialias))
+    except TrainingDiverged as e:
+        if a.stats:
+            a.stats.write_text(json.dumps({"diverged": str(e), **e.monitor.summary(), "healthy": False}, indent=1))
+        print(f"gsplat: FAILED: {e}. No splat written. Check the SfM result (report.json sfm, "
+              "sfm_global_positioning) before retraining.", file=sys.stderr, flush=True)
+        sys.exit(DIVERGED_EXIT_CODE)
     if a.stats:
         a.stats.write_text(json.dumps(stats, indent=1))
 

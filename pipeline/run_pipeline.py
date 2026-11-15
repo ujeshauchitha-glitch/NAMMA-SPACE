@@ -166,11 +166,19 @@ def pick_model(models: list[Path], total: int, report: Report, log: Path) -> Pat
     return best
 
 
+GLOBAL_SEEDS = (1, 2)  # global mapping attempts before the incremental fallback
+
+
+def attempt_name(mapper: str, seed: int | None) -> str:
+    return f"{mapper} (seed {seed})" if seed is not None else mapper
+
+
 def sfm_with_pycolmap(work: Path, matcher: str, gpu: bool, report: Report, log: Path, mapper: str,
                       loop_closure: bool, max_image_size: int) -> Path:
     """pycolmap backend (see sfm_pycolmap.py for why). Matches once, then maps on a fresh copy of the
-    matched database per attempt: the global mapper first and, if it registers < MIN_REGISTRATION of the
-    frames, the incremental mapper on the same matches."""
+    matched database per attempt: the global mapper with each of GLOBAL_SEEDS while its positioning solve
+    ends unconverged, and, if that or a registration below MIN_REGISTRATION remains, the incremental mapper
+    on the same matches."""
     import sfm_pycolmap as sp
 
     pycolmap = sp.import_pycolmap()
@@ -180,6 +188,11 @@ def sfm_with_pycolmap(work: Path, matcher: str, gpu: bool, report: Report, log: 
     images, sparse, dataset = work / "frames", work / "sparse", work / "dataset"
     matched = work / f"colmap_{matcher}.db"
     total = len(list_images(images))
+    pos = report.data.get("sfm_global_positioning") or {}
+    if (dataset / "sparse").exists() and report.data.get("sfm", {}).get("mapper") == "global" \
+            and pos.get("converged") is False:
+        print("sfm: the cached poses come from an unconverged global positioning solve; mapping again")
+        shutil.rmtree(dataset, ignore_errors=True)
     if (dataset / "sparse").exists():
         print("sfm: already done")
         return dataset
@@ -193,25 +206,49 @@ def sfm_with_pycolmap(work: Path, matcher: str, gpu: bool, report: Report, log: 
         sp.extract_and_match(pycolmap, tmp, images, sp.build_options(pycolmap, settings, vocab), matcher)
         tmp.replace(matched)
     report.data.setdefault("sfm_timing", {})[f"extract_match_{matcher}_s"] = round(time.time() - t, 1)
-    attempts = [mapper] + (["incremental"] if mapper == "global" else [])
-    for n, m in enumerate(attempts):
+    # Global positioning starts from random positions: an unconverged solve is retried with other fixed
+    # seeds, then the incremental mapper (slower, deterministic) maps the same matches.
+    attempts = [(m, None) for m in [mapper]] if mapper != "global" else \
+        [("global", seed) for seed in GLOBAL_SEEDS] + [("incremental", None)]
+    report.data.pop("sfm_global_attempts", None)
+    for n, (m, seed) in enumerate(attempts):
+        nxt = attempt_name(*attempts[n + 1]) if n + 1 < len(attempts) else ""
         db = work / "colmap.db"
         shutil.copy2(matched, db)  # every mapper sees exactly the matched database
         t = time.time()
-        opts = sp.build_options(pycolmap, sp.SfmSettings(gpu=gpu, matcher=matcher, loop_closure=False, mapper=m), None)
-        models = sp.map_poses(pycolmap, db, images, sparse, opts, m)
-        report.data["sfm_timing"][f"map_{m}_s"] = round(time.time() - t, 1)
+        opts = sp.build_options(pycolmap, sp.SfmSettings(gpu=gpu, matcher=matcher, loop_closure=False, mapper=m,
+                                                         seed=seed or 1), None)
+        models, positioning = sp.map_poses(pycolmap, db, images, sparse, opts, m, log)
+        key = f"map_{m}_s" if seed in (None, GLOBAL_SEEDS[0]) else f"map_{m}_seed{seed}_s"
+        report.data["sfm_timing"][key] = round(time.time() - t, 1)
+        if m == "global":
+            report.data.setdefault("sfm_global_attempts", []).append({"seed": seed, **(positioning or {})})
+            report.data["sfm_global_positioning"] = positioning
+            report.save()
+            # A positioning solve that hit its iteration cap leaves poses that look plausible (every frame
+            # registered, ~8.6k points) but trained into a diverged splat twice on the Kaggle smoke test.
+            # Never train on them.
+            if positioning is not None and not positioning["converged"]:
+                if n + 1 < len(attempts):
+                    print(f"sfm: global positioning (seed {seed}) ended {positioning['termination']} after "
+                          f"{positioning['iterations']} iterations; retrying with {nxt}")
+                    continue
+                raise PipelineError(f"Global positioning ended {positioning['termination']} after "
+                                    f"{positioning['iterations']} iterations; not training on unconverged poses. "
+                                    "Re-run with --mapper incremental.")
         try:
             best = pick_model(models, total, report, log)
         except PipelineError:
             if n + 1 < len(attempts):
-                print(f"sfm: {m} mapping failed its checks; retrying with {attempts[n + 1]}")
+                print(f"sfm: {m} mapping failed its checks; retrying with {nxt}")
                 continue
             raise
         ratio = report.data["sfm"]["registration_ratio"]
         report.data["sfm"]["mapper"] = m
+        if seed is not None:
+            report.data["sfm"]["global_seed"] = seed
         if ratio < checks.MIN_REGISTRATION and n + 1 < len(attempts):
-            print(f"sfm: {m} mapping registered {ratio:.0%}; retrying with {attempts[n + 1]}")
+            print(f"sfm: {m} mapping registered {ratio:.0%}; retrying with {nxt}")
             continue
         break
     sp.undistort(best, images, dataset)
@@ -276,9 +313,19 @@ def train_gsplat(dataset: Path, export: Path, steps: int, log: Path, max_width: 
                  max_splats: int = 1_500_000) -> None:
     """gsplat (CUDA PyTorch), MCMC + scale/anisotropy regularisation + antialiasing; see train_gsplat.py.
     Run as a child process so the GPU memory is returned before compression and publishing."""
-    run([sys.executable, str(Path(__file__).with_name("train_gsplat.py")), str(dataset), str(export / "splat.ply"),
-         "--steps", str(steps), "--max-width", str(max_width), "--max-splats", str(max_splats),
-         "--stats", str(export / "train_stats.json")], log, "gsplat training")
+    stats = export / "train_stats.json"
+    try:
+        run([sys.executable, str(Path(__file__).with_name("train_gsplat.py")), str(dataset), str(export / "splat.ply"),
+             "--steps", str(steps), "--max-width", str(max_width), "--max-splats", str(max_splats),
+             "--stats", str(stats)], log, "gsplat training")
+    except PipelineError as e:
+        info = json.loads(stats.read_text()) if stats.is_file() else {}
+        if info.get("diverged"):
+            raise PipelineError(f"gsplat training diverged and was stopped: {info['diverged']} (final loss "
+                                f"{info.get('final_loss')}, minimum {info.get('min_loss')}). No splat was kept. "
+                                "Usual cause: a bad camera solution; check report.json sfm / sfm_global_positioning, "
+                                "or re-run with --mapper incremental.") from e
+        raise
 
 
 TRAINERS = {"brush": train_brush, "gsplat": train_gsplat, "nerfstudio": train_nerfstudio}
@@ -315,18 +362,47 @@ def train_fingerprint(dataset: Path, trainer: str, steps: int, extra: dict | Non
             "model_size": stat.st_size if stat else None, "model_mtime": stat.st_mtime if stat else None}
 
 
+def reusable_splat(report: Report, want: dict, trainer: str) -> tuple[Path | None, str]:
+    """The cached splat.ply if it may be reused, else (None, why not). Reused only when it was trained from
+    the same inputs, is byte-identical to what was recorded, a gsplat run's train_stats.json shows a healthy
+    final loss, and cleaning that very file succeeded. A diverged splat once passed the first two and was
+    reused on a rerun."""
+    done = report.data.get("train_output", {})
+    ply = Path(done.get("ply", ""))
+    if done.get("fingerprint") != want:
+        return None, "inputs changed" if done else "no earlier training"
+    if not ply.is_file() or ply.stat().st_size != done.get("bytes"):
+        return None, "the trained file is missing or changed"
+    if trainer == "gsplat":
+        stats_file = ply.with_name("train_stats.json")
+        try:
+            stats = json.loads(stats_file.read_text())
+        except (OSError, ValueError):
+            return None, f"no readable {stats_file.name}"
+        if stats.get("healthy") is not True:
+            return None, (f"its training was not healthy (final loss {stats.get('final_loss')}, "
+                          f"minimum {stats.get('min_loss')})")
+    clean = report.data.get("clean_splat", {})
+    if not (clean.get("ok") and clean.get("src") == str(ply)):
+        return None, "cleaning it did not succeed"
+    return ply, ""
+
+
 def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path,
-          max_width: int = 1920, max_splats: int = 1_500_000) -> Path:
+          max_width: int = 1920, max_splats: int = 1_500_000, force: bool = False) -> Path:
     export = work / f"splat_{trainer}"
     extra = {"max_width": max_width, "max_splats": max_splats} if trainer == "gsplat" else {}
     want = train_fingerprint(dataset, trainer, steps, extra)
-    done = report.data.get("train_output", {})
-    if done.get("fingerprint") == want and Path(done.get("ply", "")).is_file() \
-            and Path(done["ply"]).stat().st_size == done.get("bytes"):
-        print(f"train: reusing {done['ply']} (same COLMAP model, trainer and steps)")
-        return Path(done["ply"])
+    ply, why = reusable_splat(report, want, trainer)
+    if ply and not force:
+        print(f"train: reusing {ply} (same COLMAP model, trainer and steps; healthy loss; cleaned OK)")
+        return ply
+    if report.data.get("train_output"):
+        print(f"train: not reusing the earlier splat ({'--force-train' if force else why}); training again")
     # Anything else in the export folder is stale (other steps, trainer run, or an interrupted run): never reuse it.
     report.data.pop("train_output", None)
+    report.data.pop("clean_splat", None)
+    report.data.pop("train_stats", None)
     shutil.rmtree(export, ignore_errors=True)
     export.mkdir(parents=True)
     check_dataset(dataset, report)
@@ -334,7 +410,8 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
         train_gsplat(dataset, export, steps, log, max_width, max_splats)
         stats = export / "train_stats.json"
         if stats.is_file():
-            report.data["train_stats"] = {k: v for k, v in json.loads(stats.read_text()).items() if k != "config"}
+            report.data["train_stats"] = {k: v for k, v in json.loads(stats.read_text()).items()
+                                          if k not in ("config", "loss_history")}
     else:
         TRAINERS[trainer](dataset, export, steps, log)
     plys = sorted(export.rglob("*.ply"), key=lambda p: p.stat().st_mtime)
@@ -453,6 +530,11 @@ def main() -> int:
     ap.add_argument("--mask-people", action="store_true",
                     help="mask people out of training frames (YOLO segmentation) so walkers leave no ghosts")
     ap.add_argument("--force", action="store_true", help="delete previous outputs in --out and start over")
+    ap.add_argument("--force-train", action="store_true",
+                    help="retrain even if a healthy, cleaned splat from the same inputs exists (keeps frames and poses)")
+    ap.add_argument("--sog-on-cpu", action="store_true",
+                    help="with no WebGPU adapter, encode SOG on the CPU (30+ min on Kaggle) instead of writing "
+                         ".compressed.ply")
     ap.add_argument("--check", action="store_true", help="validate dependencies and input, then stop")
     ap.add_argument("--doctor", action="store_true", help="check dependencies, then stop")
     ap.add_argument("--approve", type=Path, metavar="WORKDIR", help="mark a run inspected_ok after viewing it")
@@ -580,7 +662,8 @@ def main() -> int:
             report.stage("mask_people", t.seconds)
 
         with Timer() as t:
-            splat = train(dataset, work, params["steps"], a.trainer, report, log, params["width"], params["max_splats"])
+            splat = train(dataset, work, params["steps"], a.trainer, report, log, params["width"], params["max_splats"],
+                          force=a.force_train)
         report.stage("train", t.seconds, steps=params["steps"])
 
         print("== clean splat")
@@ -592,7 +675,13 @@ def main() -> int:
                 geometry = clean_splat.scene_geometry(sparse, work / "coverage" / "sparse_txt")
             except Exception as e:  # no poses: skip only the floater and room-box passes
                 print(f"clean splat: no scene geometry ({e}); floaters and outside splats kept")
-            report.data["clean_splat"] = clean_splat.clean(splat, cleaned, **geometry)
+            try:
+                stats = clean_splat.clean(splat, cleaned, **geometry)
+            except clean_splat.CleanRefused as e:
+                report.data["clean_splat"] = {"ok": False, "src": str(splat), "error": str(e), **e.stats}
+                raise PipelineError(str(e)) from e
+            report.data["clean_splat"] = {"ok": True, "src": str(splat), **stats}
+            report.save()
             splat = cleaned
         report.stage("clean", t.seconds)
 
@@ -601,9 +690,13 @@ def main() -> int:
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
 
         print("== compress for the web")
-        with Timer() as t:
-            web_splat = compress.compress(splat, work, report, log, a.max_mb)
-        report.stage("compress", t.seconds, mb=report.data["web_splat"]["mb"])
+        t_compress = time.time()
+        try:
+            web_splat = compress.compress(splat, work, report, log, a.max_mb, sog_on_cpu=a.sog_on_cpu)
+        finally:
+            ws = report.data.get("web_splat", {})
+            report.stage("compress", time.time() - t_compress, mb=ws.get("mb"), format=ws.get("format"),
+                         encoder=ws.get("encoder"))
 
         with Timer() as t:
             publish(web_splat, a.title, report, work, sparse)
@@ -617,15 +710,21 @@ def main() -> int:
               f"  http://localhost:5173/?scene=/scenes/{work.name}/manifest.json, walk the whole room, then\n"
               f"  python pipeline/run_pipeline.py --approve {work} --note \"what you checked\"")
         return 0
-    except PipelineError as e:
+    except Exception as e:  # noqa: BLE001 (a crash, not only a PipelineError, must land in report.json)
+        import traceback
+        message = str(e) if isinstance(e, PipelineError) else f"{type(e).__name__}: {e}"
+        if not isinstance(e, PipelineError):
+            traceback.print_exc()
+            with open(log, "a", encoding="utf-8") as fh:
+                fh.write(traceback.format_exc())
         if a.check:
-            report.data["last_check"] = {"ok": False, "input": str(a.input), "at": now(), "error": str(e)}
+            report.data["last_check"] = {"ok": False, "input": str(a.input), "at": now(), "error": message}
         else:
             report.data["status"] = FAILED
-            report.data["error"] = str(e)
+            report.data["error"] = message
             report.data["total_seconds"] = round(time.time() - started, 1)
         report.save()
-        print(f"\nFAILED: {e}\nReport: {report.path}", file=sys.stderr)
+        print(f"\nFAILED: {message}\nReport: {report.path}", file=sys.stderr)
         return 1
 
 

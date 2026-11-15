@@ -208,7 +208,7 @@ def test_colmap_bin_poses_match_pycolmap_on_a_real_sfm_model(tmp_path):
     _render_synthetic_views(tmp_path / "frames", n=16)
     o = sp.build_options(pycolmap, sp.SfmSettings(gpu=False, loop_closure=False, max_image_size=640), None)
     sp.extract_and_match(pycolmap, tmp_path / "db.db", tmp_path / "frames", o, "sequential")
-    models = sp.map_poses(pycolmap, tmp_path / "db.db", tmp_path / "frames", tmp_path / "sparse", o, "global")
+    models, _ = sp.map_poses(pycolmap, tmp_path / "db.db", tmp_path / "frames", tmp_path / "sparse", o, "global")
     ref = pycolmap.Reconstruction(models[0])
     ours = colmap_bin.read_images(models[0] / "images.bin")
     assert len(ours) == ref.num_reg_images() > 5

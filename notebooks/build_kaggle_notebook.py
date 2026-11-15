@@ -49,12 +49,13 @@ the per-stage times this run actually took are printed at the end and saved in `
 
 CONFIG = f"""# ---- configuration -------------------------------------------------------------------------
 REPO = "https://github.com/ujeshauchitha-glitch/NAMMA-SPACE"
-BRANCH = "round2/kaggle-pipeline"
+BRANCH = "round2/poi-nav"
 INPUT_VIDEO = ""            # e.g. "/kaggle/input/my-room/room.mp4"; empty = repo sample (smoke test)
 PROFILE = "preview"         # "preview" (≤720p, 7k steps, ~30 min target) or "final" (1080p, 30k steps)
 TITLE = "Kaggle reconstruction"
 MASK_PEOPLE = False         # True: YOLO-segment people out of the training frames (downloads weights)
-EXTRA_ARGS = []             # e.g. ["--exhaustive"] or ["--max-splats", "1000000"]
+EXTRA_ARGS = []             # e.g. ["--exhaustive"], ["--max-splats", "1000000"], ["--force-train"] (retrain a cached
+                            # splat), ["--sog-on-cpu"] (SOG without a WebGPU adapter: 30+ min; default is .compressed.ply)
 
 PINS = {json.dumps(PINS)}
 WORK = "/kaggle/working"
@@ -132,16 +133,19 @@ print(f"\\npipeline exit code {proc.returncode} after {(time.time() - t_run) / 6
 
 TIMINGS = """# ---- stage timings, GPU, versions, frame/registration counts -------------------------------------
 report = json.load(open(f"{out}/report.json"))
-print("status:", report.get("status"), "|", report.get("error", "")[:300])
-print("total:", round(report.get("total_seconds", 0) / 60, 1), "min")
+print("status:", report.get("status"), "|", (report.get("error") or "")[:300])
+print("total:", round((report.get("total_seconds") or 0) / 60, 1), "min")
 rows = [(k, v.get("seconds", 0)) for k, v in report.get("stages", {}).items()]
 w = max([len(k) for k, _ in rows] + [5])
 for k, s in rows:
     print(f"  {k:<{w}} {s / 60:7.1f} min   {json.dumps({kk: vv for kk, vv in report['stages'][k].items() if kk != 'seconds'})}")
 print("sfm:", json.dumps(report.get("sfm", {})))
 print("sfm timing:", json.dumps(report.get("sfm_timing", {})))
+print("global positioning:", json.dumps(report.get("sfm_global_attempts", [])))
 print("training:", json.dumps(report.get("train_stats", {})))
+print("clean:", json.dumps(report.get("clean_splat", {})))
 print("web splat:", json.dumps(report.get("web_splat", {})))
+print("compress attempts:", json.dumps(report.get("compress_attempts", [])))
 print("environment:", json.dumps(report.get("environment", {}), indent=1))
 """
 

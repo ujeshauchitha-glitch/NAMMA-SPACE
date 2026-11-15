@@ -9,7 +9,7 @@
  * must keep passing.
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -132,10 +132,38 @@ describe('validate_scene.py URI policy (D3, mirrors sceneLoader.ts)', () => {
 
   it('rejects an unknown visual asset kind', () => {
     const run = runValidator((dir) => editManifest(dir, (manifest) => {
-      manifest.visualAssets = [{ kind: 'ply', uri: 'visual/scene.ply' }];
+      manifest.visualAssets = [{ kind: 'spz', uri: 'visual/scene.spz' }];
     }));
     expect(run.status).toBe(1);
     expect(run.output).toContain('unsupported visual asset kind');
+  });
+
+  // The pipeline publishes scene.compressed.ply (kind 'ply') when SOG cannot be encoded (no WebGPU adapter).
+  const COMPRESSED_PLY_HEADER = ['ply', 'format binary_little_endian 1.0', 'element chunk 1',
+    'property float min_x', 'element vertex 1', 'property uint packed_position', 'end_header', ''].join('\n');
+
+  it('accepts a compressed PLY splat', () => {
+    const run = runValidator((dir) => {
+      mkdirSync(join(dir, 'visual'), { recursive: true });
+      writeFileSync(join(dir, 'visual', 'scene.compressed.ply'), COMPRESSED_PLY_HEADER);
+      editManifest(dir, (manifest) => {
+        manifest.visualAssets = [{ kind: 'ply', uri: 'visual/scene.compressed.ply' }];
+      });
+    });
+    expect(run.status, run.output).toBe(0);
+  });
+
+  it('rejects an uncompressed PLY splat', () => {
+    const run = runValidator((dir) => {
+      mkdirSync(join(dir, 'visual'), { recursive: true });
+      writeFileSync(join(dir, 'visual', 'scene.ply'),
+        'ply\nformat binary_little_endian 1.0\nelement vertex 1\nproperty float x\nend_header\n');
+      editManifest(dir, (manifest) => {
+        manifest.visualAssets = [{ kind: 'ply', uri: 'visual/scene.ply' }];
+      });
+    });
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('uncompressed PLY');
   });
 
   it('requires procedural assets to declare a procedural:// URI', () => {

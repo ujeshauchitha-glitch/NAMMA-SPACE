@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -171,6 +172,17 @@ def run(cmd: list[str], log: Path | None = None, stage: str = "") -> str:
     return out
 
 
+def json_safe(v):
+    """Replace non-finite floats (inf, nan) with None, recursively, so the result is valid JSON."""
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
+    if isinstance(v, dict):
+        return {k: json_safe(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [json_safe(x) for x in v]
+    return v
+
+
 @dataclass
 class Report:
     """JSON report written next to the outputs; the single source of truth for a run's state."""
@@ -186,7 +198,8 @@ class Report:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=2, default=str))
+        # allow_nan=False: Python would otherwise write Infinity/NaN, which is not JSON (browsers reject it).
+        self.path.write_text(json.dumps(json_safe(self.data), indent=2, default=str, allow_nan=False))
 
     def stage(self, name: str, seconds: float, **info) -> None:
         self.data.setdefault("stages", {})[name] = {"seconds": round(seconds, 1), **info}

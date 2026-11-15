@@ -34,7 +34,10 @@ from pathlib import Path
 MAX_SCENE_JSON_BYTES = 32 * 1024 * 1024
 SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-VISUAL_KINDS = {"glb", "gltf", "sog", "procedural"}
+VISUAL_KINDS = {"glb", "gltf", "sog", "ply", "procedural"}
+# "ply" is only accepted as a compressed PLY (PlayCanvas/SuperSplat chunked layout, what the pipeline writes
+# when SOG cannot be encoded): a raw float PLY is 4x larger and must never be published.
+COMPRESSED_PLY_MARKERS = (b"element chunk", b"property uint packed_position")
 
 
 def load_json(path: Path, role: str):
@@ -220,7 +223,7 @@ def main() -> int:
             fail("visual asset entries must be objects")
         kind = asset.get("kind")
         if kind not in VISUAL_KINDS:
-            fail(f"unsupported visual asset kind: {kind!r} — expected one of glb|gltf|sog|procedural")
+            fail(f"unsupported visual asset kind: {kind!r} — expected one of glb|gltf|sog|ply|procedural")
         uri = asset.get("uri")
         if not isinstance(uri, str) or not uri:
             fail("visual asset URI must be a non-empty bundle-relative path")
@@ -232,6 +235,14 @@ def main() -> int:
         asset_path = resolve_inside(root, uri, "visual asset")
         if not asset_path.is_file():
             fail(f"missing visual asset: {uri}")
+        if kind == "ply":
+            with open(asset_path, "rb") as fh:
+                head = fh.read(4096)
+            end = head.find(b"end_header")
+            if not head.startswith(b"ply\n") or end < 0:
+                fail(f"invalid PLY header: {uri}")
+            if not all(m in head[:end] for m in COMPRESSED_PLY_MARKERS):
+                fail(f"{uri} is an uncompressed PLY; publish .sog or .compressed.ply (pipeline/compressed_ply.py)")
         if kind == "glb":
             header = asset_path.read_bytes()[:12]
             if len(header) != 12 or header[:4] != b"glTF" or struct.unpack_from("<I", header, 4)[0] != 2:

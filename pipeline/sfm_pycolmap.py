@@ -20,7 +20,12 @@ ImageReaderOptions, GlobalPipelineOptions, IncrementalPipelineOptions).
 from __future__ import annotations
 
 import hashlib
+import os
+import re
 import shutil
+import sys
+import tempfile
+from contextlib import contextmanager
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +49,14 @@ class SfmSettings:
     max_num_features: int = 8192
     overlap: int = 10                   # sequential: neighbours matched on each side
     camera_model: str = "SIMPLE_RADIAL"  # OPENCV's extra parameters fail on phone video, see run_pipeline.sfm
+    # Global positioning starts from random camera/point positions (generate_random_positions) and, with
+    # COLMAP's default random_seed -1, a different start every run: on the Kaggle smoke-test clip 2 of 4
+    # identical runs ended NO_CONVERGENCE after 101 Ceres iterations and both trained into a diverged splat
+    # (2026-11-15). A fixed seed makes a run reproducible; run_pipeline retries other seeds, then incremental.
+    seed: int = 1
+    # Ceres iteration cap of the positioner (COLMAP default 100). pycolmap 4.2.1 does not expose it, so it
+    # is applied only where a later pycolmap does (see set_positioning_iterations).
+    global_positioning_max_iterations: int = 1000
 
 
 def import_pycolmap():
@@ -117,6 +130,10 @@ def build_options(pycolmap, s: SfmSettings, vocab_tree: Path | None) -> dict:
         mapping = pycolmap.GlobalPipelineOptions()
         mapping.mapper.global_positioning.use_gpu = s.gpu
         mapping.mapper.bundle_adjustment.ceres.use_gpu = s.gpu
+        set_positioning_iterations(mapping, s.global_positioning_max_iterations)
+        for obj in (mapping, mapping.mapper, mapping.mapper.global_positioning):
+            if hasattr(obj, "random_seed"):
+                obj.random_seed = s.seed
     elif s.mapper == "incremental":
         mapping = pycolmap.IncrementalPipelineOptions()
         mapping.ba_use_gpu = s.gpu
@@ -124,6 +141,77 @@ def build_options(pycolmap, s: SfmSettings, vocab_tree: Path | None) -> dict:
         raise PipelineError(f"Unknown mapper {s.mapper!r}")
     opts["mapping"] = mapping
     return opts
+
+
+# Where pycolmap 4.x keeps the global positioner's Ceres solver options (the first path that exists wins).
+POSITIONING_SOLVER_PATHS = ("mapper.global_positioning.solver_options", "global_positioning.solver_options",
+                            "mapper.global_positioner.solver_options")
+
+
+def set_positioning_iterations(mapping, iterations: int) -> str | None:
+    """Raise the global positioner's Ceres max_num_iterations where the bindings expose it; returns the
+    option path used, or None (pycolmap 4.2.1: GlobalPositionerOptions has no solver options)."""
+    for path in POSITIONING_SOLVER_PATHS:
+        obj = mapping
+        try:
+            for part in path.split("."):
+                obj = getattr(obj, part)
+        except AttributeError:
+            continue
+        if hasattr(obj, "max_num_iterations"):
+            obj.max_num_iterations = int(iterations)
+            return path
+    return None
+
+
+_CERES = re.compile(r"Iterations:\s*(\d+).*?Termination:\s*([A-Z_]+)", re.S)
+
+
+def positioning_result(log_text: str) -> dict | None:
+    """Iterations and termination of the global positioning solve, parsed from COLMAP's log.
+
+    Ceres prints one BriefReport per solve ("Iterations: N, ... Termination: CONVERGENCE"). Global
+    positioning is the first Ceres solve of the global pipeline (rotation averaging has its own solver);
+    if the log names the positioning step, the first report after that line is used."""
+    start = 0
+    m = re.search(r"global.?position", log_text, re.I)
+    if m:
+        start = m.start()
+    hit = _CERES.search(log_text, start) or (_CERES.search(log_text) if start else None)
+    if not hit:
+        return None
+    return {"iterations": int(hit.group(1)), "termination": hit.group(2),
+            "converged": hit.group(2) in ("CONVERGENCE", "USER_SUCCESS")}
+
+
+@contextmanager
+def capture_native_output(log: Path | None = None):
+    """Collect what C++ code (glog, Ceres) writes to fds 1 and 2 while still showing it afterwards.
+    Yields a list that holds the captured text once the block exits."""
+    out: list[str] = []
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved = os.dup(1), os.dup(2)
+    with tempfile.TemporaryFile(mode="w+b") as tmp:
+        os.dup2(tmp.fileno(), 1)
+        os.dup2(tmp.fileno(), 2)
+        try:
+            yield out
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.dup2(saved[0], 1)
+            os.dup2(saved[1], 2)
+            os.close(saved[0])
+            os.close(saved[1])
+            tmp.seek(0)
+            text = tmp.read().decode("utf-8", "replace")
+            out.append(text)
+            sys.stderr.write(text)
+            sys.stderr.flush()
+            if log:
+                with open(log, "a", encoding="utf-8") as fh:
+                    fh.write(text)
 
 
 def extract_and_match(pycolmap, database: Path, images: Path, opts: dict, matcher: str) -> None:
@@ -138,19 +226,23 @@ def extract_and_match(pycolmap, database: Path, images: Path, opts: dict, matche
                                   device=opts["device"])
 
 
-def map_poses(pycolmap, database: Path, images: Path, sparse: Path, opts: dict, mapper: str) -> list[Path]:
-    """Run the mapper; returns the model folders written under `sparse` (0/, 1/, ...)."""
+def map_poses(pycolmap, database: Path, images: Path, sparse: Path, opts: dict, mapper: str,
+              log: Path | None = None) -> tuple[list[Path], dict | None]:
+    """Run the mapper; returns the model folders written under `sparse` (0/, 1/, ...) and, for the global
+    mapper, how its positioning solve ended (see positioning_result; None if the log had no Ceres report)."""
     shutil.rmtree(sparse, ignore_errors=True)
     sparse.mkdir(parents=True)
     fn = pycolmap.global_mapping if mapper == "global" else pycolmap.incremental_mapping
-    models = fn(database, images, sparse, opts["mapping"])
+    with capture_native_output(log) as captured:
+        models = fn(database, images, sparse, opts["mapping"])
+    positioning = positioning_result(captured[0]) if mapper == "global" else None
     # Both write each model to sparse/<i>/ themselves in recent versions; make sure they exist either way.
     for i, rec in models.items():
         d = sparse / str(i)
         if not (d / "images.bin").exists():
             d.mkdir(parents=True, exist_ok=True)
             rec.write(d)
-    return sorted(p for p in sparse.iterdir() if p.is_dir() and (p / "images.bin").exists())
+    return sorted(p for p in sparse.iterdir() if p.is_dir() and (p / "images.bin").exists()), positioning
 
 
 def model_stats(model_dir: Path) -> dict:

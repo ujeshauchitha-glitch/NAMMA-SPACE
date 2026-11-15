@@ -104,6 +104,10 @@ def check_splat(report: Report, ply: Path) -> bool:
     if not report.check("splat_attributes", not missing, f"missing 3DGS properties: {sorted(missing)}" if missing else "all 3DGS properties present"):
         return False
     ok = report.check("splat_count", count >= MIN_SPLATS, f"{count:,} splats; need >= {MIN_SPLATS:,}")
+    if count == 0:  # nothing to measure (np.percentile of an empty array raises)
+        report.data["splat"] = {"file": str(ply), "count": 0, "mb": round(ply.stat().st_size / 1e6, 1)}
+        report.save()
+        return False
     # Rows are interleaved float32; the byte count must match the header exactly or the file is truncated.
     stride = len(props)
     expected = count * stride * 4

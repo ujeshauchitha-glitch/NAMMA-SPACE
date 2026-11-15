@@ -27,6 +27,17 @@ HUGE_FRAC = float("inf")
 MIN_OPACITY = 0.005
 FLOATER_RADIUS_M = 0.35  # the phone and the hand holding it filled this much space around each camera
 ROOM_PAD_M = 0.3         # keep this much beyond the walls' SfM points (wall splats sit slightly behind them)
+# Cleaning trims a good splat at the edges. Removing most of it means the splat itself is bad (a diverged
+# training run left 747,778 of 750,000 splats below MIN_OPACITY on the Kaggle smoke test): refuse.
+MAX_REMOVED_FRAC = 0.90
+
+
+class CleanRefused(ValueError):
+    """Cleaning would remove more than MAX_REMOVED_FRAC of the splats; nothing was written."""
+
+    def __init__(self, message: str, stats: dict):
+        super().__init__(message)
+        self.stats = stats
 
 
 def read_ply(path: Path) -> tuple[str, list[str], np.ndarray]:
@@ -115,13 +126,20 @@ def clean(src: Path, dst: Path, max_aspect: float = MAX_ASPECT, huge_frac: float
         lev = xyz @ R.T
         outside = np.any((lev < lo) | (lev > hi), axis=1)
     keep = ~(huge | faint | floater | outside)
-    write_ply(dst, header, d[keep])
     stats = {"splats_in": n0, "splats_out": int(keep.sum()), "needles_capped": int(needles.sum()),
              "huge_removed": int(huge.sum()), "faint_removed": int((faint & ~huge).sum()),
              "floaters_removed": int((floater & ~huge & ~faint).sum()),
              "outside_room_removed": int((outside & ~floater & ~huge & ~faint).sum()),
-             "max_aspect": max_aspect, "huge_frac": huge_frac, "min_opacity": min_opacity,
-             "camera_radius": camera_radius}
+             "max_aspect": max_aspect, "huge_frac": huge_frac if np.isfinite(huge_frac) else None,  # JSON has no inf
+             "min_opacity": min_opacity, "camera_radius": camera_radius}
+    removed = n0 - stats["splats_out"]
+    if n0 == 0 or removed > MAX_REMOVED_FRAC * n0:
+        parts = ", ".join(f"{stats[k]:,} {k.replace('_removed', '').replace('_', ' ')}" for k in
+                          ("faint_removed", "huge_removed", "floaters_removed", "outside_room_removed") if stats[k])
+        raise CleanRefused(f"clean_splat refused: it would remove {removed:,} of {n0:,} splats "
+                           f"(> {MAX_REMOVED_FRAC:.0%}; {parts or 'empty input'}). The trained splat is bad, usually a "
+                           "diverged training run; see train_stats in report.json. Nothing was written.", stats)
+    write_ply(dst, header, d[keep])
     print(f"clean_splat: {n0} -> {stats['splats_out']} splats; capped {stats['needles_capped']} needles, "
           f"removed {stats['huge_removed']} huge, {stats['faint_removed']} faint and "
           f"{stats['floaters_removed']} floaters on the camera path, {stats['outside_room_removed']} outside the room")

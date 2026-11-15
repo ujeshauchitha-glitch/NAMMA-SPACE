@@ -68,7 +68,7 @@ def test_pins_agree_with_the_pipeline():
 
 def test_defaults_smoke_test_sample_and_branch():
     config = "".join(cells()[1]["source"])
-    assert 'INPUT_VIDEO = ""' in config and 'BRANCH = "round2/kaggle-pipeline"' in config
+    assert 'INPUT_VIDEO = ""' in config and 'BRANCH = "round2/poi-nav"' in config
     clone = "".join(cells()[3]["source"])
     assert "tests/sample_data/capture_short.mp4" in clone
     assert (ROOT / "tests" / "sample_data" / "capture_short.mp4").is_file()
