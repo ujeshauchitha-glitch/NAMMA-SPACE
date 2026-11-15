@@ -1,5 +1,7 @@
 """Scene bundle for the studio viewer: estimated scale and navigation grid on a synthetic room."""
 import json
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -52,3 +54,79 @@ def test_bundle_known_scale(tmp_path):
     manifest = json.loads((tmp_path / "bundle" / "manifest.json").read_text())
     assert stats["metres_per_unit"] == 1.0 and manifest["scaleStatus"] == "known"
     assert stats["room_height_m"] == pytest.approx(2.6, rel=0.05)
+
+
+# ------------------------------------------------------------------ world frame baked into the splat
+def _rotmat(q):
+    w, x, y, z = q / np.linalg.norm(q)
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+
+
+def _random_rotation(seed):
+    q = np.random.default_rng(seed).normal(size=4)
+    return _rotmat(q)
+
+
+def test_sh_rotation_is_exact_for_every_band():
+    R = _random_rotation(3)
+    rng = np.random.default_rng(1)
+    for degree in (1, 2, 3):
+        X = scene_bundle.sh_rotation(R, degree)
+        c = rng.normal(size=X.shape[0])
+        d = rng.normal(size=(50, 3))
+        d /= np.linalg.norm(d, axis=1, keepdims=True)
+        # baked splat seen from R d == original seen from d
+        assert np.allclose(scene_bundle.sh_basis(d @ R.T, degree) @ (X @ c), scene_bundle.sh_basis(d, degree) @ c,
+                           atol=1e-9)
+
+
+def test_bake_ply_moves_positions_scales_rotations_and_colour(tmp_path):
+    import clean_splat
+    import train_gsplat
+    from test_kaggle_pipeline import _fake_splats
+    src, dst = tmp_path / "in.ply", tmp_path / "out.ply"
+    f = _fake_splats(200)
+    train_gsplat.write_ply(src, **f)
+    R, s, t = _random_rotation(5), 0.37, np.array([1.0, -2.0, 0.5])
+    assert scene_bundle.bake_ply(src, dst, s, R, t) == 200
+    _, props, a = clean_splat.read_ply(src)
+    _, _, b = clean_splat.read_ply(dst)
+    col = {k: i for i, k in enumerate(props)}
+    xyz = [col[k] for k in "xyz"]
+    assert np.allclose(b[:, xyz], s * a[:, xyz] @ R.T + t, atol=1e-4)
+    sc = [col[f"scale_{i}"] for i in range(3)]
+    assert np.allclose(b[:, sc], a[:, sc] + np.log(s), atol=1e-5)
+    rot = [col[f"rot_{i}"] for i in range(4)]
+    for i in range(5):
+        assert np.allclose(_rotmat(b[i, rot]), R @ _rotmat(a[i, rot]), atol=1e-5)
+    dc = [col[f"f_dc_{i}"] for i in range(3)]
+    assert np.allclose(b[:, dc], a[:, dc])
+    # view-dependent colour (red channel) seen from R d after baking equals the original seen from d
+    rest = [col[f"f_rest_{i}"] for i in range(15)]
+    d = np.random.default_rng(2).normal(size=(10, 3))
+    d /= np.linalg.norm(d, axis=1, keepdims=True)
+    before = scene_bundle.sh_basis(d, 3) @ a[:, rest].T
+    after = scene_bundle.sh_basis(d @ R.T, 3) @ b[:, rest].T
+    assert np.allclose(before, after, atol=1e-4)
+
+
+def test_pipeline_bundle_passes_the_studio_validator(tmp_path):
+    """scene_bundle.py on a small fixture model -> baked, compressed splat -> validate_scene.py exits 0."""
+    import subprocess
+    import compressed_ply
+    import train_gsplat
+    from test_kaggle_pipeline import _fake_splats
+    model = write_model(tmp_path / "m", 0.3, n_cams=96)
+    raw, world, web = tmp_path / "splat.ply", tmp_path / "world.ply", tmp_path / "scene.compressed.ply"
+    train_gsplat.write_ply(raw, **_fake_splats(600))
+    al = scene_bundle.world_alignment(model, tmp_path / "txt")
+    scene_bundle.bake_ply(raw, world, al["s"], al["R"], al["t"])
+    compressed_ply.convert(world, web)
+    scene_bundle.build(model, web, tmp_path / "bundle", "Fixture")
+    manifest = json.loads((tmp_path / "bundle" / "manifest.json").read_text())
+    assert manifest["worldFromReconstruction"] == np.eye(4, dtype=int).tolist()
+    validator = Path(__file__).resolve().parent.parent / "apps" / "studio" / "scripts" / "validate_scene.py"
+    proc = subprocess.run([sys.executable, str(validator), str(tmp_path / "bundle")], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr

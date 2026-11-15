@@ -11,7 +11,8 @@ Stages (each is skipped if its output exists; use --force to redo):
   sfm       COLMAP features, matching, mapping, undistortion + registration checks. Backend: the `colmap`
             executable (Windows setup) or pycolmap (Linux/Kaggle: pip install pycolmap-cuda12), chosen by --sfm.
   train     Brush (Windows default), gsplat (Linux default; CUDA PyTorch) or Nerfstudio splatfacto + checks
-  compress  .ply -> .sog (or .spz) under --max-mb with splat-transform; always re-run
+  world     bake the bundle's world frame (levelled, metres) into the cleaned .ply (scene_bundle.bake_ply)
+  compress  .ply -> .sog (or .compressed.ply) under --max-mb; always re-run
   publish   studio scene bundle (manifest, compressed splat, navigation grid, start POI) in work/<name>/bundle/.
             The raw .ply is never published.
 
@@ -689,6 +690,25 @@ def main() -> int:
         if not checks.check_splat(report, splat):
             raise PipelineError(f"Splat output failed checks: {report.blocking_failures()}. See report.json.")
 
+        print("== world frame")
+        # The viewer applies no worldFromReconstruction transform, so the published splat is moved into the
+        # bundle's world frame (levelled, metres, floor at y=0) here and the manifest says identity.
+        publish_sparse = None
+        with Timer() as t:
+            try:
+                import scene_bundle
+                al = scene_bundle.world_alignment(sparse, work / "coverage" / "sparse_txt_world")
+                world = work / "world" / "splat_world.ply"
+                world.parent.mkdir(exist_ok=True)
+                scene_bundle.bake_ply(splat, world, al["s"], al["R"], al["t"])
+                report.data["world_frame"] = {"file": str(world), "metres_per_unit": round(al["s"], 4),
+                                              "world_from_reconstruction": scene_bundle.world_matrix(al).round(6).tolist()}
+                splat, publish_sparse = world, sparse
+            except Exception as e:  # noqa: BLE001 (no alignment: still compress, but publish no bundle)
+                report.check("world_frame", False, f"could not align the splat to the world frame: {e}; "
+                             "no scene bundle", "warn")
+        report.stage("world_frame", t.seconds)
+
         print("== compress for the web")
         t_compress = time.time()
         try:
@@ -699,7 +719,7 @@ def main() -> int:
                          encoder=ws.get("encoder"))
 
         with Timer() as t:
-            publish(web_splat, a.title, report, work, sparse)
+            publish(web_splat, a.title, report, work, publish_sparse)
         report.stage("publish", t.seconds)
         report.data["total_seconds"] = round(time.time() - started, 1)
         report.data["status"] = AWAITING_INSPECTION
