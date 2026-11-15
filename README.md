@@ -118,6 +118,10 @@ The contract is `apps/studio/src/types/scene.ts` (zod); `apps/studio/scripts/val
 | Studio end to end (Playwright) | `cd apps/studio && npm run test:e2e` | 37 (4 need a camera/WebRTC and fail headless) |
 | Pipeline (pytest, CPU) | `python -m pytest tests` | 127 |
 
+Coverage (`cd apps/studio && npm run test:coverage`, v8): the POI, search and navigation modules in `src/lib`
+(`poiIndex`, `poiOverlay`, `poiEditor`, `poiSearch`, `navigation`, `routeGeometry`, `routeGuidance`, `routeFlight`)
+have **98.2 % line and 91.5 % branch coverage**; all of `src/lib` has 91.4 % line coverage.
+
 ## Repository map
 
 | Path | Contents |

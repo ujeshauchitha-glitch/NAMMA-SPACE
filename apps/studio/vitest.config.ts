@@ -8,5 +8,12 @@ export default defineConfig({
     maxWorkers: 4,
     testTimeout: 20_000,
     exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
+    // `npm run test:coverage`: v8 coverage of the pure logic in src/lib (POIs, search, navigation, routes, ...).
+    coverage: {
+      provider: 'v8',
+      include: ['src/lib/**/*.ts'],
+      reporter: ['text-summary', 'text', 'json-summary'],
+      reportsDirectory: 'coverage',
+    },
   },
 });
