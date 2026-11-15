@@ -33,14 +33,19 @@ def main(dataset: Path, out: Path) -> dict:
         if not (out / sub).exists():
             shutil.copytree(dataset / sub, out / sub)
     (out / "masks").mkdir(parents=True, exist_ok=True)
-    model = YOLO(str(WEIGHTS))
+    model = YOLO(str(WEIGHTS) if WEIGHTS.is_file() else WEIGHTS.name)  # by name: ultralytics downloads it
+    try:
+        import torch
+        device = 0 if torch.cuda.is_available() else "cpu"  # a T4 does ~20 frames/s; the CPU ~1
+    except ImportError:
+        device = "cpu"
     files = sorted(p for p in (out / "images").iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png"))
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (DILATE_PX, DILATE_PX))
     covered = []
     for i, f in enumerate(files):
         img = cv2.imread(str(f))
         h, w = img.shape[:2]
-        res = model.predict(img, classes=[0], conf=CONF, imgsz=1280, device="cpu", verbose=False)[0]
+        res = model.predict(img, classes=[0], conf=CONF, imgsz=1280, device=device, verbose=False)[0]
         mask = np.zeros((h, w), np.uint8)
         if res.masks is not None:
             for m in res.masks.data.cpu().numpy():

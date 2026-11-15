@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -52,18 +54,91 @@ class PipelineError(RuntimeError):
     """A stage failed in a way the user can act on. The message says what to do."""
 
 
+def tool_env_var(name: str) -> str:
+    """Environment variable that overrides where a tool is found, e.g. NAMMA_COLMAP=/opt/colmap/bin/colmap."""
+    return "NAMMA_" + name.upper().replace("-", "_")
+
+
 def find_tool(name: str, required: bool = True) -> str | None:
+    """Locate an executable: $NAMMA_<NAME> first, then ./tools (Windows setup script), then PATH.
+
+    Works the same on Windows, Linux (Kaggle, WSL2) and macOS; nothing here assumes PowerShell.
+    """
+    override = os.environ.get(tool_env_var(name))
+    if override:
+        if Path(override).is_file() or shutil.which(override):
+            return shutil.which(override) or override
+        if required:
+            raise PipelineError(f"{tool_env_var(name)}={override!r} does not point to an executable.")
+        return None
     exe = name + (".exe" if sys.platform == "win32" else "")
     if TOOLS.exists():
         for p in TOOLS.rglob(exe):
-            if p.is_file():
+            if p.is_file() and (sys.platform == "win32" or os.access(p, os.X_OK)):
                 return str(p)
     found = shutil.which(name)
     if found:
         return found
     if required:
-        raise PipelineError(f"'{name}' not found. Run `python pipeline/run_pipeline.py --doctor` for install steps.")
+        raise PipelineError(f"'{name}' not found. Set {tool_env_var(name)} or put it on PATH; "
+                            "`python pipeline/run_pipeline.py --doctor` lists install steps.")
     return None
+
+
+def module_version(name: str) -> str | None:
+    """Installed version of a Python distribution WITHOUT importing it (importing torch and pycolmap in one
+    process can abort: each bundles its own OpenMP runtime)."""
+    from importlib import metadata
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError:
+        return None
+
+
+def torch_cuda_probe() -> dict:
+    """Ask a child Python whether torch sees CUDA (keeps torch out of this process)."""
+    code = ("import json, torch; ok = torch.cuda.is_available(); "
+            "print(json.dumps({'cuda': ok, 'gpu': torch.cuda.get_device_name(0) if ok else None, "
+            "'torch_cuda': torch.version.cuda, 'capability': list(torch.cuda.get_device_capability(0)) if ok else None}))")
+    try:
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300)
+        return json.loads(out.stdout.strip().splitlines()[-1]) if out.returncode == 0 else {"error": out.stderr[-500:]}
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as e:
+        return {"error": str(e)}
+
+
+# ---------------------------------------------------------------- COLMAP versions
+# COLMAP 3.x and 4.x name the GPU switches differently; 4.0 moved them from SiftExtraction/SiftMatching to
+# FeatureExtraction/FeatureMatching (the old names are rejected by 4.x). Checked against the 4.2.1 sources.
+COLMAP_GPU_OPTIONS = {
+    3: {"extract_gpu": "--SiftExtraction.use_gpu", "match_gpu": "--SiftMatching.use_gpu"},
+    4: {"extract_gpu": "--FeatureExtraction.use_gpu", "match_gpu": "--FeatureMatching.use_gpu"},
+}
+
+
+def parse_colmap_version(text: str) -> tuple[int, int, int] | None:
+    """'COLMAP 3.9.1 (Commit ...)' or 'COLMAP 4.2.1 -- Structure-from-Motion ...' -> (3, 9, 1)."""
+    m = re.search(r"COLMAP\s+(\d+)\.(\d+)(?:\.(\d+))?", text)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)) if m else None
+
+
+def colmap_version(colmap: str) -> tuple[int, int, int] | None:
+    """Ask the COLMAP binary its version (`colmap version` on 3.7+, else the help banner)."""
+    for args in (["version"], ["-h"]):
+        try:
+            out = subprocess.run([colmap, *args], capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        v = parse_colmap_version(out.stdout + out.stderr)
+        if v:
+            return v
+    return None
+
+
+def colmap_gpu_options(version: tuple[int, int, int] | None) -> dict[str, str]:
+    """Option names for this COLMAP; unknown versions get the 4.x names (what setup_tools installs)."""
+    major = version[0] if version else 4
+    return COLMAP_GPU_OPTIONS[3 if major <= 3 else 4]
 
 
 def run(cmd: list[str], log: Path | None = None, stage: str = "") -> str:

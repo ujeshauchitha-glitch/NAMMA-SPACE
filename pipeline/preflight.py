@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import compress
-from common import MIN_USABLE_FRAMES, PipelineError, find_tool, list_images, min_duration_s, usable_frames
+from common import (MIN_USABLE_FRAMES, PipelineError, find_tool, list_images, min_duration_s, module_version,
+                    torch_cuda_probe, usable_frames)
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
 
@@ -29,7 +30,15 @@ class Issue:
     message: str
 
 
-def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
+def python_module(name: str) -> bool:
+    try:
+        __import__(name)
+        return True
+    except Exception:  # noqa: BLE001 (an import that crashes is as missing as one that is absent)
+        return False
+
+
+def doctor(trainer: str, gpu: bool = True, sfm_backend: str = "colmap") -> list[tuple[str, bool, str]]:
     """Check every dependency the chosen configuration needs. Returns (name, ok, hint) rows."""
     win = sys.platform == "win32"
     rows: list[tuple[str, bool, str]] = []
@@ -40,9 +49,29 @@ def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
     row("ffmpeg", bool(find_tool("ffmpeg", False)),
         "winget install Gyan.FFmpeg" if win else "sudo apt install ffmpeg")
     row("ffprobe", bool(find_tool("ffprobe", False)), "ships with ffmpeg")
-    row("colmap", bool(find_tool("colmap", False)),
-        "run scripts/setup_tools.ps1" if win else "sudo apt install colmap (or scripts/setup_tools.sh)")
-    if trainer == "brush":
+    if sfm_backend == "pycolmap":
+        ok = python_module("pycolmap")
+        cuda = ok and bool(getattr(__import__("pycolmap"), "has_cuda", False))  # pycolmap in this process is fine
+        row("pycolmap", ok, "pip install pycolmap-cuda12==4.2.1 (Linux + NVIDIA) or pycolmap==4.2.1 (CPU)")
+        if gpu:
+            row("pycolmap CUDA", cuda, "this pycolmap is CPU-only: pip install pycolmap-cuda12==4.2.1, or run with --cpu")
+    else:
+        row("colmap", bool(find_tool("colmap", False)),
+            "run scripts/setup_tools.ps1" if win else "set NAMMA_COLMAP, or use --sfm pycolmap (pip install pycolmap-cuda12)")
+    if trainer == "gsplat":
+        # Probed in a child process: torch and pycolmap must not share this one (OpenMP clash).
+        torch_ok = module_version("torch") is not None
+        row("python:torch", torch_ok, "install a CUDA build of PyTorch (preinstalled on Kaggle)")
+        if torch_ok:
+            probe = torch_cuda_probe()
+            cap = probe.get("capability") or [0, 0]
+            row(f"torch CUDA ({probe.get('gpu') or probe.get('error', 'none')[:80]})", bool(probe.get("cuda")),
+                "gsplat needs an NVIDIA GPU; on Kaggle choose the T4 accelerator")
+            if probe.get("cuda"):
+                row(f"GPU compute capability {cap[0]}.{cap[1]} >= 7.0", cap[0] >= 7,
+                    "this PyTorch needs sm_70+ (Kaggle's P100 is sm_60): pick the T4 x2 accelerator")
+        row("python:gsplat", module_version("gsplat") is not None, "pip install gsplat==1.5.3 (compiles its CUDA code on first use)")
+    elif trainer == "brush":
         row("brush_app", bool(find_tool("brush_app", False)),
             "run scripts/setup_tools.ps1" if win else "run scripts/setup_tools.sh")
     else:
@@ -55,7 +84,7 @@ def doctor(trainer: str, gpu: bool = True) -> list[tuple[str, bool, str]]:
         node_major = int(v.lstrip("v").split(".")[0]) if v.lstrip("v")[:1].isdigit() else 0
     row(f"node >= 22 ({'v' + str(node_major) if node else 'missing'})", node_major >= 22,
         "winget install OpenJS.NodeJS.LTS" if win else "install Node.js 22 LTS")
-    row("splat-transform", compress.SPLAT_TRANSFORM_CLI.is_file(),
+    row("splat-transform", compress.cli_path().is_file(),
         "run scripts/setup_tools.ps1" if win else "run scripts/setup_tools.sh")
     for mod in ("cv2", "numpy", "scipy"):  # scipy: coverage map and the studio scene bundle
         try:
