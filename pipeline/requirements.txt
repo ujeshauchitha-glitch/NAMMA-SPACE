@@ -1,0 +1,8 @@
+# Pipeline Python dependencies (CPU parts; what CI installs). GPU extras are installed separately:
+#   Linux/Kaggle: pycolmap-cuda12==4.2.1 instead of pycolmap, plus a CUDA PyTorch and gsplat==1.5.3
+#   (see scripts/setup_tools.sh and notebooks/kaggle_reconstruct.ipynb); optional: ultralytics for --mask-people.
+numpy
+scipy
+opencv-python-headless
+pycolmap==4.2.1
+pytest
