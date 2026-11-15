@@ -20,6 +20,7 @@ import { DEFAULT_SCENE_NAME, visibleScenes } from './sceneOptions';
 import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
 import { Minimap } from './Minimap';
+import { buildPoiLink, parseDeepLink, resolveSceneParam, sceneParamFor } from '../../lib/deepLink';
 import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
 import { approachIsWalkable, clearDraft, createPoi, exportPois, importPois, loadDraft, movePoi, saveDraft, type EditorContext } from '../../lib/poiEditor';
 import { PoiSpatialIndex, type FloorPoint } from '../../lib/poiIndex';
@@ -45,14 +46,9 @@ const scene = (name: string): string => `${import.meta.env.BASE_URL}scenes/${nam
 const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene(DEFAULT_SCENE_NAME);
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
-  if (requestedScene === 'real' || requestedScene === 'room') return scene('real-room');
   if (requestedScene === 'glb') return scene('glb-fixture');
   if (requestedScene === 'splat') return scene('splat-fixture');
-  if (requestedScene === 'fixture') return scene('fixture');
-  if (requestedScene === 'classroom') return scene('classroom');
-  if (requestedScene === 'apartment') return scene('apartment');
-  if (requestedScene?.startsWith('/scenes/')) return `${import.meta.env.BASE_URL}${requestedScene.slice(1)}`;
-  return DEFAULT_SCENE_URL;
+  return resolveSceneParam(requestedScene, import.meta.env.BASE_URL, DEFAULT_SCENE_URL);
 }
 
 /** Rounding-stable identity for a pose so identical measurements never re-save. */
@@ -74,6 +70,18 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const previewOnSelectRef = useRef<string | null>(null);
   // Set by a minimap floor click made while a POI is selected: routed once the selection effect has cleared.
   const floorRouteRef = useRef<FloorPoint | null>(null);
+  // Deep link (?poi=<id>&route=1), applied once when the first scene is ready; routeOnSelectRef starts
+  // guidance once the selection effect has run.
+  const deepLinkRef = useRef(typeof window === 'undefined' ? null : parseDeepLink(window.location.search));
+  const routeOnSelectRef = useRef<string | null>(null);
+  // Short notices (copied link, unknown place in a deep link).
+  const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
+  const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
   /** Search pick: turn to face the POI if it is in view and draw its route as a preview (no guidance). */
   const previewSelection = (poiId: string) => {
     viewerRef.current?.faceIfInView(poiId);
@@ -199,7 +207,11 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   const handleSceneChange = (value: string) => {
     setSceneUrl(value);
     const params = new URLSearchParams(window.location.search);
-    params.set('scene', value);
+    params.set('scene', sceneParamFor(value, import.meta.env.BASE_URL));
+    // A deep link's place belongs to the scene it was made for.
+    params.delete('poi');
+    params.delete('route');
+    deepLinkRef.current = null;
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params.toString()}`);
   };
 
@@ -247,6 +259,25 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   });
 
   useEffect(() => () => window.clearTimeout(poseTimerRef.current), []);
+
+  // Deep link: select the place (and with route=1 start guidance) from the spawn point. Declared before
+  // the pose restore so that, in the same commit, it can stop a saved viewpoint replacing the spawn.
+  useEffect(() => {
+    const link = deepLinkRef.current;
+    if (!isViewerReady || !bundle || !link?.poiId) return;
+    deepLinkRef.current = null;
+    const pois = draftPois ?? bundle.pois;
+    const poi = pois.find((candidate) => candidate.id === link.poiId);
+    if (!poi) {
+      showToast(`No place "${link.poiId}" in this scene`);
+      return;
+    }
+    poseRestoredRef.current = sceneUrl;
+    if (link.route) routeOnSelectRef.current = poi.id;
+    else previewOnSelectRef.current = poi.id;
+    setSelectedPoiId(poi.id);
+    setCardPoiId(poi.id);
+  }, [isViewerReady, bundle, draftPois, sceneUrl, showToast]);
 
   // Restore the saved viewpoint exactly once per scene per mount, and only
   // after hydration + viewer readiness (never against an empty store).
@@ -320,6 +351,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     previewOnSelectRef.current = null;
     if (floorRouteRef.current) routeToFloor(floorRouteRef.current);
     floorRouteRef.current = null;
+    if (selectedPoiId && routeOnSelectRef.current === selectedPoiId) handleRoute();
+    routeOnSelectRef.current = null;
   }, [selectedPoiId, sceneUrl]);
 
   // A different selection (e.g. from search) closes a card opened for another POI.
@@ -605,6 +638,16 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
   }, []);
   const getMapRoute = useCallback(() => viewerRef.current?.getRoutePath() ?? null, []);
 
+  const handleCopyLink = (poi: Poi) => {
+    const link = buildPoiLink(window.location, sceneParamFor(sceneUrl, import.meta.env.BASE_URL), poi.id, { route: true });
+    const copied = navigator.clipboard?.writeText(link);
+    if (!copied) {
+      showToast(link);
+      return;
+    }
+    copied.then(() => showToast(`Link to ${poi.label} copied`), () => showToast(link));
+  };
+
   const handleJump = () => {
     if (!selectedPoi) return;
     viewerRef.current?.jumpToSmooth(selectedPoi.id);
@@ -717,6 +760,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                     disabled={!isViewerReady}
                     onRoute={handleRoute}
                     onGoTo={handleJump}
+                    onCopyLink={() => handleCopyLink(cardPoi)}
                     onClose={() => setCardPoiId(null)}
                   />
                 )}
@@ -724,6 +768,9 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
                   <SceneSkeleton statusLine={bundle ? '' : viewerStatus} />
                 )}
                 {bundle && isViewerReady && <ControlsHint />}
+                {toast && (
+                  <div key={toast.key} className={styles.toast} role="status" data-testid="toast">{toast.text}</div>
+                )}
                 {bundle?.navigation && isViewerReady && (
                   <Minimap
                     grid={bundle.navigation}

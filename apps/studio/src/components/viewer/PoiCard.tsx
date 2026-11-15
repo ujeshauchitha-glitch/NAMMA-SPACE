@@ -12,11 +12,13 @@ export type PoiCardProps = {
   disabled: boolean;
   onRoute: () => void;
   onGoTo: () => void;
+  /** Copy a deep link that opens this place with directions (?scene=&poi=&route=1). */
+  onCopyLink?: () => void;
   onClose: () => void;
 };
 
 /** Card opened by clicking a POI pin, label or zone in the 3D view. Esc (in the workspace) closes it. */
-export function PoiCard({ poi, walkMetres, nearby = [], disabled, onRoute, onGoTo, onClose }: PoiCardProps) {
+export function PoiCard({ poi, walkMetres, nearby = [], disabled, onRoute, onGoTo, onCopyLink, onClose }: PoiCardProps) {
   const routable = walkMetres !== undefined && walkMetres !== null;
   return (
     <div className={styles.poiCard} role="dialog" aria-label={`${poi.label} details`} data-testid="poi-card">
@@ -33,6 +35,7 @@ export function PoiCard({ poi, walkMetres, nearby = [], disabled, onRoute, onGoT
       <div className={styles.poiCardActions}>
         <Button onClick={onRoute} disabled={disabled || !routable}>Route here</Button>
         <Button variant="quiet" onClick={onGoTo} disabled={disabled || walkMetres === undefined}>Go to view</Button>
+        {onCopyLink && <Button variant="quiet" onClick={onCopyLink}>Copy link</Button>}
       </div>
     </div>
   );

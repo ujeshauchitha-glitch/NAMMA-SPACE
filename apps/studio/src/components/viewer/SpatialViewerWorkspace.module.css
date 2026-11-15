@@ -888,3 +888,28 @@
 .guidanceActions > :last-child {
   color: #f4f6f1;
 }
+
+/* Short notices over the stage (copied link, unknown place in a deep link). */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  z-index: 5;
+  max-width: min(480px, calc(100% - 24px));
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(14, 18, 16, 0.88);
+  color: #f4f6f1;
+  font: 600 13px/1.35 var(--font-sans, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+  animation: toastIn 180ms ease-out;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
