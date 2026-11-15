@@ -9,6 +9,7 @@
 | [TRAINING.md](TRAINING.md) | Where to run reconstruction: Windows (Brush), Linux and Kaggle (pycolmap + gsplat) |
 | [PAIRING.md](PAIRING.md) | Live Scan: pairing a phone with the studio over the LAN |
 | [OPEN_ISSUES.md](OPEN_ISSUES.md) | What is not done or not verified, and what to do next |
+| [BRANCHES.md](BRANCHES.md) | Every remote branch: merged or not, safe to delete or what is unique on it |
 | [submission/](submission/) | Submissions: Round 1 files in `submission/round1/` |
 
 The studio app's own design records live next to its code: `apps/studio/README.md`, `ARCHITECTURE.md`,
