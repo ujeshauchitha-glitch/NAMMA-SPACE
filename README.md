@@ -17,6 +17,7 @@ Round 2 features below go live when this branch (`round2/poi-nav`) is merged and
    (from the kitchen: "Arrive in 4.4 m · 4.4 m to Bathroom · about 5 s walk").
 4. Click **Follow route**: the camera walks the route at walking pace. Any movement key hands control back.
 5. Or click any **label** in the 3D view (Kitchen island, Front door, ...) to open its card. Try `nearest door` in search.
+6. In the **Map** (top right), click any light floor to route there; **Show walkable area** tints the floor routes can use.
 
 Drag to look around, `W` `A` `S` `D` to walk, `F` for full screen. On a phone: one finger drags, tap a label, then
 Route here and Follow route. **Immersive mode** locks the mouse for looking; `Esc` leaves it.
@@ -25,9 +26,9 @@ Route here and Follow route. **Immersive mode** locks the mouse for looking; `Es
 
 | Criterion | What we built | Where |
 |---|---|---|
-| **Spatial Indexing & POI Tagging** | POIs with an approach point snapped to walkable floor and optional floor-zone polygons; a uniform-grid spatial index (hit tests, within-radius, nearest-k); in-world pins and labels with collision-free label layout and distance fading; an in-app POI editor (place, move, draw zones, import/export `pois.json`); schema validation of every bundle | [docs/POIS_AND_SPATIAL_INDEX.md](docs/POIS_AND_SPATIAL_INDEX.md) · `apps/studio/src/lib/poiIndex.ts`, `poiOverlay.ts`, `poiEditor.ts` |
-| **Pathfinding Accuracy** | A* on the scene's occupancy grid (8-connected, no corner cutting, blocked *and* unknown cells avoided, clearance baked into the grid), binary-heap open set (39x faster than the sort-per-pop version on the classroom), start/goal snapping (≤1.5 m), string-pulled smoothing that never leaves walkable cells (300 random property-test grids), live progress, re-route when > 1 m off the path, arrival within 0.75 m | [docs/PATHFINDING.md](docs/PATHFINDING.md) · `src/lib/navigation.ts`, `routeGeometry.ts`, `routeGuidance.ts` |
-| **Search UI & Transition** | Typo-tolerant ranked search (prefix > substring > fuzzy edit distance) over label, aliases, category and description; category chips; walking distance (route length, not straight line) on every result; `nearest <category>` answered through the spatial index; full keyboard use (`/`, arrows, Enter, Esc); camera turns to face a picked place; Go to view flies **along the route** (≤3 s, eased) or fades when no route exists; floor ribbon with moving chevrons and a destination beacon | [docs/SEARCH.md](docs/SEARCH.md) · `src/lib/poiSearch.ts`, `routeFlight.ts`, `components/viewer/PoiSearch.tsx` |
+| **Spatial Indexing & POI Tagging** | POIs with an approach point snapped to walkable floor and optional floor-zone polygons; a uniform-grid spatial index (hit tests, within-radius, nearest-k); in-world pins and labels with collision-free label layout and distance fading; a **minimap** (top-down grid in three tones, pins, zone outlines, visitor heading cone, active route; north-up or heading-up; click a place to select it or floor to route there); an in-app POI editor (place, move, draw zones, import/export `pois.json`); schema validation of every bundle | [docs/POIS_AND_SPATIAL_INDEX.md](docs/POIS_AND_SPATIAL_INDEX.md) · `apps/studio/src/lib/poiIndex.ts`, `poiOverlay.ts`, `poiEditor.ts` |
+| **Pathfinding Accuracy** | A* on the scene's occupancy grid (8-connected, no corner cutting, blocked *and* unknown cells avoided, clearance baked into the grid), binary-heap open set (39x faster than the sort-per-pop version on the classroom), start/goal snapping (≤1.5 m), string-pulled smoothing that never leaves walkable cells (300 random property-test grids), live progress, re-route when > 1 m off the path, arrival within 0.75 m; **Show walkable area** tints the walkable floor in 3D so obstacle avoidance is visible | [docs/PATHFINDING.md](docs/PATHFINDING.md) · `src/lib/navigation.ts`, `routeGeometry.ts`, `routeGuidance.ts` |
+| **Search UI & Transition** | Typo-tolerant ranked search (prefix > substring > fuzzy edit distance) over label, aliases, category and description; category chips; walking distance (route length, not straight line) on every result; `nearest <category>` answered through the spatial index; full keyboard use (`/`, arrows, Enter, Esc); camera turns to face a picked place; Go to view flies **along the route** (≤3 s, eased) or fades when no route exists; floor ribbon with moving chevrons and a destination beacon; **deep links** (`?scene=apartment&poi=bathroom&route=1` opens the place with directions) and **Copy link** on every place card | [docs/SEARCH.md](docs/SEARCH.md) · `src/lib/poiSearch.ts`, `routeFlight.ts`, `components/viewer/PoiSearch.tsx` |
 | **Code Cleanliness & Repository Setup** | One app (`apps/studio`), one pipeline (`pipeline/`); typed scene contract (zod); 800+ unit tests, Playwright e2e, 120+ pipeline tests; CI on every push; pinned, credited third-party tools; MIT licence | this README · [CREDITS.md](CREDITS.md) · [LICENSE](LICENSE) · `.github/workflows/ci.yml` |
 
 ## Architecture
@@ -114,7 +115,7 @@ The contract is `apps/studio/src/types/scene.ts` (zod); `apps/studio/scripts/val
 
 | Suite | Command | Count |
 |---|---|---|
-| Studio unit (Vitest) | `cd apps/studio && npm test` | 804 |
+| Studio unit (Vitest) | `cd apps/studio && npm test` | 823 |
 | Studio end to end (Playwright) | `cd apps/studio && npm run test:e2e` | 37 (4 need a camera/WebRTC and fail headless) |
 | Pipeline (pytest, CPU) | `python -m pytest tests` | 127 |
 

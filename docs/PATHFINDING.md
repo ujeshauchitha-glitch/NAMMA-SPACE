@@ -46,6 +46,13 @@ One continuous floor ribbon (`ribbonMesh`: mitred joins, mitre capped at 2×) 22
 opaque so furniture in front still hides it; chevrons scroll along it towards the goal (`chevronDistances`);
 a beacon (pole and pulsing ring) marks the destination. A preview (from search) is drawn fainter without chevrons.
 
+## Show walkable area
+
+A toolbar toggle (off by default) draws the walkable cells as a translucent floor overlay, so the space routes
+keep to (and the obstacles they avoid) is visible in 3D. `src/lib/walkableOverlay.ts` merges walkable cells
+into row runs, one quad each (`walkableRuns`, `walkableMesh`); the engine builds the mesh once
+(`setWalkableOverlay`). Tests: `tests/walkable-overlay.test.ts`.
+
 ## Guidance
 
 `routeProgress` projects the visitor onto the smoothed route every frame: distance along, remaining, offset.

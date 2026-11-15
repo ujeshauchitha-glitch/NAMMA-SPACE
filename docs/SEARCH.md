@@ -55,6 +55,13 @@ Enter on the already-picked result, **Route here** or **Plot route** starts guid
 the route (`src/lib/routeFlight.ts`: 0.7–3 s by length, eased in and out, looking ahead, turning to face the POI
 over the last 30 %), or fades out and back in (360 ms) when there is no route, so the camera never passes through a wall.
 
+## Deep links
+
+`?scene=<name>&poi=<id>&route=1` opens the scene, selects the place and, with `route=1`, starts guidance from the
+spawn point (a saved viewpoint is not restored). Without `route=1` the place is selected and its route
+previewed. An unknown id shows a toast and nothing else. **Copy link** on a place card copies such a link (or shows
+it when the clipboard is blocked). Helpers: `src/lib/deepLink.ts`; tests: `tests/deep-link.test.ts`.
+
 Tests: `tests/poi-search-ranking.test.ts` (tiers, typos, categories, nearest by walking, suggestions),
 `tests/poi-search.test.tsx` (markup, chips, empty state), `tests/route-flight.test.ts`, `tests/poi-in-view.test.ts`;
 end to end in `tests/e2e/viewer-route.spec.ts`.

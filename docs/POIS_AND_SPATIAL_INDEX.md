@@ -53,6 +53,17 @@ rendering):
 
 Tests: `tests/poi-overlay.test.ts`, `tests/poi-card.test.tsx`.
 
+## Minimap
+
+`src/components/viewer/Minimap.tsx`, maths in `src/lib/minimap.ts`. A 2D canvas in the stage corner (on phones,
+a **Map** button opens it full width): the nav grid as a one-pixel-per-cell bitmap in three tones (walkable,
+obstacle, unfilmed), zone outlines, POI pins, the active route and the visitor with a heading cone. North-up puts
+the scene's -z (the yaw-0 view direction) at the top; heading-up rotates the map about the visitor by their yaw
+(`minimapTransform`, an affine map with an exact inverse `toFloor`). A click picks the nearest pin within 9 px or
+a zone containing the point (`poiAtMapPoint`); otherwise, on a walkable cell, it routes there
+(`walkableAtMapPoint`, engine `routeToFloor`). The canvas is redrawn only when `minimapDrawKey` (pose rounded to
+5 cm and 1°, route, selection, mode, size) changes. Tests: `tests/minimap.test.ts`.
+
 ## Editing POIs in the app
 
 `?edit=1` (or **Edit POIs** in the authoring view) opens `src/components/viewer/PoiEditorPanel.tsx`, backed by
