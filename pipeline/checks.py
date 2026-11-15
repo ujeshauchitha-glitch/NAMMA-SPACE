@@ -18,8 +18,14 @@ REQUIRED_PLY_PROPS = {"x", "y", "z", "opacity", "scale_0", "scale_1", "scale_2",
 
 
 def colmap_model_stats(model_dir: Path, log: Path) -> dict:
-    """Parse `colmap model_analyzer`. Missing fields stay None and make the check fail, never pass."""
-    out = run([find_tool("colmap"), "model_analyzer", "--path", str(model_dir)], log, "model_analyzer")
+    """Parse `colmap model_analyzer`. Missing fields stay None and make the check fail, never pass.
+
+    Without a COLMAP executable (Kaggle/Linux runs use pycolmap) the same numbers come from pycolmap."""
+    colmap = find_tool("colmap", required=False)
+    if colmap is None:
+        import sfm_pycolmap
+        return sfm_pycolmap.model_stats(model_dir)
+    out = run([colmap, "model_analyzer", "--path", str(model_dir)], log, "model_analyzer")
 
     def grab(pattern: str, cast=float):
         m = re.search(pattern, out)

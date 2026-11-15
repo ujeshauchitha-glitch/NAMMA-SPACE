@@ -42,9 +42,14 @@ def load_model(sparse: Path, scratch: Path) -> tuple[np.ndarray, np.ndarray, np.
     """Return points (N,3), track lengths (N,), camera centres (M,3), camera forward/up (M,2,3)."""
     if not (sparse / "points3D.txt").exists():
         scratch.mkdir(parents=True, exist_ok=True)  # never inside the dataset: Brush would see a 2nd model
-        subprocess.run([find_tool("colmap"), "model_converter", "--input_path", str(sparse),
-                        "--output_path", str(scratch), "--output_type", "TXT"], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        colmap = find_tool("colmap", required=False)
+        if colmap is None:  # Linux/Kaggle runs have pycolmap instead of the executable
+            import sfm_pycolmap
+            sfm_pycolmap.to_text(sparse, scratch)
+        else:
+            subprocess.run([colmap, "model_converter", "--input_path", str(sparse),
+                            "--output_path", str(scratch), "--output_type", "TXT"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         sparse = scratch
     pts, tracks = [], []
     for line in (sparse / "points3D.txt").read_text().splitlines():

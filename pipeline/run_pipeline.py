@@ -8,11 +8,16 @@
 Stages (each is skipped if its output exists; use --force to redo):
   validate  input checks (resolution, duration, disk) -> report.json
   frames    ffmpeg sampling + blurry-frame removal
-  sfm       COLMAP features, matching, mapping, undistortion + registration checks
-  train     Brush (default) or Nerfstudio splatfacto + splat file checks
+  sfm       COLMAP features, matching, mapping, undistortion + registration checks. Backend: the `colmap`
+            executable (Windows setup) or pycolmap (Linux/Kaggle: pip install pycolmap-cuda12), chosen by --sfm.
+  train     Brush (Windows default), gsplat (Linux default; CUDA PyTorch) or Nerfstudio splatfacto + checks
   compress  .ply -> .sog (or .spz) under --max-mb with splat-transform; always re-run
   publish   compressed splat + scene.json into work/<name>/web/ and viewer/dev-assets/models/ (dev server only).
             The raw .ply is never copied into the viewer.
+
+Profiles (--profile): preview = <=720p frames, 7k steps, 0.75M splats (aim: <=30 min on a Kaggle T4);
+final = 1080p, 30k steps, 1.5M splats. Explicit flags override the profile. report.json records every
+stage's wall time plus the GPU, tool versions and frame/registration counts (see environment_info()).
 
 report.json status:
   failed                                       a blocking check failed
@@ -26,6 +31,7 @@ import argparse
 import json
 import shutil
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,7 +41,8 @@ import checks  # noqa: E402
 import compress  # noqa: E402
 import preflight  # noqa: E402
 from common import (AWAITING_INSPECTION, BLUR_DROP, FAILED, INSPECTED_OK, MIN_USABLE_FRAMES, ROOT,  # noqa: E402
-                    PipelineError, Report, Timer, find_tool, list_images, run)
+                    PipelineError, Report, Timer, colmap_gpu_options, colmap_version, find_tool, list_images,
+                    module_version, run)
 
 
 # ---------------------------------------------------------------- frames
@@ -50,23 +57,45 @@ def extract_frames(video: Path, out: Path, fps: float, width: int, log: Path) ->
     return drop_blurry(frames)
 
 
+def blur_drop_indices(scores: list[float], drop: float = BLUR_DROP) -> set[int]:
+    """Which frames (indices in video order) to drop: the blurriest, but never two neighbours.
+
+    Blur clusters where the phone turned fast, and those are exactly the frames that link one part of the
+    walk to the next. Dropping the blurriest 15% outright removed whole turns (frames 23-29, 72-75 and
+    100-104 of the sample clip) and split SfM into three disconnected models (43+25+24 of 92 frames);
+    keeping every other frame through a blurry run kept all 92 kept frames in one model. Only frames
+    below half the median sharpness are candidates, so fewer than `drop` may be removed."""
+    target = int(len(scores) * drop)
+    # Only frames clearly blurrier than typical are candidates: topping up the quota with sharp frames
+    # would just throw away views.
+    cutoff = 0.5 * float(sorted(scores)[len(scores) // 2]) if scores else 0.0
+    dropped: set[int] = set()
+    for i in sorted(range(len(scores)), key=lambda i: scores[i]):
+        if len(dropped) >= target or scores[i] >= cutoff:
+            break
+        if i - 1 in dropped or i + 1 in dropped:
+            continue
+        dropped.add(i)
+    return dropped
+
+
 def drop_blurry(frames: Path, drop: float = BLUR_DROP) -> int:
-    """Remove the blurriest fraction by variance of the Laplacian; returns the number kept."""
+    """Remove blurry frames by variance of the Laplacian (see blur_drop_indices); returns the number kept."""
     import cv2
 
-    scores = []
+    files, scores = [], []
     for f in sorted(frames.glob("*.jpg")):
         g = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
         if g is None:
             f.unlink()
             continue
-        scores.append((cv2.Laplacian(g, cv2.CV_64F).var(), f))
-    scores.sort(key=lambda s: s[0])
-    cut = int(len(scores) * drop)
-    for _, f in scores[:cut]:
-        f.unlink()
-    kept = len(scores) - cut
-    print(f"frames: kept {kept}/{len(scores)} (dropped {cut} blurriest)")
+        files.append(f)
+        scores.append(cv2.Laplacian(g, cv2.CV_64F).var())
+    dropped = blur_drop_indices(scores, drop)
+    for i in dropped:
+        files[i].unlink()
+    kept = len(files) - len(dropped)
+    print(f"frames: kept {kept}/{len(files)} (dropped {len(dropped)} blurriest, never two in a row)")
     return kept
 
 
@@ -83,8 +112,17 @@ def copy_photos(src: Path, frames: Path) -> int:
 
 
 # ---------------------------------------------------------------- sfm
-def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
+def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path, mapper: str = "incremental",
+        backend: str = "colmap", loop_closure: bool = True, max_image_size: int = 1920) -> Path:
+    if backend == "pycolmap":
+        return sfm_with_pycolmap(work, matcher, gpu, report, log, mapper, loop_closure, max_image_size)
     colmap = find_tool("colmap")
+    version = colmap_version(colmap)
+    opt = colmap_gpu_options(version)
+    report.data.setdefault("versions", {})["colmap"] = ".".join(map(str, version)) if version else "unknown"
+    if mapper == "global" and (version or (4,))[0] < 4:
+        print("sfm: COLMAP < 4 has no global mapper; using the incremental mapper")
+        mapper = "incremental"
     db, images, sparse, dataset = work / "colmap.db", work / "frames", work / "sparse", work / "dataset"
     total = len(list_images(images))
     if (dataset / "sparse").exists():
@@ -97,15 +135,22 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
     # 2-20/70 vs 50-59/70 with SIMPLE_RADIAL, verified 2026-10-29. Keep the value explicit.
     run([colmap, "feature_extractor", "--database_path", str(db), "--image_path", str(images),
          "--ImageReader.single_camera", "1", "--ImageReader.camera_model", "SIMPLE_RADIAL",
-         "--FeatureExtraction.use_gpu", use_gpu], log, "COLMAP feature extraction")
+         opt["extract_gpu"], use_gpu], log, "COLMAP feature extraction")
     # sequential matching suits walk-through video; exhaustive suits unordered photo sets.
-    run([colmap, f"{matcher}_matcher", "--database_path", str(db), "--FeatureMatching.use_gpu", use_gpu],
+    run([colmap, f"{matcher}_matcher", "--database_path", str(db), opt["match_gpu"], use_gpu],
         log, "COLMAP matching")
     shutil.rmtree(sparse, ignore_errors=True)
     sparse.mkdir()
-    run([colmap, "mapper", "--database_path", str(db), "--image_path", str(images), "--output_path", str(sparse)],
-        log, "COLMAP mapping")
-    models = sorted(p for p in sparse.iterdir() if p.is_dir())
+    run([colmap, "global_mapper" if mapper == "global" else "mapper", "--database_path", str(db),
+         "--image_path", str(images), "--output_path", str(sparse)], log, f"COLMAP {mapper} mapping")
+    best = pick_model(sorted(p for p in sparse.iterdir() if p.is_dir()), total, report, log)
+    run([colmap, "image_undistorter", "--image_path", str(images), "--input_path", str(best),
+         "--output_path", str(dataset), "--output_type", "COLMAP"], log, "COLMAP undistortion")
+    return dataset
+
+
+def pick_model(models: list[Path], total: int, report: Report, log: Path) -> Path:
+    """Best (most registered) model, its checks, and the scraps; raises PipelineError if checks fail."""
     if not models:
         raise PipelineError("COLMAP produced no model. Typical causes: motion blur, too little overlap, "
                             "plain walls. Re-shoot slower following docs/SOP.md.")
@@ -116,10 +161,60 @@ def sfm(work: Path, matcher: str, gpu: bool, report: Report, log: Path) -> Path:
     if not checks.check_sfm(report, best_stats, total, significant):
         raise PipelineError("SfM checks failed (see report.json). Not training on a bad camera solution.")
     if scraps:
-        report.data["sfm"]["ignored_fragment_images"] = scraps  # tiny leftover models, not a split of the room
+        report.data["sfm"]["ignored_fragment_images"] = scraps
         report.save()
-    run([colmap, "image_undistorter", "--image_path", str(images), "--input_path", str(best),
-         "--output_path", str(dataset), "--output_type", "COLMAP"], log, "COLMAP undistortion")
+    return best
+
+
+def sfm_with_pycolmap(work: Path, matcher: str, gpu: bool, report: Report, log: Path, mapper: str,
+                      loop_closure: bool, max_image_size: int) -> Path:
+    """pycolmap backend (see sfm_pycolmap.py for why). Matches once, then maps on a fresh copy of the
+    matched database per attempt: the global mapper first and, if it registers < MIN_REGISTRATION of the
+    frames, the incremental mapper on the same matches."""
+    import sfm_pycolmap as sp
+
+    pycolmap = sp.import_pycolmap()
+    report.data.setdefault("versions", {}).update(sp.versions())
+    if gpu and not getattr(pycolmap, "has_cuda", False):
+        raise PipelineError("This pycolmap has no CUDA support. Install pycolmap-cuda12 (Linux) or run with --cpu.")
+    images, sparse, dataset = work / "frames", work / "sparse", work / "dataset"
+    matched = work / f"colmap_{matcher}.db"
+    total = len(list_images(images))
+    if (dataset / "sparse").exists():
+        print("sfm: already done")
+        return dataset
+    settings = sp.SfmSettings(gpu=gpu, matcher=matcher, loop_closure=loop_closure and matcher == "sequential",
+                              mapper=mapper, max_image_size=max_image_size)
+    vocab = sp.ensure_vocab_tree(ROOT / "tools" / "colmap") if settings.loop_closure else None
+    t = time.time()
+    if not matched.exists():
+        tmp = matched.with_suffix(".partial.db")
+        tmp.unlink(missing_ok=True)
+        sp.extract_and_match(pycolmap, tmp, images, sp.build_options(pycolmap, settings, vocab), matcher)
+        tmp.replace(matched)
+    report.data.setdefault("sfm_timing", {})[f"extract_match_{matcher}_s"] = round(time.time() - t, 1)
+    attempts = [mapper] + (["incremental"] if mapper == "global" else [])
+    for n, m in enumerate(attempts):
+        db = work / "colmap.db"
+        shutil.copy2(matched, db)  # every mapper sees exactly the matched database
+        t = time.time()
+        opts = sp.build_options(pycolmap, sp.SfmSettings(gpu=gpu, matcher=matcher, loop_closure=False, mapper=m), None)
+        models = sp.map_poses(pycolmap, db, images, sparse, opts, m)
+        report.data["sfm_timing"][f"map_{m}_s"] = round(time.time() - t, 1)
+        try:
+            best = pick_model(models, total, report, log)
+        except PipelineError:
+            if n + 1 < len(attempts):
+                print(f"sfm: {m} mapping failed its checks; retrying with {attempts[n + 1]}")
+                continue
+            raise
+        ratio = report.data["sfm"]["registration_ratio"]
+        report.data["sfm"]["mapper"] = m
+        if ratio < checks.MIN_REGISTRATION and n + 1 < len(attempts):
+            print(f"sfm: {m} mapping registered {ratio:.0%}; retrying with {attempts[n + 1]}")
+            continue
+        break
+    sp.undistort(best, images, dataset)
     return dataset
 
 
@@ -177,23 +272,54 @@ def train_nerfstudio(dataset: Path, export: Path, steps: int, log: Path) -> None
          "--output-dir", str(export)], log, "Nerfstudio export")
 
 
-TRAINERS = {"brush": train_brush, "nerfstudio": train_nerfstudio}
+def train_gsplat(dataset: Path, export: Path, steps: int, log: Path, max_width: int = 1920,
+                 max_splats: int = 1_500_000) -> None:
+    """gsplat (CUDA PyTorch), MCMC + scale/anisotropy regularisation + antialiasing; see train_gsplat.py.
+    Run as a child process so the GPU memory is returned before compression and publishing."""
+    run([sys.executable, str(Path(__file__).with_name("train_gsplat.py")), str(dataset), str(export / "splat.ply"),
+         "--steps", str(steps), "--max-width", str(max_width), "--max-splats", str(max_splats),
+         "--stats", str(export / "train_stats.json")], log, "gsplat training")
 
 
-def train_fingerprint(dataset: Path, trainer: str, steps: int) -> dict:
+TRAINERS = {"brush": train_brush, "gsplat": train_gsplat, "nerfstudio": train_nerfstudio}
+DEFAULT_TRAINER = "brush" if sys.platform == "win32" else "gsplat"
+
+# --profile presets. Explicit flags win. fps x clip length sets the frame count; width sets SfM and training
+# resolution; steps and max_splats set training time (the biggest stage).
+PROFILES = {
+    # preview keeps 3 fps: at 2 fps a 36 s clip (the smoke-test sample) falls under MIN_USABLE_FRAMES.
+    "preview": {"fps": 3.0, "width": 1280, "steps": 7000, "max_splats": 750_000},
+    "final": {"fps": 3.0, "width": 1920, "steps": 30000, "max_splats": 1_500_000},
+}
+DEFAULTS = {"fps": 3.0, "width": 1920, "steps": 30000, "max_splats": 1_500_000}
+
+
+def resolve_params(args: argparse.Namespace) -> dict:
+    """Profile values, then anything given explicitly on the command line."""
+    params = dict(PROFILES[args.profile] if args.profile else DEFAULTS)
+    for k in params:
+        v = getattr(args, k, None)
+        if v is not None:
+            params[k] = v
+    return params
+
+
+def train_fingerprint(dataset: Path, trainer: str, steps: int, extra: dict | None = None) -> dict:
     """What a trained splat depends on. A splat is reused only if all of this is unchanged."""
     model = sorted(p for p in dataset.rglob("images.*") if p.suffix in (".bin", ".txt"))
     stat = model[0].stat() if model else None
-    return {"trainer": trainer, "steps": steps,
+    return {"trainer": trainer, "steps": steps, **(extra or {}),
             "flags": BRUSH_FLAGS if trainer == "brush" else [],
             "masks": len(list_images(dataset / "masks")),
             "model": str(model[0]) if model else None,
             "model_size": stat.st_size if stat else None, "model_mtime": stat.st_mtime if stat else None}
 
 
-def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path) -> Path:
+def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, log: Path,
+          max_width: int = 1920, max_splats: int = 1_500_000) -> Path:
     export = work / f"splat_{trainer}"
-    want = train_fingerprint(dataset, trainer, steps)
+    extra = {"max_width": max_width, "max_splats": max_splats} if trainer == "gsplat" else {}
+    want = train_fingerprint(dataset, trainer, steps, extra)
     done = report.data.get("train_output", {})
     if done.get("fingerprint") == want and Path(done.get("ply", "")).is_file() \
             and Path(done["ply"]).stat().st_size == done.get("bytes"):
@@ -204,7 +330,13 @@ def train(dataset: Path, work: Path, steps: int, trainer: str, report: Report, l
     shutil.rmtree(export, ignore_errors=True)
     export.mkdir(parents=True)
     check_dataset(dataset, report)
-    TRAINERS[trainer](dataset, export, steps, log)
+    if trainer == "gsplat":
+        train_gsplat(dataset, export, steps, log, max_width, max_splats)
+        stats = export / "train_stats.json"
+        if stats.is_file():
+            report.data["train_stats"] = {k: v for k, v in json.loads(stats.read_text()).items() if k != "config"}
+    else:
+        TRAINERS[trainer](dataset, export, steps, log)
     plys = sorted(export.rglob("*.ply"), key=lambda p: p.stat().st_mtime)
     if not plys:
         raise PipelineError(f"{trainer} finished but wrote no .ply into {export}. See {log}")
@@ -256,14 +388,53 @@ def publish(web_splat: Path, title: str, report: Report, work: Path, sparse: Pat
           f"  inspect: cd viewer; npm run dev  ->  http://localhost:5173/?scene=dev-assets/models/scene.json")
 
 
+# ---------------------------------------------------------------- environment
+def _version(cmd: list[str], pattern: str = r"(\d+\.\d+(?:\.\d+)?)") -> str | None:
+    import re
+    import subprocess
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(pattern, out.stdout + out.stderr)
+    return m.group(1) if m else None
+
+
+def environment_info(trainer: str) -> dict:
+    """GPU and tool versions for report.json, so timings can be compared between machines."""
+    import platform
+    import subprocess
+    info: dict = {"platform": platform.platform(), "python": platform.python_version()}
+    if shutil.which("nvidia-smi"):
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
+                             capture_output=True, text=True).stdout.strip().splitlines()
+        info["gpus"] = out
+    versions: dict = {}
+    ff = find_tool("ffmpeg", False)
+    if ff:
+        versions["ffmpeg"] = _version([ff, "-version"], r"ffmpeg version (\S+)")
+    node = find_tool("node", False)
+    if node:
+        versions["node"] = _version([node, "--version"])
+    versions["splat_transform"] = compress.installed_version()
+    # Versions from package metadata, never by importing: torch and pycolmap must not share a process.
+    for dist in ("pycolmap-cuda12", "pycolmap", "torch", "gsplat", "numpy", "opencv-python-headless", "ultralytics"):
+        v = module_version(dist)
+        if v:
+            versions[dist] = v
+    info["versions"] = versions
+    info["trainer"] = trainer
+    return info
+
+
 # ---------------------------------------------------------------- commands
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def cmd_doctor(trainer: str, gpu: bool) -> int:
-    print(f"Dependency check (trainer={trainer}):")
-    return 0 if preflight.print_doctor(preflight.doctor(trainer, gpu)) else 1
+def cmd_doctor(trainer: str, gpu: bool, sfm_backend: str = "colmap") -> int:
+    print(f"Dependency check (trainer={trainer}, sfm={sfm_backend}):")
+    return 0 if preflight.print_doctor(preflight.doctor(trainer, gpu, sfm_backend)) else 1
 
 
 def cmd_approve(work: Path, note: str) -> int:
@@ -282,14 +453,24 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("input", nargs="?", type=Path, help="video file, or a folder of photos")
     ap.add_argument("--out", type=Path, default=ROOT / "work" / "scene")
-    ap.add_argument("--fps", type=float, default=3.0, help="frames sampled per second of video")
+    ap.add_argument("--profile", choices=sorted(PROFILES), default=None,
+                    help="preview: <=720p, 7k steps (fast check); final: 1080p, 30k steps. Flags below override it.")
+    ap.add_argument("--fps", type=float, default=None, help="frames sampled per second of video (default 3)")
     # 1920 = full 1080p width and Brush's own --max-resolution, so training sees every pixel filmed.
-    ap.add_argument("--width", type=int, default=1920, help="max frame width in px")
+    ap.add_argument("--width", type=int, default=None, help="max frame width in px (default 1920)")
     ap.add_argument("--matcher", choices=["sequential", "exhaustive"], default=None,
-                    help="default: sequential for video, exhaustive for photos")
-    ap.add_argument("--steps", type=int, default=30000, help="Gaussian-splat training steps")
-    ap.add_argument("--trainer", choices=sorted(TRAINERS), default="brush",
-                    help="brush: single exe, any WebGPU GPU. nerfstudio: needs CUDA PyTorch (Linux/WSL2)")
+                    help="default: sequential (+ loop closure) for video, exhaustive for photos")
+    ap.add_argument("--exhaustive", action="store_true", help="match every frame pair (slow, O(n^2)); same as --matcher exhaustive")
+    ap.add_argument("--no-loop-closure", action="store_true", help="sequential matching without vocabulary-tree loop detection")
+    ap.add_argument("--sfm", choices=["auto", "colmap", "pycolmap"], default="auto",
+                    help="auto: the colmap executable if found, else pycolmap (pip install pycolmap-cuda12)")
+    ap.add_argument("--mapper", choices=["global", "incremental"], default=None,
+                    help="default: global (GLOMAP, falls back to incremental) when available, else incremental")
+    ap.add_argument("--steps", type=int, default=None, help="Gaussian-splat training steps (default 30000)")
+    ap.add_argument("--max-splats", type=int, default=None, help="cap on the splat count, gsplat only (default 1.5M)")
+    ap.add_argument("--trainer", choices=sorted(TRAINERS), default=DEFAULT_TRAINER,
+                    help="brush: single exe, any WebGPU GPU (Windows default). gsplat: CUDA PyTorch (Linux default). "
+                         "nerfstudio: CUDA PyTorch")
     ap.add_argument("--title", default="Namma Space")
     ap.add_argument("--max-mb", type=float, default=compress.DEFAULT_MAX_MB, help="size budget for the web splat")
     ap.add_argument("--cpu", action="store_true", help="disable COLMAP GPU (use with the no-CUDA build)")
@@ -302,8 +483,10 @@ def main() -> int:
     ap.add_argument("--note", default="", help="inspection note stored with --approve")
     a = ap.parse_args()
 
+    params = resolve_params(a)
+    backend = a.sfm if a.sfm != "auto" else ("colmap" if find_tool("colmap", False) else "pycolmap")
     if a.doctor:
-        return cmd_doctor(a.trainer, not a.cpu)
+        return cmd_doctor(a.trainer, not a.cpu, backend)
     if a.approve:
         if not a.note:
             print("--approve needs --note describing what you checked in the viewer.")
@@ -321,13 +504,15 @@ def main() -> int:
     report = Report.load(work)
     # --check only validates: it records its result under last_check and never touches the run's status.
     if not a.check:
-        report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer,
-                           params={"fps": a.fps, "width": a.width, "steps": a.steps})
+        report.data.update(status=FAILED, input=str(a.input), trainer=a.trainer, profile=a.profile,
+                           params={**params, "sfm": backend}, started=now())
+        report.data["environment"] = environment_info(a.trainer)
         report.save()
+    started = time.time()
 
     try:
         print("== dependencies")
-        if not preflight.print_doctor(preflight.doctor(a.trainer, not a.cpu)):
+        if not preflight.print_doctor(preflight.doctor(a.trainer, not a.cpu, backend)):
             raise PipelineError("Missing dependencies listed above. See docs/TRAINING.md.")
 
         print("== input validation")
@@ -337,7 +522,7 @@ def main() -> int:
         if is_dir:
             info, issues = preflight.validate_photos(a.input, work)
         else:
-            info, issues = preflight.validate_video(a.input, work, a.fps)
+            info, issues = preflight.validate_video(a.input, work, params["fps"])
         report.data["input_info"] = info
         for k in [k for k in report.data.get("checks", {}) if k.startswith("input:")]:
             del report.data["checks"][k]  # drop stale input checks from a previous run
@@ -355,21 +540,23 @@ def main() -> int:
             print("\nOK: dependencies and input look usable. Nothing was processed (--check).")
             return 0
 
-        matcher = a.matcher or ("exhaustive" if is_dir else "sequential")
+        matcher = "exhaustive" if a.exhaustive else (a.matcher or ("exhaustive" if is_dir else "sequential"))
+        mapper = a.mapper or "global"  # sfm() falls back to incremental where there is no global mapper
+        sfm_args = dict(mapper=mapper, backend=backend, loop_closure=not a.no_loop_closure, max_image_size=params["width"])
         with Timer() as t:
             if is_dir:
                 n = copy_photos(a.input, work / "frames")
             else:
-                n = extract_frames(a.input, work, a.fps, a.width, log)
+                n = extract_frames(a.input, work, params["fps"], params["width"], log)
         report.stage("frames", t.seconds, kept=n)
         min_frames = preflight.MIN_PHOTOS if is_dir else MIN_USABLE_FRAMES
         if n < min_frames:
             raise PipelineError(f"Only {n} usable frames (need {min_frames}). Film longer or raise --fps.")
 
         with Timer() as t:
-            auto = a.matcher is None and not is_dir
+            auto = a.matcher is None and not a.exhaustive and not is_dir
             try:
-                dataset = sfm(work, matcher, not a.cpu, report, log)
+                dataset = sfm(work, matcher, not a.cpu, report, log, **sfm_args)
             except PipelineError:
                 # Only a low registration ratio is worth an exhaustive retry; anything else (no model,
                 # too few points) fails the same way again, and there is no dataset to fall through to.
@@ -384,8 +571,10 @@ def main() -> int:
                 report.data["sfm_sequential_ratio"] = ratio
                 shutil.rmtree(dataset, ignore_errors=True)
                 shutil.rmtree(work / "sparse", ignore_errors=True)
-                dataset = sfm(work, "exhaustive", not a.cpu, report, log)
-        report.stage("sfm", t.seconds)
+                dataset = sfm(work, "exhaustive", not a.cpu, report, log, **sfm_args)
+        sfm_info = report.data.get("sfm", {})
+        report.stage("sfm", t.seconds, backend=backend, frames=sfm_info.get("frames_total"),
+                     registered=sfm_info.get("registered_images"), mapper=sfm_info.get("mapper", mapper))
 
         print("== coverage")
         sparse = dataset / "sparse" / "0" if (dataset / "sparse" / "0").exists() else dataset / "sparse"
@@ -415,8 +604,8 @@ def main() -> int:
             report.stage("mask_people", t.seconds)
 
         with Timer() as t:
-            splat = train(dataset, work, a.steps, a.trainer, report, log)
-        report.stage("train", t.seconds, steps=a.steps)
+            splat = train(dataset, work, params["steps"], a.trainer, report, log, params["width"], params["max_splats"])
+        report.stage("train", t.seconds, steps=params["steps"])
 
         print("== clean splat")
         import clean_splat
@@ -440,7 +629,10 @@ def main() -> int:
             web_splat = compress.compress(splat, work, report, log, a.max_mb)
         report.stage("compress", t.seconds, mb=report.data["web_splat"]["mb"])
 
-        publish(web_splat, a.title, report, work, sparse)
+        with Timer() as t:
+            publish(web_splat, a.title, report, work, sparse)
+        report.stage("publish", t.seconds)
+        report.data["total_seconds"] = round(time.time() - started, 1)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
         print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
@@ -455,6 +647,7 @@ def main() -> int:
         else:
             report.data["status"] = FAILED
             report.data["error"] = str(e)
+            report.data["total_seconds"] = round(time.time() - started, 1)
         report.save()
         print(f"\nFAILED: {e}\nReport: {report.path}", file=sys.stderr)
         return 1
