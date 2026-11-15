@@ -553,6 +553,8 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
     if (viewerRef.current?.routeTo(selectedPoi.id)) {
       viewerRef.current?.revealRouteTape();
       viewerRef.current?.startGuidance(selectedPoi.id);
+      // The guidance panel takes over from the card (on a phone both are bottom sheets).
+      setCardPoiId(null);
       setRouteState({
         status: 'ok',
         // Raw metres; RouteStatus rounds once at display time (review F5).
@@ -753,10 +755,10 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               />
             </section>
           )}
-          <section className={styles.panel}>
+          <section className={`${styles.panel} ${styles.searchSheet}`} data-testid="search-sheet">
             <div className={styles.panelHeading}>
               <div>
-                <p className={styles.eyebrow}>Spatial index</p>
+                <p className={styles.eyebrow}>Destinations</p>
                 <h2 className={styles.panelTitle}>Find a destination</h2>
               </div>
               <span className={styles.panelIndex}>01</span>

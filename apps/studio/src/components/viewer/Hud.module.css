@@ -158,3 +158,18 @@
     display: none;
   }
 }
+
+/* Touch screens: no keys to press and no pointer lock, so drop the WASD chips and the immersive toggle;
+   the controls hint explains drag and tap instead. The phone also drops the (empty) scene-label chip. */
+@media (pointer: coarse) {
+  .bottomLeft,
+  [data-hud-walkthrough] {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .topLeft {
+    display: none;
+  }
+}

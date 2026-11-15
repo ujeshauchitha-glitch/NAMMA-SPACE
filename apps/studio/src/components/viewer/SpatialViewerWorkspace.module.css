@@ -224,7 +224,7 @@
   background: var(--surface-raised, #fbfbf8);
   border: var(--border-strong, 1px solid #c9ccc2);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  z-index: 3;
+  z-index: 4; /* above the first-visit controls hint */
 }
 
 .poiCardHead {
@@ -779,4 +779,112 @@
 .controlsHintClose:focus-visible {
   outline: 2px solid var(--accent-lime);
   outline-offset: 2px;
+}
+
+/* ---------- Phone (≤560 px): the scene fills the screen, search and the POI card are bottom sheets ---------- */
+@media (max-width: 1024px) {
+  /* A long scene name in the switcher must not widen the column past the screen: every grid on the
+     way down to the canvas gets an explicit shrinkable column instead of an implicit auto one. */
+  .viewer,
+  .stageColumn,
+  .viewport {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .viewer {
+    padding: var(--space-2) var(--space-2) 96px; /* clear the collapsed search sheet */
+    gap: var(--space-2);
+    min-height: 0;
+  }
+
+  .stageHeader {
+    gap: var(--space-2);
+  }
+
+  .stageHeader > div:first-child .eyebrow,
+  .lede {
+    display: none;
+  }
+
+  .title {
+    font-size: 20px;
+    margin: 0;
+  }
+
+  .headerActions,
+  .sceneSwitcher {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sceneSwitcher select {
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .viewport {
+    min-height: 0;
+    height: calc(100dvh - 260px);
+    min-height: 340px;
+  }
+
+  /* POI card: a sheet over the bottom tab bar, full width, thumb-reachable buttons. */
+  .poiCard {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: 55dvh;
+    overflow-y: auto;
+    border-radius: 14px 14px 0 0;
+    z-index: 45;
+  }
+
+  /* Search: a sheet that shows just the field until it is used, then grows to the results. */
+  .searchSheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    margin: 0;
+    padding: var(--space-3);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
+    max-height: 84px;
+    overflow: hidden;
+    transition: max-height var(--dur-fast, 160ms) ease-out;
+  }
+
+  .searchSheet .panelHeading {
+    display: none;
+  }
+
+  .searchSheet:focus-within {
+    max-height: 62dvh;
+    overflow-y: auto;
+    z-index: 46; /* while searching, above the guidance panel and the POI card */
+  }
+
+  /* Guidance sits just above the collapsed search sheet, always on screen while walking. */
+  .guidance {
+    position: fixed;
+    bottom: calc(56px + 84px + 8px + env(safe-area-inset-bottom, 0px));
+    z-index: 42;
+  }
+
+  .controlsHint {
+    top: 76px; /* below the compass chip */
+    border-radius: 14px;
+  }
+}
+
+/* The quiet End route / Done button sits on the dark guidance panel: keep it light. */
+.guidanceActions > :last-child {
+  color: #f4f6f1;
 }
