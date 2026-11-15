@@ -23,6 +23,7 @@ import { isClick, moveGesture, startGesture, type LookGesture } from '../lib/loo
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
 import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
+import { cropBox, cropModifier } from './splatCrop';
 import { advanceTween, createTween, easeInOutCubic, lerp, lerpAngleDeg, resolveTweenDuration } from './tween';
 import { resolveMotionPrefersReduced } from '../motion';
 
@@ -964,6 +965,7 @@ export class PlayCanvasViewer {
             const entity = new Entity(label);
             entity.addComponent('gsplat', { asset });
             this.app.root.addChild(entity);
+            this.cropSplat(entity);
             this.callbacks.onStatus(`Loaded splat ${label}`);
           });
           asset.once('error', (error: unknown) => {
@@ -977,6 +979,11 @@ export class PlayCanvasViewer {
           this.callbacks.onStatus(assetFailureMessage(assetRef, error));
         });
     });
+  }
+
+  /** Hide splats outside the manifest bounds (+0.3 m): the haze of floaters around a capture. */
+  private cropSplat(entity: Entity): void {
+    entity.gsplat?.setWorkBufferModifier(cropModifier(cropBox(this.manifest.bounds)));
   }
 
   private attachVisualAsset(assetRef: AssetRef): void {
