@@ -1,5 +1,7 @@
 # Namma Space
 
+[![CI](https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/actions/workflows/ci.yml/badge.svg?branch=round2%2Fpoi-nav)](https://github.com/ujeshauchitha-glitch/NAMMA-SPACE/actions/workflows/ci.yml)
+
 **A phone video of an indoor space becomes a walkable 3D twin in the browser, with tagged places, search and
 turn-by-turn walking directions.** Techfest 2026-27, IIT Bombay, Round 2. Team TM-12354C3F6F2, Vellore Institute of Technology.
 

@@ -8,7 +8,7 @@ import {
   PhoneFramesPanel,
   RELAY_UNAVAILABLE_BODY,
 } from '../src/components/workspace/LiveScanWorkspace';
-import { readPairToken } from '../src/App';
+import { readPairToken } from '../src/lib/pairToken';
 
 /**
  * T21 slice-4 SSR suite — the two sides of the Live Scan journey as the

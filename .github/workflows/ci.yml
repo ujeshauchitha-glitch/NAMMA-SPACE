@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  studio:
+    name: Studio (typecheck, lint, unit tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # Some unit tests run the stdlib-only Python scripts in apps/studio/scripts; the runner's python3 is enough.
+      - run: npm test
+      - run: npm run build
+
+  pipeline:
+    name: Pipeline (pytest, CPU)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Python dependencies (CPU only; the GPU stages are not run in CI)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest numpy scipy opencv-python-headless pycolmap==4.2.1
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pytest tests -q

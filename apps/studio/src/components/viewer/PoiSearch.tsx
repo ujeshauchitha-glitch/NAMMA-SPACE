@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { SearchField } from '../ui/TextField';
 import { CATEGORY_ICONS, ChevronRight, Grid } from '../icons/icons';
-import type { Poi } from '../../types/scene';
 import { CATEGORY_LABELS, type PoiCategory, type RankedResult } from '../../lib/poiSearch';
-import { formatDistance } from '../../lib/routeGuidance';
+import { formatPoiSubline, nextActiveIndex } from './viewerFormat';
 import styles from './PoiSearch.module.css';
 
 /**
@@ -45,30 +44,6 @@ export type PoiSearchProps = {
   /** Authoring view: confidence and source in each row. */
   authoring?: boolean;
 };
-
-/**
- * Pure keyboard step for the listbox highlight. Exported for jsdom-free unit
- * tests: `count <= 0` clears the highlight, an out-of-range `current` enters
- * from the far end (down → first, up → last), otherwise the index clamps.
- */
-export function nextActiveIndex(current: number, count: number, delta: number): number {
-  if (count <= 0) return -1;
-  if (current < 0 || current >= count) return delta < 0 ? count - 1 : 0;
-  const next = current + delta;
-  if (next < 0) return 0;
-  if (next > count - 1) return count - 1;
-  return next;
-}
-
-/**
- * Row subline: `CATEGORY · walking distance`, plus `· confidence · SOURCE` in the authoring view.
- * Distance is omitted when unknown.
- */
-export function formatPoiSubline(poi: Poi, metres?: number | null, authoring = true): string {
-  const walk = metres === undefined ? '' : metres === null ? ' · no route' : ` · ${formatDistance(metres)} walk`;
-  const provenance = authoring ? ` · ${poi.confidence.toFixed(2)} · ${poi.source.toUpperCase()}` : '';
-  return `${poi.category.toUpperCase()}${walk}${provenance}`;
-}
 
 export function PoiSearch({
   results,

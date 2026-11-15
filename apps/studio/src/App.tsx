@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject } from 'react';
 import { AppShell } from './components/shell/AppShell';
+import { readPairToken } from './lib/pairToken';
 import { CaptureStudioWorkspace } from './components/workspace/CaptureStudioWorkspace';
 import { LiveScanWorkspace } from './components/workspace/LiveScanWorkspace';
 import { SpatialViewerWorkspace } from './components/viewer/SpatialViewerWorkspace';
@@ -30,11 +31,6 @@ function resolveInitialWorkspace(): WorkspaceId {
   // workspace (invalid tokens render an honest "link not valid" state there).
   if (params.has('pair')) return 'scan';
   return DEFAULT_WORKSPACE;
-}
-
-/** Raw `?pair=` value from the entry URL; validated downstream (T21). */
-export function readPairToken(search: string): string | null {
-  return new URLSearchParams(search).get('pair');
 }
 
 export default function App() {

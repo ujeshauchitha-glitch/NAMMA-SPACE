@@ -1,14 +1,7 @@
 import type { Poi } from '../../types/scene';
 import { Button } from '../ui/Button';
 import styles from './SpatialViewerWorkspace.module.css';
-
-/** Walking distance line: metres along the navigation grid, or why there is none. */
-export function formatWalk(walkMetres: number | null | undefined): string {
-  if (walkMetres === undefined) return 'Walking distance unavailable: this scene has no navigation grid';
-  if (walkMetres === null) return 'No walkable route from where you are';
-  if (walkMetres < 0.5) return 'You are here';
-  return `${walkMetres < 10 ? walkMetres.toFixed(1) : Math.round(walkMetres)} m walk from where you are`;
-}
+import { formatWalk } from './viewerFormat';
 
 export type PoiCardProps = {
   poi: Poi;

@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
-import { PoiSearch, formatPoiSubline, nextActiveIndex } from '../src/components/viewer/PoiSearch';
+import { PoiSearch } from '../src/components/viewer/PoiSearch';
+import { formatPoiSubline, nextActiveIndex } from '../src/components/viewer/viewerFormat';
 import type { RankedResult } from '../src/lib/poiSearch';
 import type { Poi } from '../src/types/scene';
 

@@ -1,8 +1,9 @@
 import { Button } from '../ui/Button';
 import { MetadataKV } from '../ui/MetadataKV';
 import { Route as RouteIcon } from '../icons/icons';
-import type { Poi, Vec3 } from '../../types/scene';
+import type { Poi } from '../../types/scene';
 import { RouteStatus, type RouteState } from './RouteStatus';
+import { formatPosition } from './viewerFormat';
 import styles from './SpatialViewerWorkspace.module.css';
 
 /**
@@ -13,9 +14,6 @@ import styles from './SpatialViewerWorkspace.module.css';
  * disables both actions with a one-line reason. Esc (handled in the workspace)
  * deselects and clears the 3D selection.
  */
-export function formatPosition(position: Vec3): string {
-  return `${position[0].toFixed(1)}, ${position[2].toFixed(1)}`;
-}
 
 export type DestinationDetailProps = {
   poi: Poi;

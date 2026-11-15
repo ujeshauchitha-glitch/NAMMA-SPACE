@@ -1,8 +1,10 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CoverageIndicator, coverageState, type CoverageGroup } from '../src/components/capture/CoverageIndicator';
-import { PRESET_VIEW_GROUPS, ViewGroupChip, viewGroupOccupied } from '../src/components/capture/ViewGroupChip';
+import { CoverageIndicator, type CoverageGroup } from '../src/components/capture/CoverageIndicator';
+import { coverageState } from '../src/components/capture/coverage';
+import { PRESET_VIEW_GROUPS, ViewGroupChip } from '../src/components/capture/ViewGroupChip';
+import { viewGroupOccupied } from '../src/components/capture/viewGroups';
 
 /**
  * Coverage honesty gate (DESIGN_HANDOFF §5.6, spec T7): category occupancy

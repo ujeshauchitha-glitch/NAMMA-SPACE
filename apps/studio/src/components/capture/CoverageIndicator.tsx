@@ -1,3 +1,4 @@
+import { COVERAGE_MINIMUM_DEFAULT, coverageState } from './coverage';
 import styles from './CoverageIndicator.module.css';
 
 /**
@@ -8,8 +9,6 @@ import styles from './CoverageIndicator.module.css';
  * bars implying reconstructed area.
  */
 
-export type CoverageGroupState = 'empty' | 'partial' | 'occupied';
-
 export type CoverageGroup = {
   id: string;
   label: string;
@@ -18,13 +17,6 @@ export type CoverageGroup = {
   minimum?: number;
 };
 
-export const COVERAGE_MINIMUM_DEFAULT = 1;
-
-/** Pure state mapping (unit-tested table in tests/coverage.test.ts). */
-export function coverageState(count: number, minimum: number = COVERAGE_MINIMUM_DEFAULT): CoverageGroupState {
-  if (count <= 0) return 'empty';
-  return count >= minimum ? 'occupied' : 'partial';
-}
 
 export type CoverageIndicatorProps = {
   groups: CoverageGroup[];

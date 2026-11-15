@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PoiCard, formatWalk } from '../src/components/viewer/PoiCard';
+import { PoiCard } from '../src/components/viewer/PoiCard';
+import { formatWalk } from '../src/components/viewer/viewerFormat';
 import type { Poi } from '../src/types/scene';
 
 const poi: Poi = {
