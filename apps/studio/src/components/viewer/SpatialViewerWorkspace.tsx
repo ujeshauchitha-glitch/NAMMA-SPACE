@@ -16,6 +16,7 @@ import { SceneSkeleton } from './SceneSkeleton';
 import { SceneErrorPanel } from './SceneErrorPanel';
 import { PoiSearch } from './PoiSearch';
 import { ControlsHint } from './ControlsHint';
+import { DEFAULT_SCENE_NAME, visibleScenes } from './sceneOptions';
 import { DestinationDetail } from './DestinationDetail';
 import { PoiCard } from './PoiCard';
 import { PoiEditorPanel, type EditorTool } from './PoiEditorPanel';
@@ -40,18 +41,7 @@ import styles from './SpatialViewerWorkspace.module.css';
 // Opens on our own classroom capture; tests pin the procedural fixture with VITE_SCENE_URL (playwright.config.ts).
 // Scene bundles live under the deploy base (Vite's BASE_URL: '/' on Vercel, '/NAMMA-SPACE/' on GitHub Pages).
 const scene = (name: string): string => `${import.meta.env.BASE_URL}scenes/${name}/manifest.json`;
-const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene('classroom');
-const SCENE_OPTIONS = [
-  // Gaussian splats trained by pipeline/ (COLMAP + Brush): our classroom filmed on a phone, and Meta's Eyeful
-  // Tower 'apartment', an external benchmark dataset (MIT licence, credited in its manifest).
-  { value: scene('classroom'), label: 'Classroom: our phone capture (Gaussian splat)' },
-  { value: scene('real-room'), label: 'Workshop room: our 70-photo capture (sparse model)' },
-  { value: scene('apartment'), label: 'Apartment: external benchmark dataset (Meta Eyeful Tower, MIT)' },
-  { value: scene('splat-fixture'), label: 'Synthetic Splat fixture (SOG)' },
-  { value: scene('fixture'), label: 'Procedural fixture' },
-  { value: scene('glb-fixture'), label: 'Generated GLB fixture' },
-];
-
+const DEFAULT_SCENE_URL = import.meta.env.VITE_SCENE_URL || scene(DEFAULT_SCENE_NAME);
 function resolveInitialSceneUrl(): string {
   const requestedScene = new URLSearchParams(window.location.search).get('scene');
   if (requestedScene === 'real' || requestedScene === 'room') return scene('real-room');
@@ -605,7 +595,7 @@ export function SpatialViewerWorkspace({ onStateChange }: SpatialViewerWorkspace
               <label className={styles.sceneSwitcher}>
                 <span>Scene</span>
                 <select value={sceneUrl} onChange={(event) => handleSceneChange(event.target.value)} aria-label="Choose demonstration scene">
-                  {SCENE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {visibleScenes({ authoring, currentUrl: sceneUrl }).map((option) => <option key={option.name} value={scene(option.name)}>{option.label}</option>)}
                 </select>
               </label>
               {authoring && (
