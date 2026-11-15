@@ -724,6 +724,10 @@ def main() -> int:
         report.data["total_seconds"] = round(time.time() - started, 1)
         report.data["status"] = AWAITING_INSPECTION
         report.save()
+        bundle = report.data.get("bundle") or {}
+        if "walkable_m2" in bundle:
+            import scene_bundle
+            print("\n" + scene_bundle.summary_line(bundle) + f"\n  picture: {work / 'bundle' / 'quality' / 'navgrid.png'}")
         print(f"\nDONE, NOT YET VERIFIED. Output exists and passes automated checks:\n  {splat} (source)\n"
               f"  {web_splat} (web, {report.data['web_splat']['mb']} MB)\n  {work / 'bundle'} (studio scene bundle)\n"
               f"Next: copy the bundle to apps/studio/public/scenes/{work.name}/, run `npm run dev` in apps/studio, open\n"

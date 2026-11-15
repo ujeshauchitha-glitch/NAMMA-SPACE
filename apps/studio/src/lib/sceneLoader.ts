@@ -223,6 +223,20 @@ export async function fetchVerifiedAsset(manifestUrl: string, asset: AssetRef): 
   return buffer;
 }
 
+/**
+ * What to hand PlayCanvas as `asset.file.contents` so it parses the bytes that were just verified instead
+ * of downloading the splat a second time. Its PLY parser streams `contents` as a Response (it reads
+ * `.body` and the content-length header) and its SOG loader accepts a Response too, so both get one.
+ * Null (no digest declared) means PlayCanvas fetches the URL itself — still a single request.
+ */
+export function verifiedSplatContents(verified: ArrayBuffer | null): Response | undefined {
+  if (!verified) return undefined;
+  return new Response(verified, {
+    status: 200,
+    headers: { 'content-length': String(verified.byteLength), 'content-type': 'application/octet-stream' },
+  });
+}
+
 /** Status-strip phrasing for asset failures (distinct, actionable prefixes). */
 export function assetFailureMessage(asset: AssetRef, error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);

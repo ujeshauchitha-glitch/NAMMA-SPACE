@@ -14,6 +14,7 @@ import {
   loadSceneBundle,
   resolveSceneUri,
   verifyAssetIntegrity,
+  verifiedSplatContents,
 } from '../src/lib/sceneLoader';
 import type { AssetRef } from '../src/types/scene';
 
@@ -339,5 +340,20 @@ describe('visual asset integrity verification (D3)', () => {
     expect(network.startsWith('Visual asset unavailable:')).toBe(true);
     expect(mismatch.startsWith('Visual asset integrity failure:')).toBe(true);
     expect(network).not.toBe(mismatch);
+  });
+});
+
+describe('verifiedSplatContents', () => {
+  it('wraps the verified bytes in a Response PlayCanvas can stream once (no second download)', async () => {
+    const bytes = new TextEncoder().encode('ply\nformat binary_little_endian 1.0\nend_header\n').buffer as ArrayBuffer;
+    const response = verifiedSplatContents(bytes);
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.body).toBeTruthy();
+    expect(response?.headers.get('content-length')).toBe(String(bytes.byteLength));
+    expect(new Uint8Array(await response!.arrayBuffer())).toEqual(new Uint8Array(bytes));
+  });
+
+  it('returns nothing when no digest was declared, so PlayCanvas fetches the URL itself', () => {
+    expect(verifiedSplatContents(null)).toBeUndefined();
   });
 });

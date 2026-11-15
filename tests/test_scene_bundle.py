@@ -130,3 +130,46 @@ def test_pipeline_bundle_passes_the_studio_validator(tmp_path):
     validator = Path(__file__).resolve().parent.parent / "apps" / "studio" / "scripts" / "validate_scene.py"
     proc = subprocess.run([sys.executable, str(validator), str(tmp_path / "bundle")], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+# ------------------------------------------------------------------ nav-grid diagnostic
+def _grid(rows: list[str], start=(0, 0)) -> dict:
+    """'.' walkable, '#' blocked, '?' unknown; 0.1 m cells."""
+    w, h = len(rows[0]), len(rows)
+    flat = "".join(rows)
+    return {"width": w, "height": h, "cellSize": 0.1, "origin": {"x": 0.0, "z": 0.0},
+            "blocked": [i for i, ch in enumerate(flat) if ch == "#"],
+            "unknown": [i for i, ch in enumerate(flat) if ch == "?"],
+            "start": {"x": start[0], "z": start[1]}}
+
+
+def test_grid_stats_counts_components_like_the_route_planner():
+    # the two walkable areas touch only diagonally: the planner cannot cut that corner, so 2 components
+    nav = _grid(["..#?",
+                 "..#?",
+                 "##.?",
+                 "??.?"], start=(1, 1))
+    st = scene_bundle.grid_stats(nav)
+    assert st == {"walkable_m2": 0.06, "components": 2, "spawn_component_m2": 0.04, "unknown_m2": 0.06}
+    assert scene_bundle.grid_stats({**nav, "start": {"x": 3, "z": 0}})["spawn_component_m2"] == 0.0  # spawn off-grid
+    assert "walkable 0.06 m2 in 2 component(s)" in scene_bundle.summary_line(st)
+
+
+def test_navgrid_png_and_quality_numbers(tmp_path):
+    import cv2
+    import train_gsplat
+    from test_kaggle_pipeline import _fake_splats
+    model = write_model(tmp_path / "m", 0.3, n_cams=96)
+    splat = tmp_path / "scene.ply"
+    train_gsplat.write_ply(splat, **_fake_splats(100))
+    stats = scene_bundle.build(model, splat, tmp_path / "bundle", "Synthetic")
+    nav = json.loads((tmp_path / "bundle" / "navigation" / "grid.json").read_text())
+    img = cv2.imread(str(tmp_path / "bundle" / "quality" / "navgrid.png"))
+    assert img.shape[0] > nav["height"] * scene_bundle.NAVGRID_PX and img.shape[1] > nav["width"] * scene_bundle.NAVGRID_PX
+    rgb = img[..., ::-1].reshape(-1, 3)
+    for colour in scene_bundle.NAVGRID_COLOURS.values():  # all three cell kinds are drawn
+        assert (rgb == colour).all(1).any()
+    q = json.loads((tmp_path / "bundle" / "quality" / "report.json").read_text())
+    keys = {"walkable_m2", "components", "spawn_component_m2", "unknown_m2"}
+    assert keys <= set(q["measured"]) and keys <= set(stats)
+    assert 0 < q["measured"]["spawn_component_m2"] <= q["measured"]["walkable_m2"]

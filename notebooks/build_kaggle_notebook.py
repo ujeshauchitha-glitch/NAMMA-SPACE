@@ -170,6 +170,12 @@ if os.path.exists(f"{bundle}/manifest.json"):
     zip_path = shutil.make_archive(f"{WORK}/scene_bundle", "zip", bundle)
     print("download from the Output panel:", zip_path, f"{os.path.getsize(zip_path) / 1e6:.1f} MB")
     print(open(f"{bundle}/manifest.json").read()[:1500])
+    q = json.load(open(f"{bundle}/quality/report.json")).get("measured", {})
+    print(f"nav grid: walkable {q.get('walkable_m2')} m2 in {q.get('components')} component(s), "
+          f"spawn component {q.get('spawn_component_m2')} m2, unknown {q.get('unknown_m2')} m2")
+    if os.path.exists(f"{bundle}/quality/navgrid.png"):
+        from IPython.display import Image as IPImage, display
+        display(IPImage(filename=f"{bundle}/quality/navgrid.png"))  # walkable / blocked / unknown, path, spawn
 else:
     print("no bundle: the run failed before publishing; see the status and log above,", f"{out}/logs/pipeline.log")
 """

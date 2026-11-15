@@ -133,6 +133,69 @@ def navigation_grid(W: np.ndarray, Cw: np.ndarray, lo: np.ndarray, hi: np.ndarra
     return grid
 
 
+def grid_stats(nav: dict) -> dict:
+    """Walkable area, its connected components (4-neighbour: the studio's planner only steps diagonally when
+    both side cells are walkable, so that is its reachability), the spawn's component and unknown area."""
+    from scipy import ndimage
+
+    w, h, a = nav["width"], nav["height"], nav["cellSize"] ** 2
+    blocked, unknown = np.zeros(w * h, bool), np.zeros(w * h, bool)
+    blocked[nav["blocked"]] = True
+    unknown[nav["unknown"]] = True
+    walkable = (~blocked & ~unknown).reshape(h, w)
+    labels, n = ndimage.label(walkable)
+    spawn = labels[nav["start"]["z"], nav["start"]["x"]]
+    return {"walkable_m2": round(float(walkable.sum() * a), 2), "components": int(n),
+            "spawn_component_m2": round(float((labels == spawn).sum() * a), 2) if spawn else 0.0,
+            "unknown_m2": round(float(unknown.sum() * a), 2)}
+
+
+NAVGRID_COLOURS = {"walkable": (226, 240, 222), "blocked": (60, 64, 72), "unknown": (190, 196, 214)}  # RGB
+NAVGRID_PX = 6  # pixels per 0.1 m cell
+
+
+def navgrid_png(nav: dict, cameras_xz: np.ndarray, path: Path) -> None:
+    """Top-down picture of the grid (x right, z down, as stored): walkable / blocked / unknown, the camera
+    path, the spawn and a 1 m scale bar. Written to quality/navgrid.png for a quick look after a run."""
+    import cv2
+
+    w, h, c, px = nav["width"], nav["height"], nav["cellSize"], NAVGRID_PX
+    img = np.empty((h * w, 3), np.uint8)
+    img[:] = NAVGRID_COLOURS["walkable"]
+    img[nav["unknown"]] = NAVGRID_COLOURS["unknown"]
+    img[nav["blocked"]] = NAVGRID_COLOURS["blocked"]
+    img = np.repeat(np.repeat(img.reshape(h, w, 3), px, 0), px, 1)
+    margin = 40
+    canvas = np.full((h * px + 2 * margin, w * px + 2 * margin, 3), 255, np.uint8)
+    canvas[margin:margin + h * px, margin:margin + w * px] = img
+    o = np.array([nav["origin"]["x"], nav["origin"]["z"]])
+    to_px = lambda xz: np.round((np.asarray(xz) - o) / c * px + margin).astype(np.int32)
+    if len(cameras_xz) > 1:
+        cv2.polylines(canvas, [to_px(cameras_xz).reshape(-1, 1, 2)], False, (230, 120, 20), 2, cv2.LINE_AA)
+    sp = (np.array([nav["start"]["x"], nav["start"]["z"]]) + 0.5) * px + margin
+    sp = tuple(int(v) for v in sp)
+    cv2.circle(canvas, sp, 9, (220, 30, 30), -1, cv2.LINE_AA)
+    cv2.circle(canvas, sp, 9, (255, 255, 255), 2, cv2.LINE_AA)
+    y = canvas.shape[0] - 14
+    cv2.line(canvas, (margin, y), (margin + int(round(1 / c * px)), y), (0, 0, 0), 3)
+    cv2.putText(canvas, "1 m", (margin + int(round(1 / c * px)) + 8, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+    legend = [("walkable", NAVGRID_COLOURS["walkable"]), ("blocked", NAVGRID_COLOURS["blocked"]),
+              ("unknown", NAVGRID_COLOURS["unknown"]), ("camera path", (230, 120, 20)), ("spawn", (220, 30, 30))]
+    x = margin
+    for name, col in legend:
+        cv2.rectangle(canvas, (x, 12), (x + 14, 26), col, -1)
+        cv2.rectangle(canvas, (x, 12), (x + 14, 26), (0, 0, 0), 1)
+        cv2.putText(canvas, name, (x + 18, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 0, 0), 1, cv2.LINE_AA)
+        x += 24 + 8 * len(name) + 10
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(path), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR))
+
+
+def summary_line(stats: dict) -> str:
+    return (f"nav grid: walkable {stats['walkable_m2']} m2 in {stats['components']} component(s), "
+            f"spawn component {stats['spawn_component_m2']} m2, unknown {stats['unknown_m2']} m2")
+
+
 def world_alignment(sparse: Path, scratch: Path, metres_per_unit: float | None = None) -> dict:
     """COLMAP frame -> bundle world frame: world = s * R @ x + t (levelled, metres, floor at y=0, walked path
     centred on x=z=0). Also returns what build() needs from the model, in the levelled frame."""
@@ -274,11 +337,14 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
         f"(room height comes out at {room_h:.2f} m)."]
     if not 2.2 <= room_h <= 4.5:
         warnings.append(f"Estimated room height {room_h:.2f} m is implausible: the scale guess is probably off.")
-    (out / "quality" / "report.json").write_text(json.dumps(quality or {
+    nav_stats = grid_stats(nav)
+    navgrid_png(nav, Cw[:, [0, 2]], out / "quality" / "navgrid.png")
+    q = quality or {
         "status": "needs-review", "readiness": "navigation_ready", "warnings": warnings,
         "checks": [{"id": "scale", "label": "Scale", "status": "passed" if metres_per_unit else "warning",
-                    "detail": f"{s:.3f} m per model unit, {'known' if metres_per_unit else 'estimated'}"}]},
-        indent=1), encoding="utf-8")
+                    "detail": f"{s:.3f} m per model unit, {'known' if metres_per_unit else 'estimated'}"}]}
+    q.setdefault("measured", {}).update(nav_stats)  # the studio schema's free-form `measured` record
+    (out / "quality" / "report.json").write_text(json.dumps(q, indent=1), encoding="utf-8")
 
     notes = [*warnings, f"Reconstruction-to-world transform (scale {s:.4f}) baked into the splat by "
                         "scene_bundle.bake_ply, so worldFromReconstruction is identity."]
@@ -303,8 +369,9 @@ def build(sparse: Path, splat: Path, out: Path, title: str, quality: dict | None
     shutil.rmtree(out / "_sparse_txt", ignore_errors=True)
     stats = {"metres_per_unit": round(s, 4), "room_height_m": round(room_h, 2),
              "room_size_m": (hi - lo).round(2).tolist(), "grid": [nav["width"], nav["height"]],
-             "blocked_cells": len(nav["blocked"]), "unknown_cells": len(nav["unknown"])}
+             "blocked_cells": len(nav["blocked"]), "unknown_cells": len(nav["unknown"]), **nav_stats}
     print("scene_bundle:", json.dumps(stats))
+    print(summary_line(nav_stats))
     return stats
 
 

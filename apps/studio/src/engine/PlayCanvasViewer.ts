@@ -22,7 +22,7 @@ import { faceAngles, formatInstruction, formatWalkTime, nextInstruction, routePr
 import { chevronDistances, pointAtDistance, polylineLength, ribbonMesh, slicePolyline } from '../lib/routeGeometry';
 import { isClick, moveGesture, startGesture, type LookGesture } from '../lib/lookGesture';
 import { focalLengthPx, hitTestScreen, layoutLabels, pinScreenPx, pinWorldDiameter, type ProjectedLabel, type ScreenTarget } from '../lib/poiOverlay';
-import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifyAssetIntegrity } from '../lib/sceneLoader';
+import { assetFailureMessage, fetchVerifiedAsset, resolveSceneUri, verifiedSplatContents, verifyAssetIntegrity } from '../lib/sceneLoader';
 // T15 additive: pure tween/cancel math for the motion API (no control flow).
 import { cropBox, cropModifier } from './splatCrop';
 import { idleYawStep, SPLAT_MAX_PITCH_DEG, viewGuideEnabled } from '../lib/viewGuide';
@@ -991,9 +991,12 @@ export class PlayCanvasViewer {
         .then((verified) => {
           const label = assetRef.label ?? assetRef.uri;
           const url = resolveSceneUri(this.manifestUrl, assetRef.uri);
-          // A SOG that was just downloaded to check its sha256 is handed over as `contents`, so PlayCanvas's
-          // SOG parser skips its own fetch (a second 20+ MB download when the HTTP cache misses).
-          const file = verified && assetRef.kind === 'sog' ? { url, contents: verified } : { url };
+          // The splat that was just downloaded to check its sha256 is handed over as `contents` (SOG and
+          // compressed PLY alike), so PlayCanvas parses those bytes instead of downloading it again.
+          const contents = verifiedSplatContents(verified);
+          // PlayCanvas 2.23 types `contents` as ArrayBuffer, but its PLY parser awaits it as a Response and
+          // streams `.body` (an ArrayBuffer there fails with "Error loading resource"); its SOG loader takes both.
+          const file = contents ? { url, contents: contents as unknown as ArrayBuffer } : { url };
           const asset = new Asset(label, 'gsplat', file);
           asset.once('load', () => {
             const entity = new Entity(label);
