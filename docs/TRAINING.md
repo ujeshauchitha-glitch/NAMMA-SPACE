@@ -33,6 +33,20 @@ python pipeline/run_pipeline.py clip.mp4 --out work/room1 --trainer nerfstudio -
 ```
 gsplat compiles CUDA kernels on first use. That needs `nvcc` matching the PyTorch CUDA version (install the CUDA toolkit); expect this step to be where problems show up.
 
+## 4. Kaggle (Linux, T4), pycolmap + gsplat
+Open `notebooks/kaggle_reconstruct.ipynb` on Kaggle; its first cell lists the five clicks and the pinned versions
+(pycolmap-cuda12 4.2.1, gsplat 1.5.3, splat-transform 3.11.2, Node 22). Use **GPU T4 x2**, not P100 (Kaggle's
+PyTorch needs compute capability >= 7.0). The same stack works on any Linux box via `scripts/setup_tools.sh`:
+```bash
+python pipeline/run_pipeline.py clip.mp4 --out work/room --profile preview   # <=720p, 7k steps: a quick look
+python pipeline/run_pipeline.py clip.mp4 --out work/room --profile final     # 1080p, 30k steps, <=1.5M splats
+```
+On Linux the defaults are `--sfm pycolmap` (when there is no `colmap` executable) and `--trainer gsplat`:
+sequential matching with vocabulary-tree loop closure, the global mapper (falls back to incremental), then gsplat
+with MCMC, scale/anisotropy regularisation and antialiasing. `--exhaustive` matches all pairs. Every stage's wall
+time, the GPU and tool versions, and frame/registration counts are in `report.json`. Without Node or WebGPU the
+web splat falls back to a compressed PLY (`pipeline/compressed_ply.py`), which the studio loads.
+
 ## Moving between machines
 ```text
 work/<name>/dataset/   <- copy this folder (images/ + sparse/) to the training machine
